@@ -274,7 +274,7 @@ namespace Bugi
             menu.Items.Insert(at++, new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate
             { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Feed(this); }));
             var demo = new ToolStripMenuItem("동작 바로 보기");
-            var items = new[] { new[] { "앉아서 쉬기", "sit" }, new[] { "잠자기", "sleep" }, new[] { "멍때리기", "daydream" }, new[] { "기지개", "stretch" }, new[] { "누워서 쉬기", "lie" }, new[] { "곡괭이질", "mine" }, new[] { "스마트 안경 검색", "search" }, new[] { "머리 긁적", "scratch" }, new[] { "팔짱", "cross" }, new[] { "안녕! 인사", "wave" }, new[] { "발끈!", "angry" }, new[] { "클릭할 때 달달 떨며 우는 모습", "cry" }, new[] { "배고플 때 우는 모습", "weep" }, new[] { "폴짝 뛰기", "hop" },
+            var items = new[] { new[] { "앉아서 쉬기", "sit" }, new[] { "잠자기", "sleep" }, new[] { "멍때리기", "daydream" }, new[] { "기지개", "stretch" }, new[] { "누워서 쉬기", "lie" }, new[] { "곡괭이질", "mine" }, new[] { "스마트 안경 검색", "search" }, new[] { "머리 긁적", "scratch" }, new[] { "팔짱", "cross" }, new[] { "안녕! 인사", "wave" }, new[] { "발끈!", "angry" }, new[] { "근무복 안내하기", "guide" }, new[] { "근무복 배꼽인사", "bow" }, new[] { "근무복 신분증 보여주기", "idcard" }, new[] { "로고 깃발 흔들기", "flag" }, new[] { "클릭할 때 달달 떨며 우는 모습", "cry" }, new[] { "배고플 때 우는 모습", "weep" }, new[] { "폴짝 뛰기", "hop" },
                 new[] { "슬라이딩", "slide" }, new[] { "어질어질", "dizzy" }, new[] { "날개 퍼덕 낙하", "fall" }, new[] { "벽 타기", "wall" }, new[] { "천장 타기", "ceiling" }, new[] { "창 타기", "window" } };
             foreach (var pair in items)
             { string key = pair[1]; demo.DropDownItems.Add(pair[0], null, delegate { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Demonstrate(this, key); }); }
@@ -283,6 +283,9 @@ namespace Bugi
             var focus = new ToolStripMenuItem("얌전 모드 (바닥에서만)") { Checked = PlayOptions.Current.Focus };
             focus.Click += delegate { PlayOptions.Current.Focus = !PlayOptions.Current.Focus; PlayOptions.Current.Save(); focus.Checked = PlayOptions.Current.Focus; };
             menu.Items.Insert(at++, focus);
+            var outfit = new ToolStripMenuItem("근무복 입기 (하늘색 조끼 · 명찰)") { Checked = PlayOptions.Current.Outfit };
+            outfit.Click += delegate { PlayOptions.Current.Outfit = !PlayOptions.Current.Outfit; PlayOptions.Current.Save(); outfit.Checked = PlayOptions.Current.Outfit; };
+            menu.Items.Insert(at++, outfit);
             menu.Items.Insert(at++, new ToolStripSeparator());
         }
 

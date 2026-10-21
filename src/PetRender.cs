@@ -26,14 +26,18 @@ namespace Bugi
             public int ZPhase; public float ZTime;
             public Decor Decor; public float DecorPhase;
             public string AffinityLabel; public bool AffinityOnLeft;
+            public bool Work;                    // 근무복을 입은 모습(말풍선 테두리를 파랗게)
 
             public string Key()
             {
-                return string.Format("{0}|{1}|{2}|{3:0.00}|{4:0.00}|{5:0.0}|{6:0}|{7:0}|{8}|{9}|{10}|{11}|{12}|{13}",
+                return string.Format("{0}|{1}|{2}|{3:0.00}|{4:0.00}|{5:0.0}|{6:0}|{7:0}|{8}|{9}|{10}|{11}|{12}|{13}|{14}",
                     Pose.Hash(), FaceRight ? 1 : 0, Upside ? 1 : 0, Sx, Sy, Angle, Px, Py, Bubble ?? "", ZPhase, (int)Decor,
-                    Decor == Decor.None ? 0 : (int)(DecorPhase * 24), AffinityLabel, AffinityOnLeft);
+                    Decor == Decor.None ? 0 : (int)(DecorPhase * 24), AffinityLabel, AffinityOnLeft, Work);
             }
         }
+
+        /// <summary>근무복을 입고 있는가: 설정을 켰거나, 근무복 동작(안내·배꼽인사·신분증·깃발)을 하는 동안.</summary>
+        internal bool WearsOutfit { get { return PlayOptions.Current.Outfit || (State == PetState.Resting && restPose >= RestPose.Guide); } }
 
         private double ClimbPhase { get { return gait * Math.PI * 2; } }
 
@@ -147,6 +151,8 @@ namespace Bugi
             }
             L.Bubble = PersistentBubble(hourlyBubble, Bubble);
             CompanionLook(ref L, now);
+            L.Pose.Outfit = L.Work = WearsOutfit;
+            if (L.Pose.Outfit) L.Pose.CardSwing += F(-L.Pose.Lean * .8 + Math.Sin(animT * 2.4) * 1.6);   // 명찰은 몸이 기울면 반대로 흔들린다
             TalkOverlay(L.Pose, L.Bubble, State);
             return L;
         }
@@ -207,6 +213,26 @@ namespace Bugi
                     // 빨간 스마트 안경을 내려쓰고 궁금한 것을 바로 검색한다.
                     SearchPose(P, t);
                     break;
+                case RestPose.Guide:
+                    // 안내하기(근무복 그림 9): 웃는 눈으로 한쪽 날개를 쭉 뻗고 짠! 반짝임.
+                    GuidePose(P, t);
+                    break;
+                case RestPose.Bow:
+                    // 배꼽인사(근무복 그림 10): 날개를 배 앞에 모으고 눈을 감은 채 공손히 숙인다.
+                    BowPose(P, t);
+                    break;
+                case RestPose.IdCard:
+                    // 신분증 보여주기: 목걸이 명찰(로고)을 번쩍 들어 보인다.
+                    IdCardPose(P, t);
+                    break;
+                case RestPose.Flag:
+                {
+                    // 로고 깃발 흔들기: 첨부한 로고를 단 깃발을 높이 들고 폴짝폴짝.
+                    FlagPose(P, t); L.Decor |= Decor.Tool;
+                    double fe = Window(t, .2, extraDuration - .4, .5);
+                    L.HopY = -(float)(Math.Abs(Math.Sin(t * 5.2)) * 6 * S * fe);
+                    break;
+                }
                 default:
                     SitIdlePose(P, animT);
                     break;
@@ -380,7 +406,7 @@ namespace Bugi
             using (GraphicsPath path = RoundRect(r, 8 * scale))
             {
                 var tri = new[] { new PointF(-5 * scale, r.Bottom - 1), new PointF(1 * scale, r.Bottom + tail), new PointF(6 * scale, r.Bottom - 1) };
-                using (var pen = new Pen(Color.FromArgb(255, 30, 30, 30), 2 * scale) { LineJoin = LineJoin.Round })
+                using (var pen = new Pen(L.Work ? Color.FromArgb(255, 54, 96, 190) : Color.FromArgb(255, 30, 30, 30), 2 * scale) { LineJoin = LineJoin.Round })
                 using (var fill = new SolidBrush(Color.White))
                 {
                     g.FillPath(fill, path); g.DrawPath(pen, path);

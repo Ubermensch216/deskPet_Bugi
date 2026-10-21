@@ -12,7 +12,15 @@ namespace Bugi
         internal static void Render(string dir)
         {
             Directory.CreateDirectory(dir);
-            // ① 회전 도면: 정면 · 3/4 · 옆 (왼쪽을 보는 모습) + 3/4 · 옆 (오른쪽)
+            Views(dir, false, "spec_views.png");
+            Views(dir, true, "spec_views_outfit.png");
+            Face(dir);
+            Console.WriteLine("saved " + dir);
+        }
+
+        /// <summary>회전 도면: 정면 · 3/4 · 옆 (왼쪽을 보는 모습) + 3/4 · 옆 (오른쪽). 점선은 글래스 선·부리 높이·어깨(날개 시작).</summary>
+        private static void Views(string dir, bool outfit, string file)
+        {
             float k = 2.0f;
             float[] turns = { 0f, -.33f, -1f, .33f, 1f };
             int cw = 430, ch = (int)(Rig.RefH * k) + 40;
@@ -33,25 +41,23 @@ namespace Bugi
                 {
                     var st = g.Save();
                     g.TranslateTransform(cw * i + cw / 2f, ground);
-                    var pose = new Pose { Turn = turns[i] == 0 ? 0 : -Math.Abs(turns[i]), Look = 0 };
+                    var pose = new Pose { Turn = turns[i] == 0 ? 0 : -Math.Abs(turns[i]), Look = 0, Outfit = outfit };
                     Rig.Draw(g, pose, k, turns[i] > 0);
                     g.Restore(st);
                 }
-                bmp.Save(Path.Combine(dir, "spec_views.png"), ImageFormat.Png);
+                bmp.Save(Path.Combine(dir, file), ImageFormat.Png);
             }
-            // ② 얼굴 확대(눈 지름 1 기준으로 격자): 정면
+        }
+
+        /// <summary>얼굴 확대(눈 지름 1 기준으로 격자): 정면.</summary>
+        private static void Face(string dir)
+        {
             float k2 = 6f;
             using (var bmp = new Bitmap(760, 900, PixelFormat.Format32bppArgb))
             using (var g = Graphics.FromImage(bmp))
             {
                 CharacterArt.Quality(g); g.Clear(Color.White);
-                g.TranslateTransform(380, 20 + (Rig.RefFootY - 0) * k2 - 20 * k2 * 0);
-                g.ResetTransform();
-                g.TranslateTransform(380, (Rig.RefFootY - 0f) * k2 * .0f + Rig.RefFootY * k2 - 0f * k2);
-                g.ResetTransform();
-                g.TranslateTransform(380, 20 + Rig.RefFootY * k2 - 0);
                 // 원점(발)을 화면 아래로 내려 머리가 위쪽에 오도록 한다
-                g.ResetTransform();
                 g.TranslateTransform(380, Rig.RefFootY * k2 - 6f * k2 + 10);
                 Rig.Draw(g, new Pose(), k2, false);
                 g.ResetTransform();
@@ -63,7 +69,6 @@ namespace Bugi
                 }
                 bmp.Save(Path.Combine(dir, "spec_face.png"), ImageFormat.Png);
             }
-            Console.WriteLine("saved " + dir);
         }
     }
 }

@@ -198,6 +198,10 @@ namespace Bugi
             if (kind == "daydream") BeginRestPose(w, RestPose.Daydream, 8);
             if (kind == "stretch") BeginRestPose(w, RestPose.Stretch, 0);
             if (kind == "lie") BeginRestPose(w, RestPose.Lie, 10);
+            if (kind == "guide") BeginRestPose(w, RestPose.Guide, 6);
+            if (kind == "bow") BeginRestPose(w, RestPose.Bow, 5);
+            if (kind == "idcard") BeginRestPose(w, RestPose.IdCard, 6);
+            if (kind == "flag") BeginRestPose(w, RestPose.Flag, 7);
             if (kind == "mine") BeginRestPose(w, RestPose.Mine, 10);
             if (kind == "search") BeginRestPose(w, RestPose.Search, 10);
             if (kind == "scratch") { SetState(PetState.Pause, w); pauseAct = 1; stateDur = 3.2; }
@@ -423,7 +427,7 @@ namespace Bugi
         internal double FeatureJitterX { get { return lookJitterX; } }
 
         // ───── 쉬는 자세: 앉기 · 잠자기 · 멍때리기 · 기지개 ─────
-        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search }
+        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search, Guide, Bow, IdCard, Flag }
         internal RestPose restPose = RestPose.Sit;
         private RestPose lastRestPose = RestPose.Sit;
 
@@ -432,6 +436,9 @@ namespace Bugi
         {
             Func<RestPose> roll = () =>
             {
+                // 근무복을 입고 있으면 안내·배꼽인사·신분증·깃발 동작도 가끔 한다
+                if (PlayOptions.Current.Outfit && w.Rng.NextDouble() < .34)
+                { double q = w.Rng.NextDouble(); return q < .3 ? RestPose.Guide : q < .55 ? RestPose.Bow : q < .78 ? RestPose.IdCard : RestPose.Flag; }
                 double r = w.Rng.NextDouble();
                 return r < .22 ? RestPose.Sit : r < .34 ? RestPose.Daydream : r < .46 ? RestPose.Stretch : r < .60 ? RestPose.Sleep
                     : r < .72 ? RestPose.Lie : r < .86 ? RestPose.Mine : RestPose.Search;
@@ -450,6 +457,10 @@ namespace Bugi
                 case RestPose.Daydream: extraDuration = baseSeconds * .75; break;
                 case RestPose.Stretch: extraDuration = 4.2; break;
                 case RestPose.Lie: extraDuration = Math.Max(7, baseSeconds * 1.2); break;
+                case RestPose.Guide: extraDuration = 5.6; Bubble = "이쪽으로 안내할게요!"; BubbleUntil = w.Now + 4.2; break;
+                case RestPose.Bow: extraDuration = 4.6; Bubble = "안녕하세요! 부기입니다"; BubbleUntil = w.Now + 3.8; break;
+                case RestPose.IdCard: extraDuration = 5.6; Bubble = "부산시 공식 캐릭터 부기!"; BubbleUntil = w.Now + 4.4; break;
+                case RestPose.Flag: extraDuration = 7.0; Bubble = "부산 파이팅!"; BubbleUntil = w.Now + 5.6; break;
                 case RestPose.Mine: extraDuration = Math.Max(6.8, Math.Min(14, baseSeconds * .8)); break;
                 case RestPose.Search: extraDuration = Math.Max(8, Math.Min(16, baseSeconds * .8)); break;
                 default: extraDuration = baseSeconds; break;

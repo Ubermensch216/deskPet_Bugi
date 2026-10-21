@@ -27,6 +27,7 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--spec-test") { CharacterArt.Reset(1f); SpecTools.Render(args[1]); return; }
             if (args.Length >= 2 && args[0] == "--selftest") { Environment.Exit(DevTools.SelfTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--ui-test") { Environment.Exit(DevTools.UiTest(args[1])); return; }
+            if (args.Length >= 2 && args[0] == "--smoke") { Environment.Exit(DevTools.Smoke(args[1])); return; }
             bool created;
             using (var mutex = new Mutex(true, "Bugi_DeskFriend_single_instance", out created))
             {
@@ -113,6 +114,11 @@ namespace Bugi
                 K("팔짱", (p, w) => { p.Demonstrate(w, "cross"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("인사", (p, w) => { p.Demonstrate(w, "wave"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("발끈", (p, w) => { p.StartSquish(w, .6, .24, PetState.Walk, false); w.Now += .25; p.Update(w, .25, null, 0); }),
+                K("근무복", (p, w) => { PlayOptions.Current.Outfit = true; p.SetState(PetState.Pause, w); }),
+                K("안내", (p, w) => { p.Demonstrate(w, "guide"); for (int i = 0; i < 125; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("배꼽인사", (p, w) => { p.Demonstrate(w, "bow"); for (int i = 0; i < 115; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("신분증", (p, w) => { p.Demonstrate(w, "idcard"); for (int i = 0; i < 160; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("깃발", (p, w) => { p.Demonstrate(w, "flag"); for (int i = 0; i < 150; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("낮잠", (p, w) => p.SetState(PetState.Sleep, w)),
                 K("눌림", (p, w) => { p.StartSquish(w, .4, .24, PetState.Walk, false); w.Now += .2; p.Update(w, .2, null, 0); }),
                 K("우는중", (p, w) => p.Demonstrate(w, "cry")),
@@ -141,6 +147,7 @@ namespace Bugi
                         var pet = new Pet(w, c, 640, 720) { Area = w.Areas[0] };
                         pet.SetState(PetState.Pause, w);
                         pet.X = 640; pet.Y = 720;
+                        PlayOptions.Current.Outfit = false;
                         states[i].Value(pet, w);
                         FriendData.Current.Satiety = 100;
                         PointF origin; using (Bitmap b = Pet.Render(pet.GetLook(w.Now), out origin))
@@ -171,6 +178,10 @@ namespace Bugi
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("잠자기", (p, w) => { p.Y = 720; p.Demonstrate(w, "sleep"); }, 3.6, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("곡괭이질", (p, w) => { p.Y = 720; p.Demonstrate(w, "mine"); }, 3.4, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("검색", (p, w) => { p.Y = 720; p.Demonstrate(w, "search"); }, 8.0, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("안내", (p, w) => { p.Y = 720; p.Demonstrate(w, "guide"); }, 5.6, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("배꼽인사", (p, w) => { p.Y = 720; p.Demonstrate(w, "bow"); }, 4.6, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("신분증", (p, w) => { p.Y = 720; p.Demonstrate(w, "idcard"); }, 5.6, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("깃발", (p, w) => { p.Y = 720; p.Demonstrate(w, "flag"); }, 7.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("도망", (p, w) => { p.Y = 720; p.Demonstrate(w, "slide"); }, 0.8, 0),
                 };
                 int cw = (int)Math.Round(100 * scale), ch = (int)Math.Round(92 * scale), frameCols = 12;
@@ -200,6 +211,21 @@ namespace Bugi
                     strip.Save(Path.Combine(dir, "motion_" + CharacterArt.Infos[c].Key + ".png"), ImageFormat.Png);
                 }
             }            Console.WriteLine("saved " + dir);
+        }
+
+        /// <summary>근무복을 입힌 부기를 실제 바탕화면에 잠깐 띄워 화면 아래 띠를 저장한다(마우스는 건드리지 않음, 단일 실행 잠금과 무관).</summary>
+        internal static int Smoke(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            Paths.StorageOverride = Path.Combine(dir, "data");
+            PlayOptions.Load(); PlayOptions.Current.Outfit = true; FriendData.Load(); CharacterArt.Reset(Native.SystemDpiScale());
+            var app = new App(true); app.Spawn(0);
+            var end = DateTime.UtcNow.AddSeconds(11);
+            while (DateTime.UtcNow < end) { Application.DoEvents(); Thread.Sleep(15); }
+            Rectangle r = Screen.PrimaryScreen.Bounds; int h = 260;
+            using (var b = new Bitmap(r.Width, h)) using (var g = Graphics.FromImage(b))
+            { g.CopyFromScreen(new Point(r.Left, r.Bottom - h - 50), Point.Empty, new Size(r.Width, h)); b.Save(Path.Combine(dir, "smoke_strip.png"), ImageFormat.Png); }
+            return 0;
         }
 
         /// <summary>실제 창들을 만들어 띄우고 그림으로 남긴다 (레이아웃·실행 오류 확인).</summary>
@@ -364,6 +390,32 @@ namespace Bugi
                 for (double t = 0; t < 600; t += .03) { w2.Now += .03; p2.Update(w2, .03, all2, 0); seen2.Add(p2.State); }
                 check(seen2.Contains(PetState.Walk) && seen2.Contains(PetState.Pause) && seen2.Contains(PetState.Wall) && seen2.Contains(PetState.Ceiling) && seen2.Contains(PetState.Resting), "10분 시뮬레이션: 걷기·쉬기·벽·천장·앉기 모두 등장");
                 check(p2.X >= -50 && p2.X <= 1330 && p2.Y >= -50 && p2.Y <= 770, "화면 밖으로 나가지 않음");
+
+                // 근무복: 설정 저장 · 동작 4가지 · 규격 가드
+                PlayOptions.Current = new PlayOptions { Outfit = true };
+                PlayOptions.Current.Save(); PlayOptions.Load();
+                check(PlayOptions.Current.Outfit, "근무복 설정 저장·불러오기");
+                PlayOptions.Current = new PlayOptions { Escape = false, Idle = false, Windows = false };
+                var wo = new FakeWorld(); var po = new Pet(wo, 0, 640, 720) { Area = wo.Areas[0] };
+                po.SetState(PetState.Pause, wo); po.X = 640; po.Y = 720;
+                foreach (string kind in new[] { "guide", "bow", "idcard", "flag" })
+                {
+                    po.Demonstrate(wo, kind);
+                    bool outfitOn = true, drew = true, entered = po.State == PetState.Resting;
+                    for (double t = 0; t < 4; t += .1)
+                    {
+                        wo.Now += .1; po.Update(wo, .1, null, 0);
+                        Pet.Look lk = po.GetLook(wo.Now);
+                        outfitOn &= lk.Pose.Outfit && lk.Work;
+                        try { PointF oo; using (Bitmap bo = Pet.Render(lk, out oo)) drew &= bo.Width > 10; } catch { drew = false; }
+                    }
+                    check(entered && outfitOn && drew, "근무복 동작: " + kind);
+                    for (double t = 0; t < 12; t += .1) { wo.Now += .1; po.Update(wo, .1, null, 0); }
+                    check(po.State != PetState.Resting && !po.WearsOutfit, "근무복 동작이 끝나면 다시 벗음: " + kind);
+                }
+                Func<float, int> inkH = sq =>
+                { using (var bm = new Bitmap(300, 400)) using (var gg = Graphics.FromImage(bm)) { CharacterArt.Quality(gg); gg.Clear(Color.Transparent); gg.TranslateTransform(150, 380); Rig.Draw(gg, new Pose { Squash = sq }, 1.2f, false); return CharacterArt.Bounds(bm).Height; } };
+                check(inkH(.4f) == inkH(.05f) && inkH(-.4f) == inkH(-.05f), "규격 가드: 몸이 눌리거나 늘어나는 정도 5% 한도");
 
                 // 위치 고정
                 PlayOptions.Current = new PlayOptions { PositionFixed = true };

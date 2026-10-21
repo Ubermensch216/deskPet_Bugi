@@ -6,7 +6,7 @@ using System.Drawing.Drawing2D;
 namespace Bugi
 {
     internal enum EyeStyle { Dot, Half, Closed, Happy, Squint, Wide, Spiral }
-    internal enum ToolKind { None, Pickaxe }
+    internal enum ToolKind { None, Pickaxe, Flag }
 
     /// <summary>
     /// 부기의 한 순간 자세. 좌표는 Rig 의 기준 치수 단위이고 각도는 화면 기준 시계 방향이 +,
@@ -51,6 +51,12 @@ namespace Bugi
         public ToolKind Tool; public float ToolAng;
         public float Debris = -1, DebrisX = 246, DebrisY = 294;
         public float Ghost, GhostAng;          // 꾸벅꾸벅 졸 때 머리가 남기는 잔상
+        // 근무복(공식 3D 근무복: 흰 셔츠 깃 + 하늘색 조끼 + 목걸이 명찰). 몸 윤곽 안쪽에 겹쳐 그리므로 규격 비율은 그대로다.
+        public bool Outfit;
+        public float CardSwing;                // 명찰이 흔들리는 각도
+        public float CardShow;                 // 0 가슴에 걸림, 1 번쩍 들어 보여줌
+        public float Sparkle = -1;             // >=0 이면 짠! 반짝임(위상)
+        public float FlagWave;                 // 깃발 펄럭임 위상
 
         public static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 
@@ -74,7 +80,7 @@ namespace Bugi
                 add(Tail, 3); add(TailWag, 3);
                 add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8);
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
-                add(Ghost, 10); add(GhostAng, 3);
+                add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8); add(FlagWave, 6);
                 return h;
             }
         }
@@ -206,10 +212,11 @@ namespace Bugi
                 BCos = (float)Math.Cos(Bd); BSin = (float)Math.Sin(Bd); HCos = (float)Math.Cos(Hd); HSin = (float)Math.Sin(Hd);
                 HeadC = Map(HeadLocalOrigin.X, HeadLocalOrigin.Y);
                 float sq = Sq;
-                HeadAng = p.HeadTilt + extraTilt + p.Lean; HeadSx = 1 + sq * .5f; HeadSy = 1 - sq;
+                HeadAng = Clamp(p.HeadTilt, -12f, 12f) + extraTilt + p.Lean; HeadSx = 1 + sq * .5f; HeadSy = 1 - sq;
             }
 
-            private float Sq { get { return P.Squash - P.Breath * .012f; } }
+            /// <summary>규격 가드: 몸이 눌리거나 늘어나는 정도는 최대 5%까지만 허용한다.</summary>
+            private float Sq { get { return Clamp(P.Squash - P.Breath * .012f, -.05f, .05f); } }
 
             public PointF Map(float x, float y)
             {
@@ -218,9 +225,9 @@ namespace Bugi
                 float w = SmoothStep((150 - y) / 80f);
                 if (w > 0)
                 {
-                    double a = (P.HeadTilt + ExtraTilt) * w * Math.PI / 180, ca = Math.Cos(a), sa = Math.Sin(a);
+                    double a = (Clamp(P.HeadTilt, -12f, 12f) + ExtraTilt) * w * Math.PI / 180, ca = Math.Cos(a), sa = Math.Sin(a);
                     float dx = x - Axis, dy = y - 150;
-                    x = Axis + (float)(dx * ca - dy * sa) + P.HeadX * w; y = 150 + (float)(dx * sa + dy * ca) + P.HeadY * w;
+                    x = Axis + (float)(dx * ca - dy * sa) + Clamp(P.HeadX, -6f, 6f) * w; y = 150 + (float)(dx * sa + dy * ca) + Clamp(P.HeadY, -6f, 8f) * w;
                 }
                 double l = P.Lean * Math.PI / 180, cl = Math.Cos(l), sl = Math.Sin(l);
                 float lx = x - Axis, ly = y - LeanPivotY;
@@ -246,10 +253,13 @@ namespace Bugi
                 for (int s = 0; s < 2; s++) if (!WingInFront(c, s)) DrawWing(g, c, s);
                 if (!p.Sit) DrawLegs(g, c);
                 DrawBody(g, c);
+                if (p.Outfit) DrawOutfit(g, c);
                 if (p.Sit) DrawSitFeet(g, c);
                 DrawFace(g, c);
+                if (p.Outfit && p.CardShow >= .02f) DrawHeldCard(g, c);
                 for (int s = 0; s < 2; s++) if (WingInFront(c, s)) DrawWing(g, c, s);
                 if (p.Tool == ToolKind.Pickaxe) { Wing w = WingGeom(c, 1); DrawPickaxe(g, c, w.W); }
+                if (p.Tool == ToolKind.Flag) { Wing w = WingGeom(c, 1); DrawFlag(g, c, w.W); }
                 if (p.Cookie >= 0) DrawCookie(g, c);
                 if (p.Debris >= 0) DrawDebris(g, p);
             }
@@ -441,6 +451,7 @@ namespace Bugi
             if (p.Puff >= 0) DrawPuff(g, p.Puff, -(HeadR + 8) * sn);
             DrawHair(g, c);
             DrawGlasses(g, c);
+            if (p.Sparkle >= 0) DrawSparkle(g, p.Sparkle);
             if (p.Holo >= 0) DrawHolo(g, p);
             g.Restore(st);
         }
@@ -452,7 +463,7 @@ namespace Bugi
             float x = (right ? 1 : -1) * 1.5f * D, z = (float)Math.Sqrt(HeadR * HeadR - x * x);
             float xs = x * c.HCos - z * c.HSin, depth = x * c.HSin + z * c.HCos, f = Math.Min(1f, depth / z);   // 정면에서는 지름 1D 의 완전한 원
             if (f < .14f) return;
-            float open = right ? p.OpenR : p.OpenL, es = p.EyeScale, inner = right ? -1 : 1;
+            float open = right ? p.OpenR : p.OpenL, es = Clamp(p.EyeScale, .95f, 1.1f), inner = right ? -1 : 1;
             float cx = xs + p.Gx * 2f, cy = -11f + p.Gy * 1.6f;
             var st = g.Save();
             g.TranslateTransform(cx, cy); g.ScaleTransform(f, 1);
@@ -462,7 +473,7 @@ namespace Bugi
                 EyeStyle style = p.Eyes;
                 if (style == EyeStyle.Spiral)
                 {
-                    float r = 11f;
+                    float r = 8f;
                     g.FillEllipse(bWhite, -r, -r, r * 2, r * 2); g.DrawEllipse(c.Ink, -r, -r, r * 2, r * 2);
                     var pts = new List<PointF>();
                     using (var sp = new Pen(cInk, Math.Max(2.4f, c.Ink.Width * .6f)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
@@ -478,7 +489,7 @@ namespace Bugi
                     case EyeStyle.Dot:
                     case EyeStyle.Wide:
                     {
-                        float r = D / 2 * es * (style == EyeStyle.Wide ? 1.22f * p.PupilR * 1.15f : 1f), hh = r * Math.Max(.12f, open);
+                        float r = D / 2 * es * (style == EyeStyle.Wide ? 1.08f : 1f), hh = r * Math.Max(.12f, open);
                         g.FillEllipse(bInk, -r, -hh, r * 2, hh * 2);
                         break;
                     }
@@ -577,7 +588,7 @@ namespace Bugi
             Pose p = c.P;
             float d = Clamp(p.GlassDrop, 0, 1);
             const float rOut = .85f * D, th = .3f * D, rc = rOut - th / 2, stub = .45f * 1.7f * D, hook = .25f * 1.7f * D, zg = 36f;
-            float bridge = Pose.Lerp(.57f * D, 1.2f * D, d), lensX = rOut + bridge / 2;
+            float bridge = .57f * D, lensX = rOut + bridge / 2;     // 규격: 눈 위로 내려써도 안경 치수는 그대로
             float y = Pose.Lerp(-68f, -11f, d), yBar = -.09f * 1.7f * D;
             float cs = c.HCos, sn = c.HSin, lensScale = Math.Max(.05f, Math.Abs(cs));
             var st = g.Save();
@@ -713,6 +724,144 @@ namespace Bugi
             }
         }
 
+        // ───────── 근무복(공식 3D 근무복 그림): 흰 셔츠 깃 + 하늘색 조끼 + 파란 목걸이 명찰(로고) ─────────
+        // 모두 몸 윤곽 안쪽에 겹쳐 그리므로(몸 윤곽으로 자름) 부기의 비율·형태는 그대로다.
+        private static readonly Color cVest = Color.FromArgb(112, 162, 214), cStrap = Color.FromArgb(34, 70, 170);
+
+        private static float BodyHalfAt(float dd)
+        {
+            for (int i = 0; i + 1 < bodyHalf.Length; i++)
+                if (dd <= bodyHalf[i + 1][1])
+                {
+                    float t = (dd - bodyHalf[i][1]) / (bodyHalf[i + 1][1] - bodyHalf[i][1]);
+                    return Pose.Lerp(bodyHalf[i][0], bodyHalf[i + 1][0], Clamp(t, 0, 1));
+                }
+            return bodyHalf[bodyHalf.Length - 1][0];
+        }
+
+        /// <summary>가슴 표면의 점(xd: 가운데에서 옆으로 D 단위, dd: 글래스 선에서 내려온 D 단위) → 화면 좌표. depth &gt; 0 이면 앞쪽이라 보인다.</summary>
+        private static PointF Chest(Ctx c, float xd, float dd, out float depth)
+        {
+            float R = BodyHalfAt(dd) * D, x = xd * D, z = (float)Math.Sqrt(Math.Max(0, R * R - x * x));
+            depth = (x * c.BSin + z * c.BCos) / R;
+            return c.Map(Axis + x * c.BCos - z * c.BSin, Yd(dd));
+        }
+
+        private static PointF CardTop(Ctx c)
+        {
+            float dp; PointF rest = Chest(c, 0, 14.1f, out dp);
+            float k = SmoothStep(c.P.CardShow);
+            PointF shown = c.Map(206, 122);
+            return new PointF(Pose.Lerp(rest.X, shown.X, k), Pose.Lerp(rest.Y, shown.Y, k));
+        }
+
+        private static void DrawOutfit(Graphics g, Ctx c)
+        {
+            Pose p = c.P;
+            float d0, d1, d2;
+            PointF vL = Chest(c, -3.0f, 11.0f, out d0), vB = Chest(c, 0, 13.5f, out d1), vR = Chest(c, 3.0f, 11.0f, out d2);
+            bool front = d1 > .12f && d0 > -.2f && d2 > -.2f;
+            // ① 하늘색 조끼(몸 윤곽 안쪽만): 어깨선에서 밑단까지, 앞쪽엔 V 목선
+            var st = g.Save();
+            using (var clip = new GraphicsPath()) { clip.AddPolygon(BodyOutline(c)); g.SetClip(clip, CombineMode.Intersect); }
+            var poly = new List<PointF> { c.Map(Axis - 8 * D, Yd(11.0f)) };
+            if (front) { poly.Add(vL); poly.Add(vB); poly.Add(vR); }
+            poly.Add(c.Map(Axis + 8 * D, Yd(11.0f)));
+            var hem = new List<PointF>();
+            for (int i = 8; i >= -8; i--) { float x = i; hem.Add(c.Map(Axis + x * D, Yd(17.0f + .5f * (1 - x * x / 64f)))); }
+            poly.AddRange(hem);
+            using (var br = new SolidBrush(cVest)) g.FillPolygon(br, poly.ToArray());
+            g.DrawLines(c.Ink, hem.ToArray());
+            if (front) g.DrawLines(c.Ink, new[] { vL, vB, vR });
+            g.Restore(st);
+            // ② 흰 셔츠 깃
+            if (front)
+                for (int sgn = -1; sgn <= 1; sgn += 2)
+                {
+                    float da, db, dc, de;
+                    PointF a = Chest(c, sgn * 3.3f, 10.0f, out da), b = Chest(c, sgn * .5f, 10.6f, out db), cc = Chest(c, sgn * .2f, 12.6f, out dc), e = Chest(c, sgn * 3.0f, 11.1f, out de);
+                    var quad = new[] { a, b, cc, e };
+                    g.FillPolygon(bBody, quad); g.DrawPolygon(c.Ink, quad);
+                }
+            // ③ 파란 목걸이 끈과 명찰
+            PointF top = CardTop(c);
+            if (front || p.CardShow > .02f)
+                using (var strap = new Pen(cStrap, Math.Max(2.4f, c.Ink.Width * .85f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                    for (int sgn = -1; sgn <= 1; sgn += 2)
+                    { float ds; PointF s0 = Chest(c, sgn * 2.9f, 10.8f, out ds); g.DrawLine(strap, s0, top); }
+            if (p.CardShow < .02f && c.BCos > .25f) DrawCard(g, c, top, 1f, c.BCos, p.CardSwing);
+        }
+
+        /// <summary>명찰: 하얀 카드에 첨부한 로고 이미지와 글줄. top 은 끈에 매달린 윗부분.</summary>
+        private static void DrawCard(Graphics g, Ctx c, PointF top, float scale, float fx, float angle)
+        {
+            float w = 1.9f * D * scale, h = 2.7f * D * scale;
+            var st = g.Save();
+            g.TranslateTransform(top.X, top.Y); g.RotateTransform(angle); g.ScaleTransform(Math.Max(.2f, fx), 1);
+            using (var clipBr = new SolidBrush(Color.FromArgb(140, 140, 150))) g.FillRectangle(clipBr, -w * .14f, -h * .06f, w * .28f, h * .1f);
+            using (var path = RoundRect(new RectangleF(-w / 2, 0, w, h), 2.2f * scale)) { g.FillPath(bBody, path); g.DrawPath(c.Ink, path); }
+            float ls = w * .66f;
+            LogoArt.Draw(g, new RectangleF(-ls / 2, h * .11f, ls, ls * .98f));
+            using (var line = new Pen(Color.FromArgb(150, 150, 162), Math.Max(1.4f, 1.5f * scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            { g.DrawLine(line, -w * .3f, h * .70f, w * .3f, h * .70f); g.DrawLine(line, -w * .3f, h * .84f, w * .12f, h * .84f); }
+            g.Restore(st);
+        }
+
+        /// <summary>번쩍 들어 보여주는 명찰(날개가 모서리를 잡는다).</summary>
+        private static void DrawHeldCard(Graphics g, Ctx c)
+        {
+            float k = SmoothStep(c.P.CardShow);
+            DrawCard(g, c, CardTop(c), 1f + 1.1f * k, 1f, c.P.CardSwing - 8f * k);
+        }
+
+        // ───────── 짠! 반짝임(그림 9): 주황색 반짝선 두 줄과 별 ─────────
+        private static void DrawSparkle(Graphics g, float t)
+        {
+            float a = .6f + .4f * (float)Math.Sin(t * 9);
+            var orange = Color.FromArgb((int)(255 * (.78f + .22f * a)), 240, 148, 24);
+            using (var pen = new Pen(orange, 3.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            { g.DrawArc(pen, 58, -86, 34, 16, 195, 110); g.DrawArc(pen, 62, -68, 34, 16, 195, 110); }
+            using (var br = new SolidBrush(orange)) DrawStar(g, br, 102 + (float)Math.Sin(t * 5) * 1.5f, -84, 8f * (.8f + .3f * a), t * 20);
+        }
+
+        private static void DrawStar(Graphics g, Brush br, float cx, float cy, float r, float rotDeg)
+        {
+            var pts = new PointF[10];
+            for (int i = 0; i < 10; i++)
+            {
+                double ang = (rotDeg - 90 + i * 36) * Math.PI / 180; float rr = i % 2 == 0 ? r : r * .45f;
+                pts[i] = new PointF(cx + (float)Math.Cos(ang) * rr, cy + (float)Math.Sin(ang) * rr);
+            }
+            g.FillPolygon(br, pts);
+        }
+
+        // ───────── 로고 깃발: 첨부한 로고 이미지를 천에 그려 펄럭인다 ─────────
+        private static void DrawFlag(Graphics g, Ctx c, PointF grip)
+        {
+            Pose p = c.P;
+            double a = p.ToolAng * Math.PI / 180;
+            PointF up = new PointF((float)Math.Sin(a), -(float)Math.Cos(a)), side = new PointF((float)Math.Cos(a), (float)Math.Sin(a));
+            PointF end = new PointF(grip.X + up.X * 104, grip.Y + up.Y * 104), back = new PointF(grip.X - up.X * 14, grip.Y - up.Y * 14);
+            using (var edge = new Pen(cInk, 6f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (var pole = new Pen(Color.FromArgb(196, 198, 206), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            { g.DrawLine(edge, back, end); g.DrawLine(pole, back, end); }
+            const int n = 14; const float fw = 52f, fh = 46f;
+            var topPts = new PointF[n + 1]; var botPts = new PointF[n + 1];
+            for (int i = 0; i <= n; i++)
+            {
+                float u = i / (float)n, wav = (float)Math.Sin(p.FlagWave - u * 5.5) * 5.5f * u;
+                PointF t = new PointF(end.X - up.X * 3 + side.X * u * fw + up.X * wav, end.Y - up.Y * 3 + side.Y * u * fw + up.Y * wav);
+                topPts[i] = t; botPts[i] = new PointF(t.X - up.X * fh, t.Y - up.Y * fh);
+            }
+            for (int i = 0; i < n; i++)
+                LogoArt.DrawSlice(g, topPts[i], topPts[i + 1], botPts[i], i / (float)n, (i + 1) / (float)n);
+            using (var rim = new Pen(cInk, Math.Max(2.4f, c.Ink.Width * .8f)) { LineJoin = LineJoin.Round })
+            {
+                g.DrawLines(rim, topPts); g.DrawLines(rim, botPts);
+                g.DrawLine(rim, topPts[0], botPts[0]); g.DrawLine(rim, topPts[n], botPts[n]);
+            }
+        }
+
         // ───────── 날개: 흰 지느러미 + 검은 끝(도면 5). 옆에서 보면 넓은 날개판(U 모양)으로 보인다 ─────────
         private struct Wing { public PointF S, E, W; public float Width; }
 
@@ -748,6 +897,21 @@ namespace Bugi
             float wm = w.Width;
             PointF[] band = Geo.Limb(new[] { w.S, w.E, w.W }, new[] { 21f * wm, 20f * wm, 18f * wm }, true, 6);
             g.FillPolygon(bBody, band); g.DrawLines(c.Ink, band);   // 뿌리 쪽은 선을 긋지 않아 몸에서 이어져 보인다
+            if (c.P.Outfit)
+            {
+                // 셔츠 소매의 단(커프스): 검은 끝 바로 앞에 가로선 두 줄. 날개 모양은 그대로다.
+                using (var cuff = new Pen(cInk, Math.Max(2f, c.Ink.Width * .7f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                    foreach (float f in new[] { .27f, .38f })
+                    {
+                        PointF a0 = f < .5f ? w.S : w.E, a1 = f < .5f ? w.E : w.W;
+                        float ff = f < .5f ? f / .5f : (f - .5f) / .5f;
+                        PointF pt = new PointF(a0.X + (a1.X - a0.X) * ff, a0.Y + (a1.Y - a0.Y) * ff);
+                        float dx = a1.X - a0.X, dy = a1.Y - a0.Y, len = (float)Math.Sqrt(dx * dx + dy * dy);
+                        if (len < 1e-3f) continue;
+                        float nx = -dy / len, ny = dx / len, hl = 9.2f * wm;
+                        g.DrawLine(cuff, pt.X - nx * hl, pt.Y - ny * hl, pt.X + nx * hl, pt.Y + ny * hl);
+                    }
+            }
             PointF M = new PointF(w.E.X + (w.W.X - w.E.X) * .1f, w.E.Y + (w.W.Y - w.E.Y) * .1f);
             PointF mid = new PointF((M.X + w.W.X) / 2, (M.Y + w.W.Y) / 2);
             PointF[] tip = Geo.Limb(new[] { M, mid, w.W }, new[] { 18f * wm, 23f * wm, 20f * wm }, true, 6);

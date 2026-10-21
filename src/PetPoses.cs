@@ -132,6 +132,7 @@ namespace Bugi
             P.Tuft += F(Math.Sin(2 * ph - 1.0) * 7) * amp; P.TuftWave += 5 * amp; P.TuftPhase = F(ph * 2);
             P.TailWag += F(sn * 10) * amp;
             P.GlassTilt += F(Math.Sin(2 * ph) * 2.5) * amp;
+            P.CardSwing += F(sn * 7) * amp;
             P.Turn = Lerp(P.Turn, -.6, amp); P.Look = Lerp(P.Look, 0, amp); P.Gx = Lerp(P.Gx, -.2, amp);
         }
 
@@ -586,6 +587,63 @@ namespace Bugi
             double c = (t % 8.0) - 4.2;
             if (c > 0 && c < 1.0) { P.Eyes = EyeStyle.Happy; P.Beak = F(.5 * Math.Sin(Math.PI * c)); P.Squash = F(-.04 * Math.Sin(Math.PI * c)); P.FootLY = P.FootRY = F(-4 * Math.Sin(Math.PI * c)); }
             P.Brow = F(.12 * hold);
+        }
+
+        // ───────── 근무복 동작(공식 3D 근무복 그림 8·9·10 + 첨부한 로고) ─────────
+        /// <summary>안내하기(그림 9): 웃는 눈으로 한쪽 날개를 쭉 뻗어 "이쪽으로!" 하고 안내한다. 짠! 반짝임.</summary>
+        private void GuidePose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .15, extraDuration - .3, .5), sp = Window(t, .5, extraDuration - .6, .4);
+            P.Eyes = e > .3 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1;
+            P.WingRA = Lerp(P.WingRA, 96 + Math.Sin(t * 4.5) * 5, e); P.WingRB = Lerp(P.WingRB, 100 + Math.Sin(t * 4.5 - .6) * 7, e);
+            P.Look = Lerp(P.Look, .4, e); P.HeadTilt += F(6 * e); P.Blush = F(.3 * e);
+            P.Beak = F(.12 * e);
+            if (sp > .01) P.Sparkle = F(t);
+            double hop = t < .5 ? Math.Sin(Math.PI * t / .5) : 0;         // 시작할 때 살짝 폴짝(짠!)
+            P.FootLY = P.FootRY = F(-3 * hop); P.BodyY -= F(1.5 * hop);
+            P.Tuft += F(5 * e); P.TuftWave += 3;
+        }
+
+        /// <summary>배꼽인사(그림 10): 날개를 배 앞에 모으고 눈을 감은 채 몸을 숙였다가 일어난다.</summary>
+        private void BowPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double wing = Window(t, .1, extraDuration - .3, .4);
+            double bow = Ease((t - .7) / .6) * (1 - Ease((t - 2.6) / .7));
+            P.Eyes = bow > .1 ? EyeStyle.Closed : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.35 * wing);
+            P.WingLTo = new PointF(Lerp(138, 181, wing), Lerp(214, 198, wing)); P.WingRTo = new PointF(Lerp(262, 219, wing), Lerp(214, 198, wing));
+            P.Turn = Lerp(0, -.45, bow); P.Look = Lerp(P.Look, 0, bow);
+            P.Lean = F(P.Lean - 17 * bow); P.HeadTilt = F(P.HeadTilt - 9 * bow); P.HeadY += F(4 * bow); P.Squash = F(.03 * bow);
+            P.Tuft += F(-8 * bow); P.CardSwing += F(-12 * bow);
+        }
+
+        /// <summary>신분증 보여주기: 목걸이 명찰(로고)을 번쩍 들어 보이며 활짝 웃는다.</summary>
+        private void IdCardPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .2, extraDuration - .4, .6);
+            P.CardShow = F(e);
+            P.WingRTo = new PointF(Lerp(262, 232, e), Lerp(214, 160, e));
+            P.Eyes = e > .4 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.3 * e);
+            P.HeadTilt += F(3 * e); P.Look = Lerp(P.Look, -.1, e); P.Beak = F(.1 * e);
+            P.Sparkle = e > .6 ? F(t) : -1f;
+            P.CardSwing += F(Math.Sin(t * 5) * 2 * e);
+        }
+
+        /// <summary>로고 깃발 흔들기: 첨부한 로고를 단 깃발을 높이 들고 폴짝폴짝 응원한다.</summary>
+        private void FlagPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .2, extraDuration - .4, .5), hop = Math.Abs(Math.Sin(t * 5.2)) * e;
+            P.Tool = ToolKind.Flag; P.FlagWave = F(t * 9);
+            P.WingRTo = new PointF(Lerp(262, 262 + Math.Sin(t * 3) * 5, e), Lerp(214, 124, e));
+            P.ToolAng = F(Math.Sin(t * 3.2) * 12 * e);
+            P.WingLA = Lerp(P.WingLA, 118 + Math.Sin(t * 6) * 8, e); P.WingLB = Lerp(P.WingLB, 126, e);
+            P.Eyes = e > .3 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.4 * e);
+            P.Beak = F(.25 * e * Math.Max(0, Math.Sin(t * 5.2)));
+            P.FootLY = P.FootRY = F(-4 * hop); P.FootLRot = P.FootRRot = F(-12 * hop);
+            P.Tuft += F(-8 * hop); P.TuftWave += 4; P.CardSwing += F(Math.Sin(t * 5.2) * 6 * e);
         }
     }
 }
