@@ -1,0 +1,69 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
+
+namespace Bugi
+{
+    /// <summary>공식 규격 시트(ref/bugi-spec.png)와 나란히 비교하려고 정면·3/4·옆모습과 얼굴 확대를 그린다(개발용).</summary>
+    internal static class SpecTools
+    {
+        internal static void Render(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            // ① 회전 도면: 정면 · 3/4 · 옆 (왼쪽을 보는 모습) + 3/4 · 옆 (오른쪽)
+            float k = 2.0f;
+            float[] turns = { 0f, -.33f, -1f, .33f, 1f };
+            int cw = 430, ch = (int)(Rig.RefH * k) + 40;
+            using (var bmp = new Bitmap(cw * turns.Length, ch, PixelFormat.Format32bppArgb))
+            using (var g = Graphics.FromImage(bmp))
+            {
+                CharacterArt.Quality(g); g.Clear(Color.White);
+                float ground = ch - 18;
+                using (var guide = new Pen(Color.FromArgb(120, 120, 120)) { DashStyle = DashStyle.Dot })
+                {
+                    float gy = ground - (Rig.RefFootY - 23f) * k;          // 글래스 선(G)
+                    g.DrawLine(guide, 0, gy, bmp.Width, gy);
+                    g.DrawLine(guide, 0, gy + 12 * 6.5f * k, bmp.Width, gy + 12 * 6.5f * k);   // 부리 높이쯤
+                    g.DrawLine(guide, 0, gy + 12 * 12.5f * k, bmp.Width, gy + 12 * 12.5f * k); // 어깨(날개 시작)
+                    g.DrawLine(Pens.Black, 0, ground, bmp.Width, ground);
+                }
+                for (int i = 0; i < turns.Length; i++)
+                {
+                    var st = g.Save();
+                    g.TranslateTransform(cw * i + cw / 2f, ground);
+                    var pose = new Pose { Turn = turns[i] == 0 ? 0 : -Math.Abs(turns[i]), Look = 0 };
+                    Rig.Draw(g, pose, k, turns[i] > 0);
+                    g.Restore(st);
+                }
+                bmp.Save(Path.Combine(dir, "spec_views.png"), ImageFormat.Png);
+            }
+            // ② 얼굴 확대(눈 지름 1 기준으로 격자): 정면
+            float k2 = 6f;
+            using (var bmp = new Bitmap(760, 900, PixelFormat.Format32bppArgb))
+            using (var g = Graphics.FromImage(bmp))
+            {
+                CharacterArt.Quality(g); g.Clear(Color.White);
+                g.TranslateTransform(380, 20 + (Rig.RefFootY - 0) * k2 - 20 * k2 * 0);
+                g.ResetTransform();
+                g.TranslateTransform(380, (Rig.RefFootY - 0f) * k2 * .0f + Rig.RefFootY * k2 - 0f * k2);
+                g.ResetTransform();
+                g.TranslateTransform(380, 20 + Rig.RefFootY * k2 - 0);
+                // 원점(발)을 화면 아래로 내려 머리가 위쪽에 오도록 한다
+                g.ResetTransform();
+                g.TranslateTransform(380, Rig.RefFootY * k2 - 6f * k2 + 10);
+                Rig.Draw(g, new Pose(), k2, false);
+                g.ResetTransform();
+                float d = 12f * k2, gy = (23f - 6f + 10f / k2) * k2;     // 글래스 선 y(화면)
+                using (var guide = new Pen(Color.FromArgb(150, 60, 120, 255)) { DashStyle = DashStyle.Dash })
+                {
+                    for (int n = 0; n <= 8; n++) g.DrawLine(guide, 0, gy + n * d, bmp.Width, gy + n * d);
+                    for (int n = -4; n <= 4; n++) g.DrawLine(guide, 380 + n * d, 0, 380 + n * d, bmp.Height);
+                }
+                bmp.Save(Path.Combine(dir, "spec_face.png"), ImageFormat.Png);
+            }
+            Console.WriteLine("saved " + dir);
+        }
+    }
+}
