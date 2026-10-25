@@ -214,7 +214,7 @@ namespace Bugi
         // ───────── 메뉴 ─────────
         // 우클릭 메뉴와 트레이 메뉴는 같은 구조 (자주 쓰는 순서, 구분선으로 묶음):
         //   ♥ 친밀도 (표시)
-        //   ─ 간식 주기 / 동작 보기 ▶
+        //   ─ 간식 주기 / 동작 보기 ▶ / 근무복 입기 ✓
         //   ─ 친구 ▶ / 빠른 설정 ▶
         //   ─ 도우미 / 설정
         //   ─ 종료
@@ -226,6 +226,7 @@ namespace Bugi
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
             menu.Items.Add(DemoMenu(pet));
+            menu.Items.Add(OutfitItem());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(FriendsMenu(w));
             menu.Items.Add(QuickMenu());
@@ -257,6 +258,14 @@ namespace Bugi
             return demo;
         }
 
+        /// <summary>자주 바꾸는 옵션이라 하위 메뉴 없이 바로 누를 수 있게 첫 단계에 둔다.</summary>
+        private ToolStripMenuItem OutfitItem()
+        {
+            var item = new ToolStripMenuItem("근무복 입기  (하늘색 조끼 · 명찰)") { Checked = PlayOptions.Current.Outfit };
+            item.Click += delegate { var o = PlayOptions.Current; o.Outfit = !o.Outfit; o.Save(); ApplyCharacterSettings(); item.Checked = o.Outfit; };
+            return item;
+        }
+
         private ToolStripMenuItem FriendsMenu(PetWindow w)
         {
             var friends = new ToolStripMenuItem("친구");
@@ -279,7 +288,6 @@ namespace Bugi
             };
             quick.DropDownItems.Add(toggle("친구 위치 고정 (자동 이동 멈추기)", () => o.PositionFixed, v => SetPositionFixed(v)));
             quick.DropDownItems.Add(toggle("얌전 모드 (바닥에서만)", () => o.Focus, v => { o.Focus = v; o.Save(); }));
-            quick.DropDownItems.Add(toggle("근무복 입기 (하늘색 조끼 · 명찰)", () => o.Outfit, v => { o.Outfit = v; o.Save(); ApplyCharacterSettings(); }));
             quick.DropDownItems.Add(toggle("친밀도 숫자 표시", () => o.ShowAffinity, v => { o.ShowAffinity = v; o.Save(); ApplyCharacterSettings(); }));
             return quick;
         }

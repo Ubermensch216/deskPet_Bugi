@@ -9,7 +9,8 @@ namespace Bugi
     internal static class FriendUI
     {
         internal static readonly Color Paper = Color.FromArgb(255, 252, 249), Ink = Color.FromArgb(68, 50, 50);
-        internal static readonly Color Red = Color.FromArgb(214, 72, 60), RedDark = Color.FromArgb(176, 44, 36), Gold = Color.FromArgb(255, 214, 60);
+        // 설정창 색: 부산시 상징마크 파랑(LogoArt.Blue)을 바탕으로, 부기의 부리 노랑을 포인트로 쓴다.
+        internal static readonly Color Blue = LogoArt.Blue, BlueDark = Color.FromArgb(20, 54, 122), Navy = Color.FromArgb(15, 36, 84), Sheet = Color.FromArgb(248, 250, 255), Gold = Color.FromArgb(255, 214, 10);
         internal static void Setup(Form f, Icon icon)
         {
             f.Font = new Font("Malgun Gothic", 9f); f.BackColor = Paper;
@@ -72,13 +73,13 @@ namespace Bugi
             FormBorderStyle = FormBorderStyle.Sizable; MaximizeBox = false; ShowInTaskbar = true; BackColor = SystemColors.Control;
 
             // 아래 단추줄
-            var bar = new Panel { Dock = DockStyle.Bottom, Height = 52, BackColor = Color.FromArgb(245, 240, 232) };
+            var bar = new Panel { Dock = DockStyle.Bottom, Height = 52, BackColor = Color.FromArgb(232, 239, 250) };
             var bSave = new Button { Text = "저장", Width = 92, Height = 32, Anchor = AnchorStyles.Right | AnchorStyles.Top };
             var bApply = new Button { Text = "적용", Width = 92, Height = 32, Anchor = AnchorStyles.Right | AnchorStyles.Top };
             var bCancel = new Button { Text = "닫기", Width = 92, Height = 32, Anchor = AnchorStyles.Right | AnchorStyles.Top };
             status = new Label { AutoSize = false, Left = 14, Top = 8, Width = 330, Height = 36, ForeColor = Color.DimGray, TextAlign = ContentAlignment.MiddleLeft, Anchor = AnchorStyles.Left | AnchorStyles.Top };
             bar.Controls.AddRange(new Control[] { status, bSave, bApply, bCancel });
-            bar.Resize += delegate { bCancel.Left = bar.Width - 14 - bCancel.Width; bApply.Left = bCancel.Left - 8 - bApply.Width; bSave.Left = bApply.Left - 8 - bSave.Width; bSave.Top = bApply.Top = bCancel.Top = 10; };
+            bar.Resize += delegate { bCancel.Left = bar.Width - 14 - bCancel.Width; bApply.Left = bCancel.Left - 8 - bApply.Width; bSave.Left = bApply.Left - 8 - bSave.Width; bSave.Top = bApply.Top = bCancel.Top = 10; status.Width = Math.Max(0, bSave.Left - 8 - status.Left); };
             Controls.Add(bar);
             bSave.Click += delegate { if (Apply()) Close(); };
             bApply.Click += delegate { Apply(); };
@@ -86,10 +87,10 @@ namespace Bugi
             AcceptButton = bSave; CancelButton = bCancel;
 
             // 왼쪽 분류 목록
-            nav = new ListBox { Dock = DockStyle.Left, Width = 176, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 54, BorderStyle = BorderStyle.None, IntegralHeight = false, BackColor = Color.FromArgb(58, 44, 40), ForeColor = Color.White };
+            nav = new ListBox { Dock = DockStyle.Left, Width = 176, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 54, BorderStyle = BorderStyle.None, IntegralHeight = false, BackColor = FriendUI.Navy, ForeColor = Color.White };
             nav.Items.AddRange(PageNames);
             nav.DrawItem += DrawNav;
-            host = new Panel { Dock = DockStyle.Fill, BackColor = FriendUI.Paper };
+            host = new Panel { Dock = DockStyle.Fill, BackColor = FriendUI.Sheet };
             Controls.Add(host); Controls.Add(nav);
             host.BringToFront();
 
@@ -112,13 +113,13 @@ namespace Bugi
         {
             if (e.Index < 0) return;
             bool sel = (e.State & DrawItemState.Selected) != 0;
-            using (var bg = new SolidBrush(sel ? FriendUI.Red : nav.BackColor)) e.Graphics.FillRectangle(bg, e.Bounds);
+            using (var bg = new SolidBrush(sel ? FriendUI.Blue : nav.BackColor)) e.Graphics.FillRectangle(bg, e.Bounds);
             if (sel) using (var bar = new SolidBrush(FriendUI.Gold)) e.Graphics.FillRectangle(bar, e.Bounds.Left, e.Bounds.Top, 5, e.Bounds.Height);
             using (var f1 = new Font("Malgun Gothic", 11f, FontStyle.Bold)) using (var f2 = new Font("Malgun Gothic", 7.8f))
             {
                 string[] glyph = { "☺", "▶", "☝", "♥", "♪", "▣" };
                 TextRenderer.DrawText(e.Graphics, glyph[e.Index] + "  " + PageNames[e.Index], f1, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 7, e.Bounds.Width - 16, 22), Color.White, TextFormatFlags.Left | TextFormatFlags.NoPrefix);
-                TextRenderer.DrawText(e.Graphics, PageHints[e.Index], f2, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 29, e.Bounds.Width - 16, 20), sel ? Color.FromArgb(255, 226, 220) : Color.FromArgb(190, 176, 168), TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(e.Graphics, PageHints[e.Index], f2, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 29, e.Bounds.Width - 16, 20), sel ? Color.FromArgb(214, 228, 250) : Color.FromArgb(150, 176, 220), TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             }
         }
 
@@ -132,11 +133,11 @@ namespace Bugi
         // ───────── 쪽 만들기 도구 ─────────
         private Panel NewPage(string title, string subtitle, out FlowLayoutPanel flow)
         {
-            var page = new Panel { BackColor = FriendUI.Paper };
-            var head = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = FriendUI.Paper };
-            head.Controls.Add(new Label { Text = title, AutoSize = true, Left = 20, Top = 10, Font = new Font("Malgun Gothic", 15f, FontStyle.Bold), ForeColor = FriendUI.RedDark });
+            var page = new Panel { BackColor = FriendUI.Sheet };
+            var head = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = FriendUI.Sheet };
+            head.Controls.Add(new Label { Text = title, AutoSize = true, Left = 20, Top = 10, Font = new Font("Malgun Gothic", 15f, FontStyle.Bold), ForeColor = FriendUI.BlueDark });
             head.Controls.Add(new Label { Text = subtitle, AutoSize = true, Left = 22, Top = 40, ForeColor = Color.DimGray });
-            head.Paint += (s, e) => { using (var pen = new Pen(Color.FromArgb(236, 214, 190), 2)) e.Graphics.DrawLine(pen, 16, head.Height - 2, head.Width - 16, head.Height - 2); };
+            head.Paint += (s, e) => { using (var pen = new Pen(Color.FromArgb(190, 208, 238), 2)) e.Graphics.DrawLine(pen, 16, head.Height - 2, head.Width - 16, head.Height - 2); };
             flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(18, 6, 12, 12) };
             page.Controls.Add(flow); page.Controls.Add(head);
             head.SendToBack(); flow.BringToFront();
@@ -145,7 +146,7 @@ namespace Bugi
 
         private static GroupBox Group(FlowLayoutPanel parent, string title, int width = 500)
         {
-            var g = new GroupBox { Text = title, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 6, 10, 8), Margin = new Padding(2, 8, 2, 4), MinimumSize = new Size(width, 0), ForeColor = FriendUI.RedDark };
+            var g = new GroupBox { Text = title, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 6, 10, 8), Margin = new Padding(2, 8, 2, 4), MinimumSize = new Size(width, 0), ForeColor = FriendUI.BlueDark };
             var inner = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, ForeColor = FriendUI.Ink };
             g.Controls.Add(inner); parent.Controls.Add(g);
             g.Tag = inner; return g;
