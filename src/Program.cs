@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -249,9 +249,12 @@ namespace Bugi
             PlayOptions.Load(); FriendData.Load(); CharacterArt.Reset(Native.SystemDpiScale());
             App app = null;
             step("앱 생성(펫 4마리)", () => { app = new App(true); app.Spawn(0); app.Spawn(1); app.Spawn(2); app.Spawn(3); pump(1); });
-            step("알림 설정 창", () => { var f = new SettingsForm(app); shot(f, "ui_settings"); f.Close(); });
-            step("움직임 설정 창", () => { var f = new PlaySettingsForm(app); shot(f, "ui_play"); f.Close(); });
-            step("친구 기록 창", () => { var f = new FriendRecordForm(app); shot(f, "ui_record"); f.Close(); });
+            for (int page = 0; page < SettingsForm.PageNames.Length; page++)
+            {
+                int p = page;
+                step("통합 설정창: " + SettingsForm.PageNames[p], () => { var f = new SettingsForm(app, p); shot(f, "ui_settings_" + p); f.Close(); });
+            }
+            step("트레이 메뉴", () => { var m = typeof(App).GetMethod("BuildMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance); using (var menu = (ContextMenuStrip)m.Invoke(app, new object[] { null })) if (menu.Items.Count < 8) throw new Exception("menu items " + menu.Items.Count); });
             step("도우미 창", () => { FriendData.Current.Todos.Add(new TodoItem { Text = "첫 할 일", Done = true }); FriendData.Current.Todos.Add(new TodoItem { Text = "둘째 할 일" }); var f = new FriendPanel(app); shot(f, "ui_helper"); f.Close(); });
             step("정각 카드 + 가장자리 빛", () =>
             {
