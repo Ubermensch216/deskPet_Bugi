@@ -251,7 +251,7 @@ namespace Bugi
             log.AppendLine("Probe: " + OllamaClient.Probe(opts));
 
             // (1) 품질
-            foreach (string q in new[] { "안녕", "오늘 너무 피곤해", "너 누구야?", "점심 뭐 먹을까", "서울 인구가 몇 명이야?", "너 AI야?" })
+            foreach (string q in new[] { "안녕", "오늘 너무 피곤해", "너 누구야?", "점심 뭐 먹을까", "서울 인구가 몇 명이야?", "너 AI야?", "니체가 누구야?", "아인슈타인은 뭐 한 사람이야?", "광합성이 뭐야?", "오늘 날씨 어때?" })
             {
                 var hist = new List<ChatMessage> { new ChatMessage("user", q) };
                 var parser = new ReplyParser(); var req = new ChatRequest(); var sw = System.Diagnostics.Stopwatch.StartNew(); long first = -1;
@@ -584,12 +584,12 @@ namespace Bugi
                 check(Json.Str(Json.Get(j, "message"), "content") == "[기쁨] \"안녕\"\nA" && !Json.Flag(j, "done") && (double)Json.Get(j, "n") == -150, "JSON 읽기(이스케이프·숫자)");
                 check(Json.Parse("{깨진") == null, "깨진 JSON 은 null");
                 check(Json.Quote("a\"b\n") == "\"a\\\"b\\n\"", "JSON 문자열 만들기");
-                var rp = new ReplyParser(); bool c1 = rp.Feed("[") ; rp.Feed("기"); rp.Feed("쁨"); bool c2 = rp.Feed("] 안녕"); rp.Feed("! 반가워. 또 왔네! 세 번째 문장");
-                check(!c1 && c2 && rp.Mood == ChatMood.Joy && rp.Text == "안녕! 반가워.", "감정 태그가 토큰으로 쪼개져 와도 읽고, 두 문장까지만 남김: " + rp.Text);
+                var rp = new ReplyParser(); bool c1 = rp.Feed("[") ; rp.Feed("기"); rp.Feed("쁨"); bool c2 = rp.Feed("] 안녕"); rp.Feed("! 반가워. 또 왔네! 네 번째 문장");
+                check(!c1 && c2 && rp.Mood == ChatMood.Joy && rp.Text == "안녕! 반가워. 또 왔네!", "감정 태그가 토큰으로 쪼개져 와도 읽고, 세 문장까지만 남김: " + rp.Text);
                 check(ReplyParser.Clean("**좋아** 😀 (웃으며) 그래\n부기: 둘째 줄") == "좋아 그래", "마크다운·이모지·괄호 지문·둘째 줄 제거: " + ReplyParser.Clean("**좋아** 😀 (웃으며) 그래\n부기: 둘째 줄"));
                 var rq = new ReplyParser(); rq.Feed("힘들었겠다 ㅠㅠ");
                 check(rq.Mood == ChatMood.Sad && !rq.HasTag, "태그가 없으면 글에서 감정을 짐작");
-                check(ReplyParser.Clean(new string('가', 300)).Length <= 101, "너무 긴 말은 잘라 냄");
+                check(ReplyParser.Clean(new string('가', 300)).Length <= ReplyParser.MaxChars + 1, "너무 긴 말은 잘라 냄");
                 string sys1 = ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 3, 0)), sys2 = ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 47, 0));
                 check(sys1 == sys2 && sys1.Contains("AI"), "시스템 프롬프트는 같은 시간대에 안 바뀜(캐시 유지) · AI 라고 밝힘");
                 ChatOptions.Current = new ChatOptions { Model = "test:1b", Sound = true, Proactive = true, ProactiveMinutes = 15, Hotkey = false }; ChatOptions.Current.Save(); ChatOptions.Load();

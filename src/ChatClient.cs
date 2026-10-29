@@ -87,7 +87,7 @@ namespace Bugi
         }
 
         /// <summary>토큰이 올 때마다 onToken 을 부른다(일꾼 스레드). 성공하면 null, 실패하면 이유를 돌려준다.</summary>
-        internal static string Stream(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict = 100)
+        internal static string Stream(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict = 170)
         {
             try
             {

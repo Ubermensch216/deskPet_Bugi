@@ -64,7 +64,9 @@ namespace Bugi
             return ChatMood.Neutral;
         }
 
-        /// <summary>말풍선에 어울리게 다듬는다: 첫 줄만, 마크다운·이모지·괄호 지문 제거, 두 문장·100자까지.</summary>
+        /// <summary>말풍선에 어울리게 다듬는다: 첫 줄만, 마크다운·이모지·괄호 지문 제거, 세 문장·130자까지.</summary>
+        internal const int MaxSentences = 3, MaxChars = 130;
+
         internal static string Clean(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
@@ -87,20 +89,20 @@ namespace Bugi
             var t = new StringBuilder(); bool space = false;
             foreach (char c in s) { if (char.IsWhiteSpace(c)) { space = true; continue; } if (space && t.Length > 0) t.Append(' '); space = false; t.Append(c); }
             s = t.ToString().TrimStart();
-            // 두 문장까지, 100자까지
+            // 세 문장까지, 130자까지(상식을 설명할 땐 두세 문장이 필요하다)
             int ends = 0;
             for (int i = 0; i < s.Length; i++)
             {
                 bool terminator = s[i] == '.' || s[i] == '!' || s[i] == '?' || s[i] == '…' || s[i] == '~';
                 if (!terminator || (i + 1 < s.Length && s[i + 1] != ' ' && s[i + 1] != '.' && s[i + 1] != '!' && s[i + 1] != '?' && s[i + 1] != '~')) continue;
                 int j = i; while (j + 1 < s.Length && (s[j + 1] == '.' || s[j + 1] == '!' || s[j + 1] == '?' || s[j + 1] == '~')) j++;
-                if (++ends >= 2) { s = s.Substring(0, j + 1); break; }
+                if (++ends >= MaxSentences) { s = s.Substring(0, j + 1); break; }
                 i = j;
             }
-            if (s.Length > 100)
+            if (s.Length > MaxChars)
             {
-                int cut = s.LastIndexOfAny(new[] { '.', '!', '?', '~', ' ' }, 99);
-                s = (cut > 40 ? s.Substring(0, cut) : s.Substring(0, 100)).TrimEnd() + "…";
+                int cut = s.LastIndexOfAny(new[] { '.', '!', '?', '~', ' ' }, MaxChars - 1);
+                s = (cut > 40 ? s.Substring(0, cut) : s.Substring(0, MaxChars)).TrimEnd() + "…";
             }
             return s;
         }
@@ -140,8 +142,8 @@ namespace Bugi
             var b = new StringBuilder();
             b.Append("너는 '부기'야. 부산시 공식 캐릭터인 갈매기이고, 빨간 스마트 안경을 쓰고 사용자의 PC 바탕화면에서 같이 사는 친구야.\n");
             b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
-            b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 모르는 건 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
-            b.Append("말투: 친근한 반말. 한 번에 한두 문장, 50자 안쪽으로 짧게. 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마. 친구처럼 말해.\n");
+            b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
+            b.Append("말투: 친근한 반말. 보통은 한두 문장, 50자 안쪽으로 짧게. 사람이나 개념을 설명해 달라고 하면 핵심만 두세 문장, 120자 안쪽으로 부기답게 알려 줘. 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마. 친구처럼 말해.\n");
             b.Append("형식: 반드시 \"[감정] 대사\" 한 줄로만 답해. 감정은 " + string.Join(" · ", TagNames) + " 중 하나이고, 대사 내용에 가장 잘 맞는 걸 골라. 인사나 좋은 일엔 기쁨, 칭찬엔 부끄, 깜짝 놀랄 땐 놀람, 위로할 땐 슬픔을 써. 생각은 정말 고민할 때만 써.\n");
             // 프롬프트 앞부분이 자주 바뀌면 모델이 앞서 계산해 둔 것을 못 쓰고 매번 처음부터 읽어 느려진다 → 상태는 거친 단계로만 적는다.
             b.Append("\n[지금 상태]\n");
@@ -168,6 +170,12 @@ namespace Bugi
             yield return new ChatMessage("assistant", "[생각] 음... 난 갈매기니까 새우깡! 근데 넌 뭐가 땡겨?");
             yield return new ChatMessage("user", "너 AI야?");
             yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI 부기야.");
+            yield return new ChatMessage("user", "소크라테스가 누구야?");
+            yield return new ChatMessage("assistant", "[놀람] 어, 그건 알지! 고대 그리스 철학자야. 답을 알려 주기보다 계속 질문해서 스스로 생각하게 했대.");
+            yield return new ChatMessage("user", "뉴턴은 뭐 한 사람이야?");
+            yield return new ChatMessage("assistant", "[기쁨] 만유인력을 밝힌 물리학자야! 사과가 떨어지는 걸 보고 떠올렸다는 얘기가 유명해.");
+            yield return new ChatMessage("user", "오늘 날씨 어때?");
+            yield return new ChatMessage("assistant", "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
             yield return new ChatMessage("user", "너 귀엽다");
             yield return new ChatMessage("assistant", "[부끄] 어, 어... 갑자기 그런 말 하면 부끄럽잖아.");
             yield return new ChatMessage("user", "헉 나 로또 당첨됐어");
