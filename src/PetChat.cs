@@ -8,7 +8,7 @@ namespace Bugi
     /// <summary>
     /// AI 와 이야기하는 부기. 채팅창 대신 부기의 몸이 대화를 한다:
     /// 말을 걸면 돌아보고(Listening), 생각하는 동안 안경이 반짝이며(Thinking), 글자가 한 자씩 말풍선에 찍히고 부리가 달싹이며
-    /// 감정에 맞는 표정·몸짓(Talking · Afterglow)이 나온다. 대화하는 동안 가슴에는 AI 뱃지가 달린다.
+    /// 감정에 맞는 표정·몸짓(Talking · Afterglow)이 나온다.
     /// </summary>
     internal sealed partial class Pet
     {
@@ -19,7 +19,7 @@ namespace Bugi
         /// <summary>글자가 한 자 찍힐 때마다 부른다(말소리 효과음용).</summary>
         internal Action<char> OnChatChar;
 
-        private double chatBadge, chatPhaseT, chatMoodT, chatReveal, chatTypeEnergy;
+        private double chatPresence, chatPhaseT, chatMoodT, chatReveal, chatTypeEnergy;
         private string chatText = "";
         private bool chatStreamDone = true, chatTypeDeleted;
         private int chatTypedLen;
@@ -29,7 +29,7 @@ namespace Bugi
         internal bool ChatRevealing { get { return chatText.Length > 0 && chatReveal < chatText.Length; } }
         /// <summary>대화 상태가 된 뒤(또는 마지막 말이 끝난 뒤) 흐른 시간.</summary>
         internal double ChatQuietSeconds { get { return Phase == ChatPhase.Listening ? chatPhaseT : 0; } }
-        internal float ChatBadgeLevel { get { return (float)chatBadge; } }
+        internal float ChatPresence { get { return (float)chatPresence; } }
 
         /// <summary>지금 말을 걸어도 되는 자세인가(낙하·던져짐·벽/천장 타기 중이 아닐 때).</summary>
         internal bool CanChat
@@ -108,7 +108,7 @@ namespace Bugi
         private void UpdateChat(IWorld w, double dt)
         {
             double target = Phase != ChatPhase.None ? 1 : 0;
-            if (chatBadge != target) chatBadge += Math.Sign(target - chatBadge) * Math.Min(Math.Abs(target - chatBadge), dt * (target > chatBadge ? 2.6 : 3.5));
+            if (chatPresence != target) chatPresence += Math.Sign(target - chatPresence) * Math.Min(Math.Abs(target - chatPresence), dt * (target > chatPresence ? 2.6 : 3.5));
             if (Phase == ChatPhase.None) return;
             chatPhaseT += dt; chatMoodT += dt;
             chatTypeEnergy = Math.Max(0, chatTypeEnergy - dt * 1.3);

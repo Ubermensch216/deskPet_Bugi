@@ -378,7 +378,7 @@ namespace Bugi
         // ───────── 8. AI 대화 ─────────
         private Panel BuildChatPage()
         {
-            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요. 대화하는 동안 부기 가슴에 AI 뱃지가 달려요", out f);
+            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요. 대화하는 동안 부기의 말풍선에 작은 AI 표시가 붙어요", out f);
             var o = ChatOptions.Current;
             var g1 = Group(f, "연결"); var a = In(g1);
             cChat = Check(a, "AI 대화 사용 (더블클릭 · 우클릭 → 말 걸기)", o.Enabled);

@@ -146,7 +146,7 @@ namespace Bugi
                 K("대화-생각", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Think, "음... 난 갈매기니까 새우깡!", 90, 0)),
                 K("대화-삐짐", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Pout, "흥, 몰라! 나 삐졌어.", 70, 0)),
                 K("대화-배고픔", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Hungry, "나 배고파... 간식 없어?", 90, 0)),
-                K("대화-근무복", (p, w) => { PlayOptions.Current.Outfit = true; ChatDemo(p, w, ChatPhase.Talking, ChatMood.Joy, "명찰이랑 뱃지 둘 다 달았어!", 40, 0); }),
+                K("대화-근무복", (p, w) => { PlayOptions.Current.Outfit = true; ChatDemo(p, w, ChatPhase.Talking, ChatMood.Joy, "명찰도 달았어!", 40, 0); }),
                 K("대화-타이핑", (p, w) => ChatDemo(p, w, ChatPhase.Listening, ChatMood.Neutral, "", 30, 30)),
             };
             int cell = (int)Math.Round(150 * scale), cols = 8, rows = (int)Math.Ceiling(states.Count / (double)cols);
@@ -272,7 +272,7 @@ namespace Bugi
                 using (var b = new Bitmap(w, h)) using (var g = Graphics.FromImage(b)) { g.CopyFromScreen(x, y, 0, 0, new Size(w, h)); b.Save(Path.Combine(dir, name + ".png"), ImageFormat.Png); }
             };
             app.StartChat(pet); pump(.9); shot("live_1_hello");
-            log.AppendLine("after start: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
+            log.AppendLine("after start: " + app.Chat.DebugState + " badge=" + pet.ChatPresence.ToString("0.00") + " state=" + pet.State);
             if (pet.State != PetState.Chat || !pet.ChatActive) failures++;
             app.Chat.TestType("오늘 너무 피곤해"); pump(.5); shot("live_2_typing");
             app.Chat.TestSubmit(); pump(.35); shot("live_3_thinking"); log.AppendLine("thinking: " + app.Chat.DebugState);
@@ -314,7 +314,7 @@ namespace Bugi
                 if (app.Chat.Active) { log.AppendLine("FAIL 바깥을 눌렀는데 대화가 안 끝남"); failures++; }
             }
             app.Chat.End(); pump(.6); shot("live_6_end");
-            log.AppendLine("after end: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
+            log.AppendLine("after end: " + app.Chat.DebugState + " badge=" + pet.ChatPresence.ToString("0.00") + " state=" + pet.State);
             log.AppendLine("history: " + string.Join(" | ", app.Chat.History.Select(m => m.Role + ": " + m.Content).ToArray()));
             // (2b) 일기: 대화가 끝나면 한 줄이 일기장에 쌓인다
             for (int i = 0; i < 80 && ChatDiary.Entries.Count == 0; i++) pump(.25);
@@ -615,11 +615,11 @@ namespace Bugi
                 cp.ChatThink(); cp.ChatSay(ChatMood.Joy, "안녕! 반가워", false);
                 for (int i = 0; i < 8; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
                 var chatLook = cp.GetLook(cw.Now);
-                check(chatLook.Pose.AiBadge > .1f && chatLook.Ai && chatLook.BubbleReveal > 0 && chatLook.BubbleReveal < 7, "대화 중: AI 뱃지가 달리고 말풍선 글자가 한 자씩 찍힘 (" + chatLook.BubbleReveal + ")");
+                check(chatLook.Ai && chatLook.BubbleReveal > 0 && chatLook.BubbleReveal < 7, "대화 중: AI 표시가 붙고 말풍선 글자가 한 자씩 찍힘 (" + chatLook.BubbleReveal + ")");
                 for (int i = 0; i < 100; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
                 check(cp.GetLook(cw.Now).BubbleReveal == -1, "다 찍히면 말풍선 전체 표시");
                 cp.EndChat(cw); for (int i = 0; i < 60; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
-                check(!cp.ChatActive && cp.State != PetState.Chat && cp.GetLook(cw.Now).Pose.AiBadge < .01f, "대화가 끝나면 뱃지가 사라지고 다시 돌아다님");
+                check(!cp.ChatActive && cp.State != PetState.Chat && cp.ChatPresence < .01f && !cp.GetLook(cw.Now).Ai, "대화가 끝나면 AI 표시가 사라지고 다시 돌아다님");
                 var fp = new Pet(cw, 0, 640, 100) { Area = cw.Areas[0] };
                 check(!fp.BeginChat(cw, 1), "낙하 중에는 대화 시작 안 함");
 

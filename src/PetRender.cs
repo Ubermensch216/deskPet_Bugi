@@ -162,9 +162,8 @@ namespace Bugi
             L.Pose.Outfit = L.Work = WearsOutfit;
             if (L.Pose.Outfit) L.Pose.CardSwing += F(-L.Pose.Lean * .8 + Math.Sin(animT * 2.4) * 1.6);   // 명찰은 몸이 기울면 반대로 흔들린다
             L.BubbleReveal = -1;
-            if (chatBadge > .005)
+            if (chatPresence > .005)
             {
-                L.Pose.AiBadge = F(chatBadge); L.Pose.AiGlow = Phase == ChatPhase.Thinking ? F(.5 + .5 * Math.Sin(animT * 6)) : 0f;
                 if (Phase != ChatPhase.None && string.IsNullOrEmpty(hourlyBubble) && Bubble == chatText && chatText.Length > 0)
                 {
                     L.BubbleReveal = ChatRevealCount; L.Ai = true;
@@ -491,7 +490,7 @@ namespace Bugi
             }
         }
 
-        /// <summary>AI 가 한 말임을 밝히는 작은 뱃지(말풍선 왼쪽 위 모서리).</summary>
+        /// <summary>AI 가 한 말임을 밝히는 작은 표시(말풍선 왼쪽 위 모서리).</summary>
         private static void DrawAiMark(Graphics g, RectangleF r, float s)
         {
             var tag = new RectangleF(r.Left + 7 * s, r.Top - 5.5f * s, 17 * s, 10 * s);
