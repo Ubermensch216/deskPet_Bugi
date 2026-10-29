@@ -27,6 +27,7 @@ namespace Bugi
         private bool streaming, chipsWanted;
         private double lastActivity, nextProactive = -1, lastWarm = -999, lastTop, clickGraceUntil;
         private bool mouseWasDown;
+        internal bool TestIgnoreClicks;      // 자동 점검용: 실제 마우스 클릭으로 대화가 끝나지 않게
 
         [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
         private static bool MouseDown() { try { return GetAsyncKeyState(0x01) < 0 || GetAsyncKeyState(0x02) < 0; } catch { return false; } }
@@ -87,7 +88,7 @@ namespace Bugi
         private void OpenInput()
         {
             if (input != null || pet == null) return;
-            input = new ChatInput();
+            input = new ChatInput(); input.SetCue(ChatMode.Current.Cue);
             input.Submitted += Send;
             input.Cancelled += End;
             input.Typing += n => { lastActivity = app.Now; if (pet != null) pet.ChatTyping(n); };
@@ -137,11 +138,11 @@ namespace Bugi
         private void StartStream(List<ChatMessage> msgs, bool proactive)
         {
             var opts = ChatOptions.Current; int g = ++gen;
-            parser = new ReplyParser(); var req = request = new ChatRequest(); streaming = true;
+            var mode = ChatMode.Current; parser = new ReplyParser(mode.MaxSentences, mode.MaxChars); var req = request = new ChatRequest(); streaming = true;
             var worker = new Thread(delegate ()
             {
                 if (proactive && OllamaClient.Probe(opts) != ProbeResult.Ok) { inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Silent }); return; }
-                string err = OllamaClient.Stream(opts, msgs, tok => inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Token, Text = tok }), req);
+                string err = OllamaClient.Stream(opts, msgs, tok => inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Token, Text = tok }), req, mode.NumPredict, mode.Temperature);
                 if (err == null) inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Done });
                 else if (err != "cancelled") inbox.Enqueue(new Evt { Gen = g, Kind = proactive ? Kind.Silent : Kind.Error, Text = err });
             }) { IsBackground = true };
@@ -161,6 +162,9 @@ namespace Bugi
             }) { IsBackground = true }.Start();
         }
 
+        /// <summary>대화 모드를 바꿨을 때: 열려 있는 입력칸의 안내 글을 맞춘다(다음 말부터 새 모드로 대답한다).</summary>
+        internal void ModeChanged() { if (input != null) input.SetCue(ChatMode.Current.Cue); }
+
         // ───────── 틱 ─────────
         internal void Tick(double now)
         {
@@ -174,7 +178,7 @@ namespace Bugi
                 {
                     // 대화창(알약·답장 칩) 밖을 누르면 대화를 끝낸다. 말 걸 때의 더블클릭이 바로 닫지 않도록 잠깐은 무시한다.
                     bool down = MouseDown(), pressed = down && !mouseWasDown; mouseWasDown = down;
-                    if (pressed && now > clickGraceUntil && !input.Contains(Cursor.Position)) { End(); return; }
+                    if (pressed && !TestIgnoreClicks && now > clickGraceUntil && !input.Contains(Cursor.Position)) { End(); return; }
                     bool focused = input.Focused;
                     if (!streaming && !pet.ChatRevealing && now - lastActivity > (focused ? 60 : 12)) { End(); return; }
                     Point pos = InputPosition(); input.Place(pos.X, pos.Y);

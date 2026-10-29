@@ -87,13 +87,13 @@ namespace Bugi
         }
 
         /// <summary>토큰이 올 때마다 onToken 을 부른다(일꾼 스레드). 성공하면 null, 실패하면 이유를 돌려준다.</summary>
-        internal static string Stream(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict = 170)
+        internal static string Stream(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict = 170, double temperature = .85)
         {
             try
             {
                 var r = Make(o, "/api/chat", "POST", 15000);
                 handle.Attach(r);
-                WriteBody(r, Body(o, msgs, true, numPredict, .85));
+                WriteBody(r, Body(o, msgs, true, numPredict, temperature));
                 using (var resp = (HttpWebResponse)r.GetResponse())
                 using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {

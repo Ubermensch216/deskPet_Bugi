@@ -15,6 +15,9 @@ namespace Bugi
         internal ChatMood Mood = ChatMood.Neutral;
         internal bool HasTag;
         internal string Text = "";
+        private readonly int maxSentences, maxChars;
+
+        internal ReplyParser(int maxSentences = MaxSentences, int maxChars = MaxChars) { this.maxSentences = maxSentences; this.maxChars = maxChars; }
 
         /// <summary>조각을 더한다. 보여 줄 글이나 감정이 달라졌으면 true.</summary>
         internal bool Feed(string chunk)
@@ -28,7 +31,7 @@ namespace Bugi
                 if (e < 0) { if (s.Length <= 12) return false; }       // 태그가 아직 다 안 왔다
                 else { mood = ParseTag(s.Substring(1, e - 1)); tag = true; s = s.Substring(e + 1); }
             }
-            string text = Clean(s);
+            string text = Clean(s, maxSentences, maxChars);
             if (!tag && text.Length >= 4) mood = Guess(text);
             bool changed = text != Text || mood != Mood || tag != HasTag;
             Text = text; Mood = mood; HasTag = tag;
@@ -67,7 +70,9 @@ namespace Bugi
         /// <summary>말풍선에 어울리게 다듬는다: 첫 줄만, 마크다운·이모지·괄호 지문 제거, 세 문장·130자까지.</summary>
         internal const int MaxSentences = 3, MaxChars = 130;
 
-        internal static string Clean(string s)
+        internal static string Clean(string s) { return Clean(s, MaxSentences, MaxChars); }
+
+        internal static string Clean(string s, int maxSentences, int maxChars)
         {
             if (string.IsNullOrEmpty(s)) return "";
             int nl = s.IndexOf('\n'); if (nl >= 0) s = s.Substring(0, nl);
@@ -96,13 +101,13 @@ namespace Bugi
                 bool terminator = s[i] == '.' || s[i] == '!' || s[i] == '?' || s[i] == '…' || s[i] == '~';
                 if (!terminator || (i + 1 < s.Length && s[i + 1] != ' ' && s[i + 1] != '.' && s[i + 1] != '!' && s[i + 1] != '?' && s[i + 1] != '~')) continue;
                 int j = i; while (j + 1 < s.Length && (s[j + 1] == '.' || s[j + 1] == '!' || s[j + 1] == '?' || s[j + 1] == '~')) j++;
-                if (++ends >= MaxSentences) { s = s.Substring(0, j + 1); break; }
+                if (++ends >= maxSentences) { s = s.Substring(0, j + 1); break; }
                 i = j;
             }
-            if (s.Length > MaxChars)
+            if (s.Length > maxChars)
             {
-                int cut = s.LastIndexOfAny(new[] { '.', '!', '?', '~', ' ' }, MaxChars - 1);
-                s = (cut > 40 ? s.Substring(0, cut) : s.Substring(0, MaxChars)).TrimEnd() + "…";
+                int cut = s.LastIndexOfAny(new[] { '.', '!', '?', '~', ' ' }, maxChars - 1);
+                s = (cut > maxChars / 3 ? s.Substring(0, cut) : s.Substring(0, maxChars)).TrimEnd() + "…";
             }
             return s;
         }
@@ -143,7 +148,7 @@ namespace Bugi
             b.Append("너는 '부기'야. 부산시 공식 캐릭터인 갈매기이고, 빨간 스마트 안경을 쓰고 사용자의 PC 바탕화면에서 같이 사는 친구야.\n");
             b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
             b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
-            b.Append("말투: 친근한 반말. 보통은 한두 문장, 50자 안쪽으로 짧게. 사람이나 개념을 설명해 달라고 하면 핵심만 두세 문장, 120자 안쪽으로 부기답게 알려 줘. 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마. 친구처럼 말해.\n");
+            b.Append("말투: " + ChatMode.Current.Style + " 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마.\n");
             b.Append("형식: 반드시 \"[감정] 대사\" 한 줄로만 답해. 감정은 " + string.Join(" · ", TagNames) + " 중 하나이고, 대사 내용에 가장 잘 맞는 걸 골라. 인사나 좋은 일엔 기쁨, 칭찬엔 부끄, 깜짝 놀랄 땐 놀람, 위로할 땐 슬픔을 써. 생각은 정말 고민할 때만 써.\n");
             // 프롬프트 앞부분이 자주 바뀌면 모델이 앞서 계산해 둔 것을 못 쓰고 매번 처음부터 읽어 느려진다 → 상태는 거친 단계로만 적는다.
             b.Append("\n[지금 상태]\n");
@@ -184,11 +189,22 @@ namespace Bugi
             yield return new ChatMessage("assistant", "[슬픔] 무슨 일 있었어? 난 옆에서 들어줄게.");
         }
 
+        /// <summary>친구 모드가 아닐 때도 늘 쓰는 꼭 필요한 예시: 자기가 AI 라고 밝히기, 실시간 정보는 모른다고 하기.</summary>
+        private static IEnumerable<ChatMessage> CoreExamples()
+        {
+            yield return new ChatMessage("user", "너 AI야?");
+            yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI 부기야.");
+            yield return new ChatMessage("user", "오늘 날씨 어때?");
+            yield return new ChatMessage("assistant", "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
+        }
+
         /// <summary>시스템 안내 + 예시 + 최근 대화로 요청 메시지를 만든다.</summary>
         internal static List<ChatMessage> Build(List<ChatMessage> history, DateTime now)
         {
             var list = new List<ChatMessage> { new ChatMessage("system", SystemPrompt(now)) };
-            list.AddRange(Examples());
+            var mode = ChatMode.Current;
+            list.AddRange(mode.UseBaseExamples ? Examples() : CoreExamples());
+            list.AddRange(mode.Examples);
             list.AddRange(history.Skip(Math.Max(0, history.Count - 12)));
             return list;
         }

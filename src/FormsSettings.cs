@@ -67,7 +67,7 @@ namespace Bugi
         // 메모
         private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
-        private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private ComboBox cMode; private Label modeDesc; private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -388,6 +388,12 @@ namespace Bugi
             chatProbe = new Label { AutoSize = true, Margin = new Padding(6, 8, 3, 3), ForeColor = Color.DimGray };
             rp.Controls.Add(FriendUI.Button("연결 확인", delegate { ProbeChat(); })); rp.Controls.Add(chatProbe);
             Note(a, "대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
+            var gm = Group(f, "대화 모드"); var m = In(gm);
+            var rmo = Row(m); rmo.Controls.Add(Cap("모드", 60)); cMode = Combo(ChatMode.All.Select(x => x.Name).ToArray(), o.Mode, 120); rmo.Controls.Add(cMode);
+            modeDesc = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 4, 3, 3), Text = ChatMode.At(o.Mode).Desc };
+            cMode.SelectedIndexChanged += delegate { modeDesc.Text = ChatMode.At(cMode.SelectedIndex).Desc; };
+            m.Controls.Add(modeDesc);
+            Note(m, "부기의 성격은 그대로이고 말하는 방식과 길이만 달라져요. 우클릭 메뉴의 대화 모드에서도 바꿀 수 있고, 바꾼 다음 말부터 적용돼요.");
             var g2 = Group(f, "말 걸기"); var b = In(g2);
             cChatKey = Check(b, "단축키로 말 걸기", o.Hotkey);
             var rk = Row(b); rk.Controls.Add(Cap("단축키", 70)); hkBox = new HotkeyBox(o.HotkeyMods, o.HotkeyKey); rk.Controls.Add(hkBox);
@@ -489,10 +495,10 @@ namespace Bugi
             var chat = ChatOptions.Current;
             chat.Enabled = cChat.Checked; chat.Model = tChatModel.Text.Trim().Length > 0 ? tChatModel.Text.Trim() : "gemma4:e2b";
             chat.Endpoint = tChatUrl.Text.Trim().Length > 0 ? tChatUrl.Text.Trim().TrimEnd('/') : "http://localhost:11434";
-            chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
+            chat.Mode = Math.Max(0, cMode.SelectedIndex); chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();
-            app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions();
+            app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions(); app.Chat.ModeChanged();
             if (chat.Enabled && chat.Hotkey && !app.Chat.HotkeyRegistered) Warn("단축키 " + ChatHotkey.Text(chat.HotkeyMods, chat.HotkeyKey) + " 는 다른 프로그램이 이미 쓰고 있어서 등록하지 못했어요. 다른 조합을 골라 주세요.");
             if (app.Notes != null) { app.Notes.DefaultColor = NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]; app.Notes.DefaultSize = (NoteSizePreset)Math.Max(0, noteSize.SelectedIndex); }
             bool ok = s.Save() & o.Save() & chat.Save();

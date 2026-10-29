@@ -260,8 +260,19 @@ namespace Bugi
                 if (err != null || parser.Text.Length == 0) failures++;
             }
 
+            // (1b) 대화 모드별 말투: 같은 질문에 모드마다 어떻게 답하는지
+            foreach (string q in new[] { "요즘 일이 너무 많아서 지쳐", "중력이 뭐야?", "야식 먹고 싶다" })
+                for (int mi = 0; mi < ChatMode.All.Length; mi++)
+                {
+                    ChatOptions.Current.Mode = mi; var mode = ChatMode.All[mi];
+                    var parser = new ReplyParser(mode.MaxSentences, mode.MaxChars); var req = new ChatRequest();
+                    string err = OllamaClient.Stream(opts, ChatPersona.Build(new List<ChatMessage> { new ChatMessage("user", q) }, DateTime.Now), t => parser.Feed(t), req, mode.NumPredict, mode.Temperature);
+                    log.AppendLine(string.Format("[{0}] Q: {1} -> [{2}] {3}  ({4}자, err={5})", mode.Name, q, parser.Mood, parser.Text, parser.Text.Length, err));
+                    if (err != null || parser.Text.Length == 0) failures++;
+                }
+            ChatOptions.Current.Mode = 0;
             // (2) 화면
-            var app = new App(true); app.Spawn(0);
+            var app = new App(true); app.Spawn(0); app.Chat.TestIgnoreClicks = true;       // 점검 도중 실제로 마우스를 눌러도 대화가 끝나지 않게
             Pet pet = app.LiveWindows[0].Pet;
             for (int i = 0; i < 60 && !pet.CanChat; i++) pump(.25);      // 날개를 퍼덕이며 내려와 착지할 때까지
             pump(.6);
@@ -305,6 +316,7 @@ namespace Bugi
             if (ib.IsEmpty) { log.AppendLine("FAIL 입력칸 없음"); failures++; }
             else
             {
+                app.Chat.TestIgnoreClicks = false;
                 Point inside = new Point(ib.Left + ib.Width / 2, ib.Bottom - 26), outside = new Point(Screen.PrimaryScreen.Bounds.Left + 40, Screen.PrimaryScreen.Bounds.Top + 40);
                 Cursor.Position = inside; pump(.15); mouse_event(2, 0, 0, 0, UIntPtr.Zero); pump(.05); mouse_event(4, 0, 0, 0, UIntPtr.Zero); pump(.4);
                 log.AppendLine("알약 안 클릭 후 활성: " + app.Chat.Active);
@@ -610,6 +622,23 @@ namespace Bugi
                 check(chipsOk && starters.Length >= 2 && ChatPersona.Chips(ChatMood.Neutral, true, chipRng).All(c => c.Length > 1), "답장 칩: 감정마다 서로 다른 짧은 말 2~3개(알약 폭 안) · 첫머리엔 말문 트는 칩");
                 var co = new ChatOptions { Chips = false, Diary = false }; co.Save(); ChatOptions.Load();
                 check(!ChatOptions.Current.Chips && !ChatOptions.Current.Diary, "칩·일기 설정 저장·불러오기"); new ChatOptions().Save(); ChatOptions.Load();
+                // 대화 모드 5가지: 구성 · 프롬프트 반영 · 길이 상한 · 저장
+                check(ChatMode.All.Length == 5 && ChatMode.All.Select(x => x.Key).Distinct().Count() == 5 && ChatMode.All.All(x => x.Name.Length > 0 && x.Desc.Length > 0 && x.Cue.Length > 0 && x.Style.Length > 20 && x.MaxSentences >= 1 && x.MaxChars >= 30), "대화 모드: 다섯 가지가 빠짐없이 정의됨");
+                var modePrompts = new List<string>(); var keepMode = ChatOptions.Current.Mode; bool modeOk = true;
+                for (int mi = 0; mi < ChatMode.All.Length; mi++)
+                {
+                    ChatOptions.Current.Mode = mi; var built = ChatPersona.Build(new List<ChatMessage> { new ChatMessage("user", "안녕") }, new DateTime(2026, 1, 5, 10, 3, 0));
+                    string sys0 = built[0].Content; modePrompts.Add(sys0);
+                    modeOk &= sys0.Contains(ChatMode.All[mi].Style) && built[built.Count - 1].Content == "안녕" && (mi == 0 || (built.Count == 1 + 4 + ChatMode.All[mi].Examples.Length + 1 && built.Contains(ChatMode.All[mi].Examples[0])));
+                    modeOk &= ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 47, 0)) == sys0;
+                }
+                ChatOptions.Current.Mode = keepMode;
+                check(modeOk && modePrompts.Distinct().Count() == 5, "대화 모드: 모드마다 시스템 프롬프트와 예시가 달라지고 같은 시간대에선 안 바뀜");
+                string longText = "첫째 문장이야. 둘째 문장이야. 셋째 문장이야. 넷째 문장이야. 다섯째 문장이야.";
+                check(ReplyParser.Clean(longText, ChatMode.All[4].MaxSentences, ChatMode.All[4].MaxChars) == "첫째 문장이야." && ReplyParser.Clean(longText, ChatMode.All[2].MaxSentences, ChatMode.All[2].MaxChars) == "첫째 문장이야. 둘째 문장이야. 셋째 문장이야. 넷째 문장이야.", "대화 모드: 모드마다 문장 수 상한이 다름(간결 1 · 설명 4)");
+                ChatOptions.Current = new ChatOptions { Mode = 3 }; ChatOptions.Current.Save(); ChatOptions.Load(); bool m3 = ChatOptions.Current.Mode == 3 && ChatMode.Current.Key == "humor";
+                File.WriteAllText(ChatOptions.FilePath, "Mode=99" + Environment.NewLine); ChatOptions.Load();
+                check(m3 && ChatOptions.Current.Mode == 0 && ChatMode.Current.Key == "friend", "대화 모드: 저장·불러오기, 이상한 값은 친구 모드"); new ChatOptions().Save(); ChatOptions.Load();
                 // 말 걸기 단축키: 규칙(3키 이상 · 겹침 금지) · 저장 · 입력란이 키를 하나씩 받아 + 를 보이며 기다리는 동작
                 string hkWhy;
                 check(ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt, (uint)'B', out hkWhy) && ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt | ChatHotkey.Shift, (uint)Keys.F5, out hkWhy)

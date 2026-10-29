@@ -230,6 +230,7 @@ namespace Bugi
             Pet pet = w != null ? w.Pet : null;
             var menu = new ContextMenuStrip();
             menu.Items.Add(new ToolStripMenuItem("말 걸기  (AI 대화)", null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? ChatOptions.Current.HotkeyText : null });
+            menu.Items.Add(ModeMenu());
             menu.Items.Add("부기의 일기장...", null, delegate { BeginInvokeSafe(ShowDiary); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("♥ 친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)) { Enabled = false });
@@ -352,6 +353,26 @@ namespace Bugi
         }
 
         internal void StartChatFromHotkey() { StartChat(null); }
+
+        /// <summary>대화 모드 ▶ 친구 · 공감 · 설명 · 장난 · 간결 (지금 모드에 체크).</summary>
+        private ToolStripMenuItem ModeMenu()
+        {
+            var root = new ToolStripMenuItem("대화 모드  ·  " + ChatMode.Current.Name) { Enabled = ChatOptions.Current.Enabled };
+            for (int i = 0; i < ChatMode.All.Length; i++)
+            {
+                int index = i; var mode = ChatMode.All[i];
+                root.DropDownItems.Add(new ToolStripMenuItem(mode.Name + "  —  " + mode.Desc, null, delegate { SetChatMode(index); }) { Checked = index == ChatOptions.Current.Mode });
+            }
+            return root;
+        }
+
+        /// <summary>대화 모드를 바꾸고 저장한다. 말풍선으로 바뀐 걸 알려 준다(바꾼 다음 말부터 적용).</summary>
+        internal void SetChatMode(int index)
+        {
+            var o = ChatOptions.Current; o.Mode = index; o.Save(); Chat.ModeChanged();
+            Pet p = Chat.Pet ?? windows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden);
+            if (p != null) { p.Bubble = ChatMode.At(index).Name + " 모드로 얘기할게!"; p.BubbleUntil = Now + 3.5; }
+        }
 
         private ChatDiaryForm diaryForm;
         /// <summary>부기가 대화 끝에 한 줄씩 적어 둔 일기장 창(하나만 연다).</summary>

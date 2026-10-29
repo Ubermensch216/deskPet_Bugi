@@ -43,6 +43,7 @@ namespace Bugi
         internal string Text { get { return edit.Box.Text; } set { edit.Box.Text = value; } }
         internal Rectangle Bounds { get { return new Rectangle(frameX, frameY, frame.Width, frame.Height); } }
         internal string[] Chips { get { return chips; } }
+        internal void SetCue(string text) { edit.SetCue(text); }
 
         /// <summary>화면 좌표가 알약이나 답장 칩 위인가(투명한 여백은 아님). 밖을 눌러 대화를 끝낼지 가르는 데 쓴다.</summary>
         internal bool Contains(Point screen)
@@ -342,6 +343,8 @@ namespace Bugi
             internal readonly TextBox Box;
             internal event Action Submit, Cancel, GotLostFocus;
             internal event Action<int> Chip;
+            private string cue = "부기에게 말 걸기…";
+            internal void SetCue(string text) { cue = text; if (Box.IsHandleCreated) try { SendMessage(Box.Handle, 0x1501, new IntPtr(1), cue); } catch { } }
 
             protected override bool ShowWithoutActivation { get { return false; } }
             protected override CreateParams CreateParams
@@ -364,7 +367,7 @@ namespace Bugi
                 Box.KeyDown += OnKey;
                 Box.GotFocus += delegate { if (GotLostFocus != null) GotLostFocus(); };
                 Box.LostFocus += delegate { if (GotLostFocus != null) GotLostFocus(); };
-                Box.HandleCreated += delegate { try { SendMessage(Box.Handle, 0x1501, new IntPtr(1), "부기에게 말 걸기…"); } catch { } };
+                Box.HandleCreated += delegate { try { SendMessage(Box.Handle, 0x1501, new IntPtr(1), cue); } catch { } };
             }
 
             private void OnKey(object sender, KeyEventArgs e)
