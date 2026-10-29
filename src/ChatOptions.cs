@@ -14,13 +14,17 @@ namespace Bugi
         internal string Endpoint = "http://localhost:11434";
         internal string Model = "gemma4:e2b";
         internal string KeepAlive = "30m";
-        internal bool Hotkey = true;          // Ctrl+Alt+B 로 말 걸기
+        internal bool Hotkey = true;          // 단축키로 말 걸기
+        internal uint HotkeyMods = ChatHotkey.DefaultMods, HotkeyKey = ChatHotkey.DefaultKey;   // 기본 Ctrl+Alt+B
         internal bool Sound = false;          // 말할 때 뽁뽁 소리
         internal bool Memory = true;          // 대화에서 알게 된 사실을 기억하기
         internal bool Chips = true;           // 부기 말 끝에 답장 추천 칩 보여 주기
         internal bool Diary = true;           // 대화가 끝나면 부기가 일기 한 줄 쓰기
         internal bool Proactive = false;      // 부기가 먼저 말 걸기
         internal int ProactiveMinutes = 40;   // 먼저 말 거는 평균 간격(분)
+
+        /// <summary>말 걸기 단축키 글(메뉴 표시용 "Ctrl+Alt+B").</summary>
+        internal string HotkeyText { get { return ChatHotkey.Text(HotkeyMods, HotkeyKey, "+"); } }
 
         internal static ChatOptions Current = new ChatOptions();
         internal const string Name = "부기_대화.ini";
@@ -36,6 +40,8 @@ namespace Bugi
                 Func<string, bool, bool> flag = (k, def) => d.TryGetValue(k, out v) ? v != "0" : def;
                 o.Enabled = flag("Enabled", o.Enabled); o.Hotkey = flag("Hotkey", o.Hotkey); o.Sound = flag("Sound", o.Sound);
                 o.Memory = flag("Memory", o.Memory); o.Chips = flag("Chips", o.Chips); o.Diary = flag("Diary", o.Diary); o.Proactive = flag("Proactive", o.Proactive);
+                uint hm, hk; string why;
+                if (d.TryGetValue("HotkeyMods", out v) && uint.TryParse(v, out hm) && d.TryGetValue("HotkeyKey", out v) && uint.TryParse(v, out hk) && ChatHotkey.Valid(hm, hk, out why)) { o.HotkeyMods = hm; o.HotkeyKey = hk; }
                 if (d.TryGetValue("Endpoint", out v) && v.Length > 0) o.Endpoint = v.TrimEnd('/');
                 if (d.TryGetValue("Model", out v) && v.Length > 0) o.Model = v;
                 if (d.TryGetValue("KeepAlive", out v) && v.Length > 0) o.KeepAlive = v;
@@ -49,7 +55,7 @@ namespace Bugi
             Func<bool, string> b = x => x ? "1" : "0";
             var t = new StringBuilder("; 부기 AI 대화 설정 (로컬 Ollama)\r\n");
             t.Append("Enabled=" + b(Enabled) + "\r\nEndpoint=" + Endpoint + "\r\nModel=" + Model + "\r\nKeepAlive=" + KeepAlive + "\r\n");
-            t.Append("Hotkey=" + b(Hotkey) + "\r\nSound=" + b(Sound) + "\r\nMemory=" + b(Memory) + "\r\nChips=" + b(Chips) + "\r\nDiary=" + b(Diary) + "\r\n");
+            t.Append("Hotkey=" + b(Hotkey) + "\r\nHotkeyMods=" + HotkeyMods + "\r\nHotkeyKey=" + HotkeyKey + "\r\nSound=" + b(Sound) + "\r\nMemory=" + b(Memory) + "\r\nChips=" + b(Chips) + "\r\nDiary=" + b(Diary) + "\r\n");
             t.Append("Proactive=" + b(Proactive) + "\r\nProactiveMinutes=" + ProactiveMinutes + "\r\n");
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, t.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }

@@ -33,6 +33,8 @@ namespace Bugi
         private HotkeyWindow hotkey;
         private readonly Random rng = new Random();
 
+        /// <summary>단축키가 실제로 등록돼 있는가(다른 프로그램이 이미 쓰는 조합이면 false).</summary>
+        internal bool HotkeyRegistered { get { return hotkey != null; } }
         internal Pet Pet { get { return pet; } }
         internal bool Active { get { return pet != null; } }
         internal List<ChatMessage> History { get { return history; } }
@@ -51,7 +53,7 @@ namespace Bugi
             if (hotkey != null) { hotkey.Dispose(); hotkey = null; }
             if (o.Enabled && o.Hotkey)
             {
-                try { hotkey = new HotkeyWindow(); hotkey.Pressed += delegate { app.StartChatFromHotkey(); }; if (!hotkey.Register()) { hotkey.Dispose(); hotkey = null; } }
+                try { hotkey = new HotkeyWindow(); hotkey.Pressed += delegate { app.StartChatFromHotkey(); }; if (!hotkey.Register(o.HotkeyMods, o.HotkeyKey)) { hotkey.Dispose(); hotkey = null; } }
                 catch { hotkey = null; }
             }
             if (!o.Enabled && pet != null) End();
@@ -307,7 +309,7 @@ namespace Bugi
             if (input != null) { input.Dispose(); input = null; }
         }
 
-        // ───────── 전역 단축키 (Ctrl + Alt + B) ─────────
+        // ───────── 전역 단축키(설정에서 바꿀 수 있음, 기본 Ctrl + Alt + B) ─────────
         private sealed class HotkeyWindow : NativeWindow, IDisposable
         {
             [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
@@ -316,7 +318,7 @@ namespace Bugi
             private bool registered;
 
             internal HotkeyWindow() { CreateHandle(new CreateParams { Parent = new IntPtr(-3) }); }          // 메시지 전용 창
-            internal bool Register() { return registered = RegisterHotKey(Handle, 0x4247, 0x0001 | 0x0002 | 0x4000, (uint)'B'); }
+            internal bool Register(uint mods, uint key) { return registered = RegisterHotKey(Handle, 0x4247, mods | 0x4000, key); }
             protected override void WndProc(ref Message m)
             {
                 if (m.Msg == 0x0312) { if (Pressed != null) Pressed(); return; }

@@ -67,7 +67,7 @@ namespace Bugi
         // 메모
         private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
-        private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -389,7 +389,13 @@ namespace Bugi
             rp.Controls.Add(FriendUI.Button("연결 확인", delegate { ProbeChat(); })); rp.Controls.Add(chatProbe);
             Note(a, "대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
             var g2 = Group(f, "말 걸기"); var b = In(g2);
-            cChatKey = Check(b, "단축키 Ctrl + Alt + B 로 말 걸기", o.Hotkey);
+            cChatKey = Check(b, "단축키로 말 걸기", o.Hotkey);
+            var rk = Row(b); rk.Controls.Add(Cap("단축키", 70)); hkBox = new HotkeyBox(o.HotkeyMods, o.HotkeyKey); rk.Controls.Add(hkBox);
+            rk.Controls.Add(FriendUI.Button("기본값", delegate { hkBox.SetValue(ChatHotkey.DefaultMods, ChatHotkey.DefaultKey); hkHint.Text = ""; }));
+            hkHint = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.Firebrick, Margin = new Padding(6, 4, 3, 3) };
+            hkBox.Hint += t => { hkHint.ForeColor = t != null && t.StartsWith("키를 하나씩") ? Color.DimGray : Color.Firebrick; hkHint.Text = t ?? ""; };
+            Note(b, "입력란을 클릭한 뒤 키를 하나씩 누르세요. 누른 키가 \"Ctrl + \" 처럼 보이고 다음 키를 기다려요. 보조키(Ctrl · Alt · Shift) 2개 이상 + 글쇠 1개, 모두 3개 이상이어야 해요. Esc 는 취소, Backspace 는 방금 누른 키 취소예요.");
+            b.Controls.Add(hkHint);
             cChatChips = Check(b, "부기의 말 끝에 답장 추천 칩 보여주기", o.Chips, "눌러서 바로 보낼 수 있는 짧은 말이에요(Ctrl+1~3). 글자를 치기 시작하면 사라져요.");
             cChatSound = Check(b, "말할 때 글자마다 뽁뽁 소리 내기", o.Sound, "기본은 꺼져 있어요.");
             cChatProactive = Check(b, "부기가 먼저 말 걸기 (선톡)", o.Proactive, "컴퓨터를 쓰는 중일 때 가끔 한마디 건네요. 켜면 모델이 메모리에 올라가 있어요.");
@@ -483,10 +489,11 @@ namespace Bugi
             var chat = ChatOptions.Current;
             chat.Enabled = cChat.Checked; chat.Model = tChatModel.Text.Trim().Length > 0 ? tChatModel.Text.Trim() : "gemma4:e2b";
             chat.Endpoint = tChatUrl.Text.Trim().Length > 0 ? tChatUrl.Text.Trim().TrimEnd('/') : "http://localhost:11434";
-            chat.Hotkey = cChatKey.Checked; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
+            chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();
             app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions();
+            if (chat.Enabled && chat.Hotkey && !app.Chat.HotkeyRegistered) Warn("단축키 " + ChatHotkey.Text(chat.HotkeyMods, chat.HotkeyKey) + " 는 다른 프로그램이 이미 쓰고 있어서 등록하지 못했어요. 다른 조합을 골라 주세요.");
             if (app.Notes != null) { app.Notes.DefaultColor = NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]; app.Notes.DefaultSize = (NoteSizePreset)Math.Max(0, noteSize.SelectedIndex); }
             bool ok = s.Save() & o.Save() & chat.Save();
             status.Text = ok ? "저장했어요." : "설정 파일을 저장하지 못했어요. 이번에 켜 있는 동안만 적용돼요.";

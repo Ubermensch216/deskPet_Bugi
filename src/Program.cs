@@ -610,6 +610,30 @@ namespace Bugi
                 check(chipsOk && starters.Length >= 2 && ChatPersona.Chips(ChatMood.Neutral, true, chipRng).All(c => c.Length > 1), "답장 칩: 감정마다 서로 다른 짧은 말 2~3개(알약 폭 안) · 첫머리엔 말문 트는 칩");
                 var co = new ChatOptions { Chips = false, Diary = false }; co.Save(); ChatOptions.Load();
                 check(!ChatOptions.Current.Chips && !ChatOptions.Current.Diary, "칩·일기 설정 저장·불러오기"); new ChatOptions().Save(); ChatOptions.Load();
+                // 말 걸기 단축키: 규칙(3키 이상 · 겹침 금지) · 저장 · 입력란이 키를 하나씩 받아 + 를 보이며 기다리는 동작
+                string hkWhy;
+                check(ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt, (uint)'B', out hkWhy) && ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt | ChatHotkey.Shift, (uint)Keys.F5, out hkWhy)
+                    && !ChatHotkey.Valid(ChatHotkey.Ctrl, (uint)'B', out hkWhy) && !ChatHotkey.Valid(0, (uint)'B', out hkWhy) && !ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt, 0, out hkWhy)
+                    && !ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Alt, (uint)'N', out hkWhy) && !ChatHotkey.Valid(ChatHotkey.Ctrl | ChatHotkey.Shift, (uint)'F', out hkWhy), "단축키 규칙: 보조키 2개 + 글쇠(3키 이상) · 메모 단축키와 겹치면 거절");
+                check(ChatHotkey.Text(ChatHotkey.Ctrl | ChatHotkey.Alt | ChatHotkey.Shift, (uint)Keys.D7) == "Ctrl + Alt + Shift + 7" && ChatHotkey.Text(ChatHotkey.Ctrl | ChatHotkey.Alt, (uint)'B', "+") == "Ctrl+Alt+B", "단축키 글 만들기");
+                ChatOptions.Current = new ChatOptions { HotkeyMods = ChatHotkey.Ctrl | ChatHotkey.Shift | ChatHotkey.Alt, HotkeyKey = (uint)Keys.F9 }; ChatOptions.Current.Save(); ChatOptions.Load();
+                bool hkSaved = ChatOptions.Current.HotkeyMods == (ChatHotkey.Ctrl | ChatHotkey.Shift | ChatHotkey.Alt) && ChatOptions.Current.HotkeyKey == (uint)Keys.F9;
+                File.WriteAllText(ChatOptions.FilePath, "HotkeyMods=2" + Environment.NewLine + "HotkeyKey=66" + Environment.NewLine); ChatOptions.Load();
+                check(hkSaved && ChatOptions.Current.HotkeyMods == ChatHotkey.DefaultMods && ChatOptions.Current.HotkeyKey == ChatHotkey.DefaultKey, "단축키 저장·불러오기, 규칙에 안 맞는 저장값은 기본값으로"); new ChatOptions().Save(); ChatOptions.Load();
+                using (var hb = new HotkeyBox(ChatHotkey.DefaultMods, ChatHotkey.DefaultKey))
+                {
+                    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance; var cmd = typeof(HotkeyBox).GetMethod("ProcessCmdKey", bf);
+                    Func<Keys, bool> press = k => { var m = new System.Windows.Forms.Message(); return (bool)cmd.Invoke(hb, new object[] { m, k }); };
+                    string lastHint = null; hb.Hint += t => lastHint = t; bool changed = false; hb.Changed += () => changed = true;
+                    typeof(HotkeyBox).GetMethod("OnGotFocus", bf).Invoke(hb, new object[] { EventArgs.Empty });
+                    string t0 = hb.Text; press(Keys.ControlKey); string t1 = hb.Text; press(Keys.Menu); string t2 = hb.Text;
+                    check(t1 == "Ctrl + " && t2 == "Ctrl + Alt + " && !changed, "단축키 입력란: 키를 누를 때마다 + 를 붙여 다음 키를 기다림 (" + t0 + " → " + t1 + " → " + t2 + ")");
+                    press(Keys.ShiftKey); press(Keys.Back); string t3 = hb.Text; press(Keys.K);
+                    check(t3 == "Ctrl + Alt + " && hb.Mods == (ChatHotkey.Ctrl | ChatHotkey.Alt) && hb.Key == (uint)Keys.K && hb.Text == "Ctrl + Alt + K" && changed, "단축키 입력란: Backspace 로 방금 키 취소, 글쇠로 확정");
+                    typeof(HotkeyBox).GetMethod("OnGotFocus", bf).Invoke(hb, new object[] { EventArgs.Empty }); press(Keys.ControlKey); press(Keys.B);
+                    check(lastHint != null && lastHint.Contains("3개") && hb.Key == (uint)Keys.K && hb.Text.StartsWith("키를"), "단축키 입력란: 키 2개만으로는 확정하지 않고 3개 이상 안내");
+                    press(Keys.Escape); check(hb.Text == "Ctrl + Alt + K", "단축키 입력란: Esc 로 취소하면 원래 값");
+                }
                 var cw = new FakeWorld(); var cp = new Pet(cw, 0, 640, 720) { Area = cw.Areas[0] }; cp.SetState(PetState.Pause, cw); cp.X = 640; cp.Y = 720;
                 check(cp.BeginChat(cw, 1) && cp.State == PetState.Chat && cp.ChatActive, "대화 시작: 자세가 대화로 바뀜");
                 cp.ChatThink(); cp.ChatSay(ChatMood.Joy, "안녕! 반가워", false);
