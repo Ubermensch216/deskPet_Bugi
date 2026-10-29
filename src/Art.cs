@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.IO;
 
 namespace Bugi
 {
@@ -13,15 +12,9 @@ namespace Bugi
         public Color Accent;                  // 말풍선·꽃 장식 등에 어울리는 색
     }
 
-    /// <summary>벽·천장 상태에서 쓰는 몸 크기 상자.</summary>
-    internal sealed class Dim
-    {
-        public int W, H;
-    }
-
     /// <summary>
     /// 부기의 크기와 기준 치수. 그림은 Rig.cs 가 부위별로 그린다
-    /// (원본 감천이처럼 이미지 한 장을 변형하는 방식이 아니라, 팔·다리·꼬리·귀·눈·입이 따로 움직인다).
+    /// (이미지 한 장을 변형하는 방식이 아니라, 날개·다리·꼬리·눈·부리가 따로 움직인다).
     /// </summary>
     internal sealed class CharacterArt
     {
@@ -44,23 +37,29 @@ namespace Bugi
         }
         internal static void Reset(float scale) { Scale = scale; cache.Clear(); }
 
+        /// <summary>같은 캐릭터를 배율을 더 키워 그린다(알림 부기). 걸어 다니는 부기는 늘 배율 1.</summary>
+        internal static CharacterArt Zoomed(int id, float zoom)
+        {
+            id = ((id % Count) + Count) % Count;
+            return new CharacterArt(id, zoom);
+        }
+
         public readonly int Id;
         public readonly CharInfo Info;
+        public readonly float Zoom;       // 걷는 부기 대비 확대 배율
         public readonly float K;          // 기준 그림 1픽셀 = 화면 K 픽셀
         public readonly int W, H;         // 서 있는 모습의 상자(걷기 기준) — 이동·충돌 기준
-        public readonly int RotorH;       // 프로펠러가 머리 위로 올라오는 높이
-        public readonly Dim Ceiling;
-        public int CeilingTopInset { get { return 0; } }
-        public int CeilingContactHeight { get { return Ceiling.H; } }
+        public readonly int HeadRoom;       // 머리 위에 남겨 두는 여유(화면 맨 위 보정용)
+        /// <summary>장식·말풍선 치수의 기준 단위(화면 배율 × 확대 배율).</summary>
+        public float Unit { get { return Scale * Zoom; } }
 
-        private CharacterArt(int id)
+        private CharacterArt(int id, float zoom = 1f)
         {
-            Id = id; Info = Infos[id];
-            H = (int)Math.Round(BaseHeight * Scale);
+            Id = id; Info = Infos[id]; Zoom = zoom;
+            H = (int)Math.Round(BaseHeight * Scale * zoom);
             K = H / Rig.RefH;
             W = (int)Math.Round(150 * K);
-            RotorH = (int)Math.Round(H * .08f);
-            Ceiling = new Dim { W = W, H = H };
+            HeadRoom = (int)Math.Round(H * .08f);
         }
 
         internal static void Quality(Graphics g)

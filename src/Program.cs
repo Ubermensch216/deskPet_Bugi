@@ -43,7 +43,7 @@ namespace Bugi
                 {
                     PlayOptions.Load(); FriendData.Load();
                     CharacterArt.Reset(Native.SystemDpiScale());
-                    var app = new App();
+                    var app = new App(); app.Notes = new NoteManager(app); app.Notes.Start();
                     Application.Run(app);
                 }
                 catch (Exception error)
@@ -307,7 +307,7 @@ namespace Bugi
             // 설정 페이지와 기억 창 모양
             try
             {
-                var sf = new SettingsForm(app, 6); sf.Show(); pump(.4);
+                var sf = new SettingsForm(app, 7); sf.Show(); pump(.4);
                 using (var b = new Bitmap(sf.Width, sf.Height)) { sf.DrawToBitmap(b, new Rectangle(0, 0, sf.Width, sf.Height)); b.Save(Path.Combine(dir, "live_7_settings.png"), ImageFormat.Png); }
                 sf.Close();
                 ChatMemory.Add(new[] { "- 이름은 민수", "- 고양이 두부를 키운다" });
@@ -471,7 +471,7 @@ namespace Bugi
                     using (Bitmap bmp = Pet.Render(stand, out org))
                     {
                         Rectangle ink = CharacterArt.Bounds(bmp);
-                        check(a.W > 30 && a.H > 30 && ink.Height > a.H * .8 && ink.Width > a.W * .4 && a.Ceiling.H == a.H, CharacterArt.Infos[c].Name + " 그림 생성");
+                        check(a.W > 30 && a.H > 30 && ink.Height > a.H * .8 && ink.Width > a.W * .4, CharacterArt.Infos[c].Name + " 그림 생성");
                     }
                 }
 

@@ -36,14 +36,14 @@ namespace Bugi
     /// </summary>
     internal sealed class SettingsForm : Form
     {
-        internal static readonly string[] PageNames = { "캐릭터", "움직임", "반응", "생활", "알림", "화면 · 시스템", "AI 대화" };
-        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 도우미 창 · 자동 시작", "Ollama · 단축키 · 기억" };
+        internal static readonly string[] PageNames = { "캐릭터", "움직임", "반응", "생활", "알림", "화면 · 시스템", "메모", "AI 대화" };
+        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 도우미 창 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
         private static int lastPage;
 
         private readonly App app;
         private readonly ListBox nav;
         private readonly Panel host;
-        private readonly Panel[] pages = new Panel[7];
+        private readonly Panel[] pages = new Panel[8];
         private readonly Label status;
         private readonly System.Windows.Forms.Timer live;
 
@@ -58,12 +58,14 @@ namespace Bugi
         private NumericUpDown nHunger; private CheckBox cHungerCry, cAffinity;
         private Label lifeSummary, lifeDetail, secretLabel; private ProgressBar satietyBar; private Button snackButton;
         // 알림
-        private CheckBox cLunch, cLeave, cNap, cHourly, cPopup, cGlow, cQuiet;
+        private CheckBox cLunch, cLeave, cNap, cHourly, cPopup, cAlertPet, cGlow, cQuiet;
         private TextBox tLunch, tLunchMsg, tLeave, tLeaveMsg;
         private NumericUpDown nNap, nStart, nEnd;
         private ComboBox glowTheme, glowWidth, glowStrength;
         // 화면·시스템
         private NumericUpDown nOpacity, nMemoOpacity; private CheckBox cMemoTop, cStartup;
+        // 메모
+        private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
         private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
 
@@ -97,7 +99,7 @@ namespace Bugi
             host.BringToFront();
 
             pages[0] = BuildCharacterPage(); pages[1] = BuildMovePage(); pages[2] = BuildReactPage();
-            pages[3] = BuildLifePage(); pages[4] = BuildAlarmPage(); pages[5] = BuildDisplayPage(); pages[6] = BuildChatPage();
+            pages[3] = BuildLifePage(); pages[4] = BuildAlarmPage(); pages[5] = BuildDisplayPage(); pages[6] = BuildMemoPage(); pages[7] = BuildChatPage();
             foreach (var pg in pages) { pg.Dock = DockStyle.Fill; pg.Visible = false; host.Controls.Add(pg); }
             nav.SelectedIndexChanged += delegate { ShowPage(nav.SelectedIndex); };
             nav.SelectedIndex = Math.Max(0, Math.Min(pages.Length - 1, page >= 0 ? page : lastPage));
@@ -119,7 +121,7 @@ namespace Bugi
             if (sel) using (var bar = new SolidBrush(FriendUI.Gold)) e.Graphics.FillRectangle(bar, e.Bounds.Left, e.Bounds.Top, 5, e.Bounds.Height);
             using (var f1 = new Font("Malgun Gothic", 11f, FontStyle.Bold)) using (var f2 = new Font("Malgun Gothic", 7.8f))
             {
-                string[] glyph = { "☺", "▶", "☝", "♥", "♪", "▣", "✦" };
+                string[] glyph = { "☺", "▶", "☝", "♥", "♪", "▣", "✎", "✦" };
                 TextRenderer.DrawText(e.Graphics, glyph[e.Index] + "  " + PageNames[e.Index], f1, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 7, e.Bounds.Width - 16, 22), Color.White, TextFormatFlags.Left | TextFormatFlags.NoPrefix);
                 TextRenderer.DrawText(e.Graphics, PageHints[e.Index], f2, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 29, e.Bounds.Width - 16, 20), sel ? Color.FromArgb(214, 228, 250) : Color.FromArgb(150, 176, 220), TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             }
@@ -292,6 +294,7 @@ namespace Bugi
             var g1 = Group(f, "정각 알림"); var a = In(g1);
             cHourly = Check(a, "정각 알림 (매시간 현재 시각 알려주기)", s.HourlyOn);
             cPopup = Check(a, "별도 정각 알림창 사용 (직접 닫을 때까지 유지)", s.HourlyWindow, "끄면 친구의 말풍선으로 알려줘요.");
+            cAlertPet = Check(a, "알림을 화면 가운데 큰 부기로 보여주기 (정각 · 점심 · 퇴근 · 메모)", s.AlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요. 끄면 예전 알림창 · 말풍선을 써요. 메모 알림은 늘 큰 부기로 나와요.");
             cGlow = Check(a, "알림창을 닫을 때까지 화면 가장자리 빛 유지", s.EdgeGlow);
             var rc = Row(a); rc.Controls.Add(Cap("빛 색상", 70)); glowTheme = Combo(new[] { "피치 · 핑크 · 보라 · 하늘", "노을", "오로라", "무지개" }, s.EdgeGlowTheme, 190); rc.Controls.Add(glowTheme);
             var rw = Row(a); rw.Controls.Add(Cap("퍼지는 폭", 70)); glowWidth = Combo(new[] { "보통", "넓게", "아주 넓게" }, s.EdgeGlowWidth, 90); rw.Controls.Add(glowWidth);
@@ -349,7 +352,30 @@ namespace Bugi
             return page;
         }
 
-        // ───────── 7. AI 대화 ─────────
+        // ───────── 7. 메모 ─────────
+        private Panel BuildMemoPage()
+        {
+            FlowLayoutPanel f; var page = NewPage("메모", "바탕화면 메모의 기본 모습 · 단축키 · 저장 위치", out f);
+            var mgr = app.Notes;
+            var g1 = Group(f, "새 메모의 기본값"); var a = In(g1);
+            var rc = Row(a); rc.Controls.Add(Cap("기본 색", 70));
+            noteColor = Combo(NoteColors.All.Select(k => NoteColors.Label(k)).ToArray(), mgr == null ? 0 : Array.IndexOf(NoteColors.All, mgr.DefaultColor), 120); rc.Controls.Add(noteColor);
+            var rs = Row(a); rs.Controls.Add(Cap("기본 크기", 70));
+            noteSize = Combo(new[] { "작게  240×180", "보통  320×260", "크게  420×360" }, mgr == null ? 1 : (int)mgr.DefaultSize, 150); rs.Controls.Add(noteSize);
+            Note(a, "저장한 다음에 만드는 메모부터 적용돼요. 이미 있는 메모의 색과 크기는 그대로예요.");
+            var g2 = Group(f, "어디서나 쓰는 단축키"); var b = In(g2);
+            Note(b, "Ctrl+Alt+N   새 메모\nCtrl+Shift+F   메모 라이브러리\nCtrl+Shift+P   마지막으로 쓴 메모를 항상 위에 두기\nCtrl+Shift+R   마지막으로 쓴 메모에 1시간 뒤 알림");
+            Note(b, "다른 프로그램이 이미 쓰는 조합이면 등록되지 않아요. 트레이·우클릭 메뉴의 새 메모와, 메모 위젯 ⋯ 메뉴의 메모 라이브러리는 늘 쓸 수 있어요.");
+            var g3 = Group(f, "메모를 쓰는 중"); var c = In(g3);
+            Note(c, "Ctrl+B / I / U   굵게 · 기울임 · 밑줄       Ctrl+Shift+X   취소선\nCtrl+K   링크       Ctrl+Shift+K   코드       Ctrl+1 / 2 / 3   제목\nCtrl+Shift+L   글머리 목록       Ctrl+Shift+C   체크리스트\nCtrl+Enter   커서 줄의 체크박스 토글       Enter   목록 이어쓰기(빈 항목에서 목록 끝)");
+            var g4 = Group(f, "내 메모는 어디에"); var d = In(g4);
+            noteInfo = Note(d, ""); noteInfo.Text = mgr == null ? "" : mgr.Store.Root + "\n메모 " + mgr.Store.Count.ToString("N0") + "개";
+            d.Controls.Add(FriendUI.Button("폴더 열기", delegate { try { if (mgr != null) System.Diagnostics.Process.Start("explorer.exe", "\"" + mgr.Store.Root + "\""); } catch { } }));
+            Note(d, "백업은 부기를 끈 뒤 이 폴더를 통째로 복사하면 돼요. 삭제는 되돌릴 수 없어요(휴지통이 없어요).");
+            return page;
+        }
+
+        // ───────── 8. AI 대화 ─────────
         private Panel BuildChatPage()
         {
             FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요. 대화하는 동안 부기 가슴에 AI 뱃지가 달려요", out f);
@@ -441,7 +467,7 @@ namespace Bugi
             o.MemoTopMost = cMemoTop.Checked; o.MemoOpacityPercent = (int)nMemoOpacity.Value;
 
             Settings s = app.Settings;
-            s.HourlyOn = cHourly.Checked; s.HourlyWindow = cPopup.Checked; s.EdgeGlow = cGlow.Checked;
+            s.HourlyOn = cHourly.Checked; s.HourlyWindow = cPopup.Checked; s.AlertPet = cAlertPet.Checked; s.EdgeGlow = cGlow.Checked;
             s.EdgeGlowTheme = glowTheme.SelectedIndex; s.EdgeGlowWidth = glowWidth.SelectedIndex; s.EdgeGlowStrength = glowStrength.SelectedIndex;
             s.QuietWeekdays = cQuiet.Checked; s.QuietStart = (int)nStart.Value; s.QuietEnd = (int)nEnd.Value;
             s.LunchOn = cLunch.Checked; s.LunchTime = Norm(tLunch.Text); s.LunchMsg = tLunchMsg.Text.Trim();
@@ -457,6 +483,7 @@ namespace Bugi
 
             app.OnSettingsChanged();
             app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions();
+            if (app.Notes != null) { app.Notes.DefaultColor = NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]; app.Notes.DefaultSize = (NoteSizePreset)Math.Max(0, noteSize.SelectedIndex); }
             bool ok = s.Save() & o.Save() & chat.Save();
             status.Text = ok ? "저장했어요." : "설정 파일을 저장하지 못했어요. 이번에 켜 있는 동안만 적용돼요.";
             if (!ok) Warn(status.Text);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -22,14 +22,14 @@ namespace Bugi
 
         private struct DragSample { internal double Time, X, Y; internal DragSample(double t, double x, double y) { Time = t; X = x; Y = y; } }
         private readonly List<DragSample> dragSamples = new List<DragSample>();
-        private double throwVx, throwVy, throwDuration, helicopterDrift;
+        private double throwVx, throwVy, throwDuration, flutterDrift;
 
         internal void InitializeFeatures(IWorld w)
         {
             nextIdle = w.Now + 15 + w.Rng.NextDouble() * 15;
             nextClimb = w.Now + 25 + w.Rng.NextDouble() * 20;
             mouseGrace = w.Now + 1;
-            Y = Math.Max(Y, Area.Top + HeliH + 5);   // 처음 낙하는 프로펠러까지 화면 안에서 보이게
+            Y = Math.Max(Y, Area.Top + TopReach + 5);   // 처음 낙하는 머리 위 여유까지 화면 안에서 보이게
         }
 
         private void DelayIdle(IWorld w)
@@ -43,7 +43,7 @@ namespace Bugi
         internal void ReleaseFeatures(IWorld w)
         {
             ClearAttachments(); hoverSince = -1; hadNearMouse = false; mouseGrace = w.Now + .8;
-            throwVx = throwVy = helicopterDrift = 0; pilotFlight = false;
+            throwVx = throwVy = flutterDrift = 0; pilotFlight = false;
         }
 
         private void BeginThrowTracking(double now, double x, double y) { dragSamples.Clear(); TrackDrag(now, x, y); }
@@ -71,7 +71,7 @@ namespace Bugi
             if (Y > Area.Bottom - 24 * S) throwVy = Math.Min(throwVy, -240 * S);   // 바닥에서 던지면 먼저 떠오른다
             double half = Art.W * .75;
             X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
-            Y = Math.Max(Area.Top + HeliH + 1, Math.Min(Area.Bottom - Art.H * .25, Y));
+            Y = Math.Max(Area.Top + TopReach + 1, Math.Min(Area.Bottom - Art.H * .25, Y));
             throwDuration = .45 + .15 * Math.Min(1, Math.Max(0, -throwVy / (600 * S)));
             if (Math.Abs(throwVx) > 25 * S) Dir = throwVx < 0 ? -1 : 1;
             RegisterSecretThrow(w);
@@ -79,13 +79,13 @@ namespace Bugi
             DelayIdle(w); return true;
         }
 
-        private void OpenHelicopter(IWorld w)
+        private void StartFlutter(IWorld w)
         {
-            double half = HeliHalf;
+            double half = SideReach;
             X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
-            Y = Math.Max(Area.Top + HeliH + 1, Math.Min(Area.Bottom - 1, Y));
+            Y = Math.Max(Area.Top + TopReach + 1, Math.Min(Area.Bottom - 1, Y));
             Vy = Math.Max(0, Math.Min(95 * S * PlayOptions.Current.FallSpeed, throwVy * .25));
-            helicopterDrift = throwVx * .45; throwVx = throwVy = 0;
+            flutterDrift = throwVx * .45; throwVx = throwVy = 0;
             if (pilotFlight) { Vy = 0; SetState(PetState.PilotRise, w); }
             else SetState(PetState.Falling, w);
         }
@@ -100,7 +100,7 @@ namespace Bugi
             double half = Art.W * .75;
             bool edge = nx < Area.Left + half || nx > Area.Right - half;
             X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, nx));
-            double top = Area.Top + HeliH + 1;
+            double top = Area.Top + TopReach + 1;
             bool hitTop = ny < top;
             Y = Math.Max(top, Math.Min(Area.Bottom - 1, ny));
             bool nearFloor = throwVy > 0 && ny >= Area.Bottom - 10 * S;
@@ -116,7 +116,7 @@ namespace Bugi
             }
             if (edge) throwVx = -throwVx * .2;
             if (hitTop) throwVy = Math.Max(0, -throwVy * .2);
-            if (StateT >= throwDuration || edge || hitTop || nearFloor || nearWindow) OpenHelicopter(w);
+            if (StateT >= throwDuration || edge || hitTop || nearFloor || nearWindow) StartFlutter(w);
         }
 
         internal void ClickFeature(IWorld w)
@@ -126,7 +126,7 @@ namespace Bugi
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb || State == PetState.Climb)
             {
                 ReleaseFeatures(w); ResetSecretThrows(); queuedAfterLand = null; Vy = 0;
-                OpenHelicopter(w); DelayIdle(w); FriendData.Current.Like(1); return;
+                StartFlutter(w); DelayIdle(w); FriendData.Current.Like(1); return;
             }
             if (State == PetState.Sleep) { SetState(PetState.Waking, w); return; }
             if (State == PetState.Gather || State == PetState.WaitHome || State == PetState.Cheer) return;
@@ -168,13 +168,13 @@ namespace Bugi
         {
             mouseGrace = w.Now + 8; hoverSince = -1;
             if (kind == "fall")
-            { ReleaseFeatures(w); X = Area.Left + Area.Width * .5; Y = Area.Top + HeliH + 5; Vy = 0; SetState(PetState.Falling, w); return; }
+            { ReleaseFeatures(w); X = Area.Left + Area.Width * .5; Y = Area.Top + TopReach + 5; Vy = 0; SetState(PetState.Falling, w); return; }
             if (kind == "wall")
             { ClearAttachments(); wallSide = 1; wallDescending = false; X = WallX(Area.Left, Area.Right, 1, false); Y = Area.Bottom - BottomExt(false); SetState(PetState.Wall, w); return; }
             if (kind == "walldown")
             { ClearAttachments(); wallSide = 1; wallDescending = true; X = WallX(Area.Left, Area.Right, 1, true); Y = Area.Top + TopExt(true) + 1; SetState(PetState.Wall, w); return; }
             if (kind == "ceiling")
-            { ClearAttachments(); X = Area.Left + Area.Width * .5; Y = Area.Top + Art.CeilingContactHeight; Dir = 1; SetState(PetState.Ceiling, w); return; }
+            { ClearAttachments(); X = Area.Left + Area.Width * .5; Y = Area.Top + Art.H; Dir = 1; SetState(PetState.Ceiling, w); return; }
             if (kind == "window")
             {
                 DesktopSurfaces.Refresh();
@@ -316,9 +316,9 @@ namespace Bugi
                     {
                         if (opts.Ceiling && !focus)
                         {
-                            double half = Art.Ceiling.W / 2.0;
+                            double half = Art.W / 2.0;
                             X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
-                            Y = Area.Top + Art.CeilingContactHeight; Dir = -wallSide; SetState(PetState.Ceiling, w);
+                            Y = Area.Top + Art.H; Dir = -wallSide; SetState(PetState.Ceiling, w);
                         }
                         else { ClearAttachments(); SetState(PetState.Falling, w); }
                     }
@@ -330,10 +330,10 @@ namespace Bugi
                     }
                     break;
                 case PetState.Ceiling:
-                    Y = Area.Top + Art.CeilingContactHeight;
+                    Y = Area.Top + Art.H;
                     X += Dir * 36 * S * opts.Speed * dt;
                     if (StateT > 14 && w.Rng.NextDouble() < dt * .08) { ClearAttachments(); SetState(PetState.Falling, w); }
-                    else if ((Dir < 0 && X <= Area.Left + Art.Ceiling.W / 2.0) || (Dir > 0 && X >= Area.Right - Art.Ceiling.W / 2.0))
+                    else if ((Dir < 0 && X <= Area.Left + Art.W / 2.0) || (Dir > 0 && X >= Area.Right - Art.W / 2.0))
                     {
                         if (!opts.Walls) { ClearAttachments(); SetState(PetState.Falling, w); }
                         else
@@ -388,15 +388,15 @@ namespace Bugi
             Y = r.Top; return true;
         }
 
-        /// <summary>헬리콥터로 천천히 내려와 바닥이나 열린 창 윗면에 착지.</summary>
-        internal void HelicopterDrop(IWorld w, double dt)
+        /// <summary>날개를 퍼덕이며 천천히 내려와 바닥이나 열린 창 윗면에 착지.</summary>
+        internal void FlutterDrop(IWorld w, double dt)
         {
             double oldY = Y;
-            if (Math.Abs(helicopterDrift) > .1)
+            if (Math.Abs(flutterDrift) > .1)
             {
-                double half = HeliHalf;
-                X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X + helicopterDrift * dt));
-                helicopterDrift *= Math.Exp(-4 * dt);
+                double half = SideReach;
+                X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X + flutterDrift * dt));
+                flutterDrift *= Math.Exp(-4 * dt);
             }
             double speed = PlayOptions.Current.FallSpeed;
             Vy = Math.Min(95 * S * speed, Math.Max(35 * S * speed, Vy + 55 * S * speed * dt));
@@ -415,12 +415,12 @@ namespace Bugi
             }
             if (land != null)
             {
-                SupportWindow = land.Handle; SupportBounds = land.Bounds; Y = land.Bounds.Top; Vy = 0; helicopterDrift = 0;
+                SupportWindow = land.Handle; SupportBounds = land.Bounds; Y = land.Bounds.Top; Vy = 0; flutterDrift = 0;
                 StartSquish(w, .3, .15, queuedAfterLand ?? PetState.Walk, false); queuedAfterLand = null; DelayIdle(w); mouseGrace = w.Now + .8;
             }
             else if (Y >= Area.Bottom)
             {
-                Y = Area.Bottom; Vy = 0; helicopterDrift = 0; ClearAttachments();
+                Y = Area.Bottom; Vy = 0; flutterDrift = 0; ClearAttachments();
                 StartSquish(w, .3, .15, queuedAfterLand ?? PetState.Walk, false); queuedAfterLand = null; DelayIdle(w); mouseGrace = w.Now + .8;
             }
         }

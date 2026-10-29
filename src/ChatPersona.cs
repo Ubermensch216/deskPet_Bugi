@@ -201,6 +201,55 @@ namespace Bugi
                 .Select(l => l.TrimStart('-', '·', '*', ' ').Trim()).ToList();
         }
 
+        /// <summary>오늘 나눈 대화를 부기의 일기 한 줄로 써 달라는 요청.</summary>
+        internal static List<ChatMessage> DiaryRequest(string transcript, DateTime now)
+        {
+            return new List<ChatMessage>
+            {
+                new ChatMessage("system", "너는 PC 바탕화면에 사는 갈매기 '부기'야. 지금 일기장을 쓰는 중이야. 아래 대화를 바탕으로 오늘(" + now.ToString("M월 d일") + " " + TimeOfDay(now) + ") 있었던 일을 부기의 시점에서 일기 한두 문장으로 써. " +
+                    "친근한 반말, 80자 안쪽. 사용자를 '너'라고 부르고, 오간 이야기와 부기가 느낀 감정을 담아. 이모지·태그·따옴표·날짜·제목 없이 일기 문장만 써."),
+                new ChatMessage("user", transcript)
+            };
+        }
+
+        /// <summary>일기 답변에서 문장만 남긴다. 쓸 만하지 않으면 null.</summary>
+        internal static string ParseDiary(string reply)
+        {
+            if (string.IsNullOrWhiteSpace(reply)) return null;
+            string line = reply.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
+            line = System.Text.RegularExpressions.Regex.Replace(line, @"^\s*(\[[^\]]{1,6}\]|\*\*[^*]*\*\*|#+|일기[:：]?|[-·*]+)\s*", "");
+            line = line.Trim('"', '\'', '“', '”', '‘', '’', '`', ' ');
+            line = line.Replace("*", "");
+            if (line.Length > 100)
+            {
+                int cut = line.LastIndexOfAny(new[] { '.', '!', '?', '~' }, 99);
+                line = cut > 30 ? line.Substring(0, cut + 1) : line.Substring(0, 100).TrimEnd() + "…";
+            }
+            return line.Length >= 6 ? line : null;
+        }
+
+        /// <summary>부기의 말 끝에 붙는 답장 추천 칩(눌러서 보낼 수 있는 짧은 말). 대화 첫머리면 말문을 트는 칩이다.</summary>
+        internal static string[] Chips(ChatMood mood, bool starter, Random rng)
+        {
+            string[] pool;
+            if (starter) pool = new[] { "오늘 뭐 했어?", "심심한데 놀아줘", "나 오늘 좀 힘들었어", "너 진짜 AI야?", "새우깡 좋아해?", "오늘 날씨 어때?" };
+            else switch (mood)
+            {
+                case ChatMood.Joy: pool = new[] { "나도 기분 좋아!", "뭐가 그렇게 좋아?", "쓰담쓰담 해줄게", "너랑 있으면 좋아", "더 얘기해 줘" }; break;
+                case ChatMood.Shy: pool = new[] { "귀엽다 ㅋㅋ", "왜 부끄러워해?", "편하게 말해도 돼", "얼굴 빨개졌네", "고마워, 부기" }; break;
+                case ChatMood.Sad: pool = new[] { "무슨 일이야?", "토닥토닥...", "내가 옆에 있을게", "괜찮아, 다 말해 봐", "새우깡 줄까?" }; break;
+                case ChatMood.Surprise: pool = new[] { "왜 그렇게 놀랐어?", "무슨 일이야?", "진짜야!", "깜짝 놀랐지?", "자세히 말해 줘" }; break;
+                case ChatMood.Sleepy: pool = new[] { "졸려? 좀 쉬어", "오늘 피곤했어?", "잘 자, 부기", "나도 졸리다", "조금만 더 얘기하자" }; break;
+                case ChatMood.Think: pool = new[] { "무슨 생각해?", "고마워, 도움 됐어", "다른 얘기 하자", "좀 더 알려 줘", "너는 어떻게 생각해?" }; break;
+                case ChatMood.Pout: pool = new[] { "미안해, 화 풀어", "뭐가 서운했어?", "내가 잘못했어", "새우깡 줄게", "토라졌어?" }; break;
+                case ChatMood.Hungry: pool = new[] { "간식 줄게!", "뭐 먹고 싶어?", "조금만 참아", "새우깡 사 올까?", "배고파? 나도!" }; break;
+                default: pool = new[] { "그래서 어떻게 됐어?", "그렇구나", "고마워", "더 얘기해 줘", "다른 얘기 하자" }; break;
+            }
+            var pick = pool.OrderBy(_ => rng.Next()).Take(3).ToList();
+            if (starter && FriendData.Current.Satiety <= 30) pick[0] = "간식 줄게!";
+            return pick.ToArray();
+        }
+
         /// <summary>부기가 먼저 말을 거는 상황(선톡)을 알려 주는 메시지.</summary>
         internal static ChatMessage ProactivePrompt(string reason)
         {

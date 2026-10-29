@@ -17,6 +17,8 @@ namespace Bugi
         internal bool Hotkey = true;          // Ctrl+Alt+B 로 말 걸기
         internal bool Sound = false;          // 말할 때 뽁뽁 소리
         internal bool Memory = true;          // 대화에서 알게 된 사실을 기억하기
+        internal bool Chips = true;           // 부기 말 끝에 답장 추천 칩 보여 주기
+        internal bool Diary = true;           // 대화가 끝나면 부기가 일기 한 줄 쓰기
         internal bool Proactive = false;      // 부기가 먼저 말 걸기
         internal int ProactiveMinutes = 40;   // 먼저 말 거는 평균 간격(분)
 
@@ -33,7 +35,7 @@ namespace Bugi
                 var d = Settings.ReadIni(FilePath); string v; int n;
                 Func<string, bool, bool> flag = (k, def) => d.TryGetValue(k, out v) ? v != "0" : def;
                 o.Enabled = flag("Enabled", o.Enabled); o.Hotkey = flag("Hotkey", o.Hotkey); o.Sound = flag("Sound", o.Sound);
-                o.Memory = flag("Memory", o.Memory); o.Proactive = flag("Proactive", o.Proactive);
+                o.Memory = flag("Memory", o.Memory); o.Chips = flag("Chips", o.Chips); o.Diary = flag("Diary", o.Diary); o.Proactive = flag("Proactive", o.Proactive);
                 if (d.TryGetValue("Endpoint", out v) && v.Length > 0) o.Endpoint = v.TrimEnd('/');
                 if (d.TryGetValue("Model", out v) && v.Length > 0) o.Model = v;
                 if (d.TryGetValue("KeepAlive", out v) && v.Length > 0) o.KeepAlive = v;
@@ -47,7 +49,7 @@ namespace Bugi
             Func<bool, string> b = x => x ? "1" : "0";
             var t = new StringBuilder("; 부기 AI 대화 설정 (로컬 Ollama)\r\n");
             t.Append("Enabled=" + b(Enabled) + "\r\nEndpoint=" + Endpoint + "\r\nModel=" + Model + "\r\nKeepAlive=" + KeepAlive + "\r\n");
-            t.Append("Hotkey=" + b(Hotkey) + "\r\nSound=" + b(Sound) + "\r\nMemory=" + b(Memory) + "\r\n");
+            t.Append("Hotkey=" + b(Hotkey) + "\r\nSound=" + b(Sound) + "\r\nMemory=" + b(Memory) + "\r\nChips=" + b(Chips) + "\r\nDiary=" + b(Diary) + "\r\n");
             t.Append("Proactive=" + b(Proactive) + "\r\nProactiveMinutes=" + ProactiveMinutes + "\r\n");
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, t.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }
@@ -100,5 +102,66 @@ namespace Bugi
 
         internal static void RemoveAt(int index) { if (index >= 0 && index < Facts.Count) { Facts.RemoveAt(index); Save(); } }
         internal static void Clear() { Facts.Clear(); Save(); }
+    }
+
+    /// <summary>부기의 일기장(부기_일기.txt, 한 줄에 "날짜 시각 [탭] 문장"). 대화가 끝날 때 부기가 한 줄 쓰고, 사용자가 보고 지울 수 있다.</summary>
+    internal static class ChatDiary
+    {
+        internal struct Entry { internal DateTime When; internal string Text; }
+
+        internal const int MaxEntries = 200;
+        internal const string Name = "부기_일기.txt";
+        private static List<Entry> entries;
+        internal static string FilePath { get { return Path.Combine(Paths.Dir, Name); } }
+
+        /// <summary>오래된 것부터.</summary>
+        internal static List<Entry> Entries
+        {
+            get
+            {
+                if (entries != null) return entries;
+                entries = new List<Entry>();
+                try
+                {
+                    if (File.Exists(FilePath))
+                        foreach (string line in File.ReadAllLines(FilePath, Encoding.UTF8))
+                        {
+                            int tab = line.IndexOf('\t'); DateTime when;
+                            if (tab > 0 && DateTime.TryParseExact(line.Substring(0, tab), "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out when) && line.Length > tab + 1)
+                                entries.Add(new Entry { When = when, Text = line.Substring(tab + 1).Trim() });
+                        }
+                }
+                catch { }
+                return entries;
+            }
+        }
+
+        internal static void Reload() { entries = null; }
+
+        internal static bool Save()
+        {
+            try
+            {
+                Directory.CreateDirectory(Paths.Dir);
+                File.WriteAllLines(FilePath, Entries.Select(e => e.When.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + "\t" + e.Text).ToArray(), new UTF8Encoding(true));
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>한 줄 일기를 덧붙인다. 너무 짧거나 길거나 같은 날 똑같은 문장이면 넣지 않는다.</summary>
+        internal static bool Add(DateTime when, string text)
+        {
+            text = (text ?? "").Replace('\t', ' ').Replace("\r", " ").Replace("\n", " ").Trim();
+            if (text.Length < 6 || text.Length > 140) return false;
+            if (Entries.Any(e => e.When.Date == when.Date && e.Text == text)) return false;
+            Entries.Add(new Entry { When = when, Text = text });
+            while (Entries.Count > MaxEntries) Entries.RemoveAt(0);
+            Save();
+            return true;
+        }
+
+        internal static void RemoveAt(int index) { if (index >= 0 && index < Entries.Count) { Entries.RemoveAt(index); Save(); } }
+        internal static void Clear() { Entries.Clear(); Save(); }
     }
 }

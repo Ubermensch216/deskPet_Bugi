@@ -76,6 +76,7 @@ namespace Bugi
         private NotifyIcon tray;
         private SettingsForm settingsForm;
         private FriendPanel friendPanel;
+        internal NoteManager Notes;
         private double surfaceRefreshAt, forceVisibleUntil = 12;
         public Settings Settings;
         public Icon TrayIconImage;
@@ -84,6 +85,8 @@ namespace Bugi
         private DateTime hourlyLast;
         private string hourlyPendingText; private double hourlyPendingExpiry; private int hourlyActivityVersion;
         private HourlyNotice hourlyNotice;
+        private AlertPetWindow alert;
+        private PetWindow alertHidden;
         private double companionClock = -1, companionSavedAt, danceAwayAt, nextSecretDance;
         private bool danceAwaySeen;
 
@@ -208,7 +211,7 @@ namespace Bugi
             {
                 w.Pet.ReleaseFeatures(this); w.Pet.Area = area; w.Pet.Hidden = false;
                 w.Pet.X = area.Left + area.Width / 2.0 + (index++ - (windows.Count - 1) / 2.0) * w.Pet.Art.W;
-                w.Pet.Y = area.Top + w.Pet.HeliH + 10; w.Pet.Vy = 0; w.Pet.SetState(PetState.Falling, this);
+                w.Pet.Y = area.Top + w.Pet.TopReach + 10; w.Pet.Vy = 0; w.Pet.SetState(PetState.Falling, this);
                 w.Pet.SyncPinned(this);
                 w.Invalidate2(); w.Show(); w.Present(Now); w.KeepOnTop();
             }
@@ -237,6 +240,7 @@ namespace Bugi
             menu.Items.Add(FriendsMenu(w));
             menu.Items.Add(QuickMenu());
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(NewNoteItem());
             menu.Items.Add("도우미  (할 일 · 메모 · 타이머)...", null, delegate { ShowFriendPanel(); });
             menu.Items.Add("설정...", null, delegate { OpenSettings(); });
             menu.Items.Add(new ToolStripSeparator());
@@ -352,6 +356,12 @@ namespace Bugi
         internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); Spawn(character); }
         internal void RemoveByIndex(int index) { if (index >= 0 && index < windows.Count) Remove(windows[index]); }
         internal void FeedFirst(Pet pet = null) { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Feed(this); }
+        /// <summary>메뉴에는 "새 메모" 한 줄만 둔다(깊이를 줄이려고). 라이브러리는 메모 위젯의 ⋯ 메뉴와 Ctrl+Shift+F 로 연다.</summary>
+        private ToolStripMenuItem NewNoteItem()
+        {
+            return new ToolStripMenuItem("새 메모", null, delegate { if (Notes != null) Notes.CreateNote(); }) { ShortcutKeyDisplayString = "Ctrl+Alt+N" };
+        }
+
         internal void ApplyHelperOptions() { if (friendPanel != null && !friendPanel.IsDisposed) friendPanel.ApplyOptions(); }
 
         internal void ResetAllSettings()
@@ -417,7 +427,7 @@ namespace Bugi
         {
             if (hidden) ToggleHidden();
             if (windows.Count == 0) Spawn();
-            foreach (var w in windows) w.Pet.Cheer(this, !string.IsNullOrEmpty(msg) ? msg : Settings.LunchMsg, 8);
+            NoticeAll(!string.IsNullOrEmpty(msg) ? msg : Settings.LunchMsg);
         }
 
         public void PreviewLeave(string msg)
@@ -440,14 +450,20 @@ namespace Bugi
 
         private void CheerAll(string msg) { foreach (var w in windows) w.Pet.Cheer(this, msg, 8); }
 
+        /// <summary>점심·퇴근 같은 알림: 큰 부기로 보여 주거나(기본) 친구들의 말풍선으로 알린다.</summary>
+        private void NoticeAll(string msg)
+        {
+            if (Settings.AlertPet && !string.IsNullOrWhiteSpace(msg)) ShowAlert(msg); else CheerAll(msg);
+        }
+
         private void CheckAlarms(double now)
         {
-            if (previewLeaveAt > 0 && now >= previewLeaveAt) { previewLeaveAt = -1; CheerAll(previewLeaveMsg); }
+            if (previewLeaveAt > 0 && now >= previewLeaveAt) { previewLeaveAt = -1; NoticeAll(previewLeaveMsg); }
             DateTime dt = DateTime.Now; TimeSpan tod = dt.TimeOfDay; DateTime date = dt.Date;
             if (Settings.LunchOn && lunchDone != date)
             {
                 TimeSpan? t = Settings.ParseTime(Settings.LunchTime);
-                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { lunchDone = date; napping = false; CheerAll(Settings.LunchMsg); }
+                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { lunchDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LunchMsg) ? "점심시간이야!" : Settings.LunchMsg); }
             }
             if (Settings.LeaveOn)
             {
@@ -458,7 +474,7 @@ namespace Bugi
                     if (leaveGatherDone != date && tod >= gather && tod < t.Value)
                     { leaveGatherDone = date; napping = false; StartGather(now + (t.Value - tod).TotalSeconds); }
                     if (leaveDone != date && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60))
-                    { leaveDone = date; leaveGatherDone = date; napping = false; CheerAll(Settings.LeaveMsg); }
+                    { leaveDone = date; leaveGatherDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LeaveMsg) ? "퇴근 시간이야!" : Settings.LeaveMsg); }
                 }
             }
             if (OptionsHourlyDue(dt))
@@ -500,6 +516,7 @@ namespace Bugi
         internal void ShowHourWindow(string message)
         {
             ClearBubbleHourly();
+            if (Settings.AlertPet) { ShowAlert(message); return; }
             if (hourlyNotice == null || hourlyNotice.IsDisposed)
             {
                 hourlyNotice = new HourlyNotice(TrayIconImage);
@@ -513,6 +530,39 @@ namespace Bugi
                 hourlyNotice.EnableEdgeGlow(Settings.EdgeGlow, Settings.EdgeGlowTheme, Settings.EdgeGlowWidth, Settings.EdgeGlowStrength);
                 hourlyNotice.Show(); hourlyNotice.BringToFront();
             }
+        }
+
+        /// <summary>
+        /// 알림(정각·점심·퇴근·메모)을 알리는 모습: 부기가 2배 크기로 화면 가운데에 나와 실루엣에 네온 빛을 두르고,
+        /// 큰 글씨 말풍선으로 내용을 말한다. 눌러서 닫을 때까지 남는다. 이미 떠 있으면 말풍선에 이어 붙인다.
+        /// </summary>
+        internal AlertPetWindow ShowAlert(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message)) return alert;
+            bool fresh = alert == null || alert.IsDisposed;
+            if (fresh)
+            {
+                alert = new AlertPetWindow(this, windows.Count > 0 ? windows[0].Pet.Art.Id : 0);
+                alertHidden = windows.FirstOrDefault();
+                alert.FormClosed += OnAlertClosed;
+            }
+            alert.AddMessage(message);
+            if (fresh)
+            {
+                // 걸어 다니던 부기가 그대로 커져서 가운데로 온 것처럼, 같은 부기가 둘로 보이지 않게 그 친구를 숨긴다.
+                if (alertHidden != null) { alertHidden.Suppressed = true; alertHidden.Hide(); }
+                alert.Begin();
+            }
+            return alert;
+        }
+
+        private void OnAlertClosed(object sender, FormClosedEventArgs e)
+        {
+            if (ReferenceEquals(sender, alert)) alert = null;
+            PetWindow back = alertHidden; alertHidden = null;
+            if (back == null) return;
+            back.Suppressed = false;
+            if (windows.Contains(back) && !hidden && !autoHidden) { back.Show(); back.Invalidate2(); back.Present(Now); back.KeepOnTop(); }
         }
 
         internal void BeginBubbleHourly(string message)
@@ -558,6 +608,8 @@ namespace Bugi
             ClearBubbleHourly();
             if (hourlyNotice != null && !hourlyNotice.IsDisposed) hourlyNotice.Close();
             hourlyNotice = null;
+            if (alert != null && !alert.IsDisposed) alert.Close();
+            alert = null;
         }
 
         // ───────── 틱 ─────────
@@ -713,6 +765,7 @@ namespace Bugi
         public void Quit()
         {
             Chat.Dispose();
+            if (Notes != null) Notes.Suspend();
             CloseFeatureWindows(); ClearHourly(); ActivityInput.Stop();
             SaveRoster();
             timer.Stop();

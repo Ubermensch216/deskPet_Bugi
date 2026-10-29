@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 
 namespace Bugi
 {
@@ -63,17 +61,17 @@ namespace Bugi
             {
                 orbitSeen = false; orbitTotal = 0; StateT += dt; animT += dt;
                 if (Bubble != null && w.Now > BubbleUntil) Bubble = null;
-                double half = HeliHalf;
-                X += helicopterDrift * dt; helicopterDrift *= Math.Exp(-4 * dt);
+                double half = SideReach;
+                X += flutterDrift * dt; flutterDrift *= Math.Exp(-4 * dt);
                 X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
                 Y -= 185 * S * dt;
-                if (Y <= Area.Top + HeliH + 1)
+                if (Y <= Area.Top + TopReach + 1)
                 {
-                    ClearAttachments(); pilotFlight = false; Vy = 0; helicopterDrift = 0;
-                    half = Art.Ceiling.W / 2.0;
+                    ClearAttachments(); pilotFlight = false; Vy = 0; flutterDrift = 0;
+                    half = Art.W / 2.0;
                     X = Math.Max(Area.Left + half + 1, Math.Min(Area.Right - half - 1, X));
-                    if (X > Area.Right - Art.Ceiling.W * 2) Dir = -1; else if (X < Area.Left + Art.Ceiling.W * 2) Dir = 1;
-                    Y = Area.Top + Art.CeilingContactHeight; mouseGrace = w.Now + 1; SetState(PetState.Ceiling, w);
+                    if (X > Area.Right - Art.W * 2) Dir = -1; else if (X < Area.Left + Art.W * 2) Dir = 1;
+                    Y = Area.Top + Art.H; mouseGrace = w.Now + 1; SetState(PetState.Ceiling, w);
                     Bubble = "천장 도착! 살금살금…"; BubbleUntil = w.Now + 2.5;
                 }
                 return true;
@@ -134,7 +132,7 @@ namespace Bugi
             return false;
         }
 
-        /// <summary>친구끼리 부딪힘 판정에 쓰는 몸통 영역(프로펠러·장식 제외).</summary>
+        /// <summary>친구끼리 부딪힘 판정에 쓰는 몸통 영역(장식 제외).</summary>
         internal RectangleF ContactBody(double now)
         {
             if (State == PetState.Wall) return WallBody(wallSide, wallDescending);
@@ -152,7 +150,7 @@ namespace Bugi
             Dir = direction;
             if (State == PetState.Wall) { wallDescending = direction > 0; return; }
             if (State == PetState.Thrown) { throwVx = direction * Math.Max(110 * S, Math.Abs(throwVx) * .65); return; }
-            if (State == PetState.Falling) { helicopterDrift = direction * 70 * S; return; }
+            if (State == PetState.Falling) { flutterDrift = direction * 70 * S; return; }
             if (!IsCompanionFloorPose && State != PetState.Sliding && State != PetState.TouchCry && State != PetState.Hop && State != PetState.Eating) return;
             if (w.Now < contactReactionUntil) return;
             contactReactionUntil = w.Now + .45;

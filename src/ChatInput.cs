@@ -26,8 +26,10 @@ namespace Bugi
         private readonly float s = CharacterArt.Scale;
         private readonly Frame frame;
         private readonly Editor edit;
-        private readonly int pillW, pillH, margin, echoH;
+        private readonly int pillW, pillH, margin, echoH, chipRow;
         private string echoText; private double echoStart = -100; private bool echoShown;
+        private string[] chips; private double chipsStart; private int chipHover = -1;
+        private RectangleF[] chipRects = new RectangleF[0];
         private readonly System.Windows.Forms.Timer anim = new System.Windows.Forms.Timer { Interval = 40 };
         private int frameX = int.MinValue, frameY = int.MinValue;
         private bool disposed;
@@ -40,17 +42,58 @@ namespace Bugi
         internal bool Focused { get { return edit.Focused || edit.ContainsFocus; } }
         internal string Text { get { return edit.Box.Text; } set { edit.Box.Text = value; } }
         internal Rectangle Bounds { get { return new Rectangle(frameX, frameY, frame.Width, frame.Height); } }
+        internal string[] Chips { get { return chips; } }
 
         internal ChatInput()
         {
-            pillW = (int)Math.Round(272 * s); pillH = (int)Math.Round(38 * s); margin = (int)Math.Round(8 * s); echoH = (int)Math.Round(34 * s);
-            frame = new Frame(); frame.Size = new Size(pillW + margin * 2, echoH + pillH + margin * 2);
+            pillW = (int)Math.Round(272 * s); pillH = (int)Math.Round(38 * s); margin = (int)Math.Round(8 * s); echoH = (int)Math.Round(34 * s); chipRow = (int)Math.Round(34 * s);
+            frame = new Frame(); frame.Size = new Size(pillW + margin * 2, chipRow + echoH + pillH + margin * 2);
             edit = new Editor(s);
-            edit.Box.TextChanged += delegate { if (Typing != null) Typing(edit.Box.TextLength); Redraw(); };
+            edit.Box.TextChanged += delegate { if (edit.Box.TextLength > 0) chips = null; if (Typing != null) Typing(edit.Box.TextLength); Redraw(); };
+            edit.Chip += i => ChooseChip(i);
+            frame.MouseMove += delegate (object o, MouseEventArgs e)
+            {
+                int h = HitChip(e.Location);
+                if (h != chipHover) { chipHover = h; frame.Cursor = h >= 0 ? Cursors.Hand : Cursors.Default; Redraw(); }
+            };
+            frame.MouseLeave += delegate { if (chipHover != -1) { chipHover = -1; frame.Cursor = Cursors.Default; Redraw(); } };
+            frame.MouseDown += delegate (object o, MouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Left) return;
+                int h = HitChip(e.Location);
+                if (h >= 0) ChooseChip(h + 1); else Focus();
+            };
             edit.Submit += delegate { string t = edit.Box.Text.Trim(); if (t.Length > 0 && Submitted != null) Submitted(t); };
             edit.Cancel += delegate { if (Cancelled != null) Cancelled(); };
             edit.GotLostFocus += delegate { Redraw(); if (ActivityChanged != null) ActivityChanged(); };
-            anim.Tick += delegate { if (echoText != null || echoShown) Redraw(); };
+            anim.Tick += delegate { if (echoText != null || echoShown || (chips != null && Environment.TickCount / 1000.0 - chipsStart < .6)) Redraw(); };
+        }
+
+        // ───────── 답장 추천 칩 ─────────
+        /// <summary>알약 위에 눌러 보낼 수 있는 짧은 말 몇 개를 띄운다. 글자를 치기 시작하면 사라진다.</summary>
+        internal void ShowChips(string[] items)
+        {
+            if (items == null || items.Length == 0 || edit.Box.TextLength > 0) return;
+            chips = items; chipsStart = Environment.TickCount / 1000.0; chipHover = -1;
+            Redraw();
+        }
+
+        internal void ClearChips() { if (chips == null) return; chips = null; chipHover = -1; chipRects = new RectangleF[0]; frame.Cursor = Cursors.Default; Redraw(); }
+
+        /// <summary>1부터 센 칩 번호(마우스 클릭·Ctrl+1~3 공통). 보냈으면 true.</summary>
+        internal bool ChooseChip(int number)
+        {
+            if (chips == null || number < 1 || number > chips.Length || chipRects.Length < number || chipRects[number - 1].IsEmpty) return false;
+            string t = chips[number - 1]; ClearChips();
+            if (Submitted != null) Submitted(t);
+            Focus();
+            return true;
+        }
+
+        private int HitChip(Point p)
+        {
+            for (int i = 0; i < chipRects.Length; i++) if (!chipRects[i].IsEmpty && chipRects[i].Contains(p)) return i;
+            return -1;
         }
 
         /// <summary>화면에 띄우고 글자를 칠 수 있게 포커스를 가져온다.</summary>
@@ -87,7 +130,7 @@ namespace Bugi
             if (frame.IsHandleCreated && frame.Visible) Native.SetWindowPos(frame.Handle, IntPtr.Zero, x, y, 0, 0, 533);
             else { frame.Location = new Point(x, y); }
             int editH = edit.Box.Height;
-            int ex = x + margin + (int)(36 * s), ey = y + margin + echoH + (pillH - editH) / 2;
+            int ex = x + margin + (int)(36 * s), ey = y + margin + chipRow + echoH + (pillH - editH) / 2;
             edit.Location = new Point(ex, ey);
             edit.Size = new Size(pillW - (int)(36 * s) - (int)(34 * s), editH);
         }
@@ -115,7 +158,7 @@ namespace Bugi
             using (var g = Graphics.FromImage(bmp))
             {
                 g.Clear(Color.Transparent); g.SmoothingMode = SmoothingMode.AntiAlias; g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                var pill = new RectangleF(margin, margin + echoH, pillW, pillH);
+                var pill = new RectangleF(margin, margin + chipRow + echoH, pillW, pillH);
                 // 그림자
                 using (var sh = RoundPath(new RectangleF(pill.Left + 1, pill.Top + 3 * s, pill.Width, pill.Height), pill.Height / 2))
                 using (var br = new SolidBrush(Color.FromArgb(46, 20, 30, 60))) g.FillPath(br, sh);
@@ -146,7 +189,8 @@ namespace Bugi
                         float maxW = pillW - 40 * s;
                         SizeF sz = g.MeasureString(echoText, f, PointF.Empty, StringFormat.GenericTypographic);
                         float w = Math.Min(maxW, sz.Width) + 22 * s, h = 24 * s;
-                        var r = new RectangleF(pill.Right - w, pill.Top - h - 5 * s - (1 - echoAlpha) * 6 * s, w, h);
+                        float lift = chips != null ? 32 * s : 0;              // 칩이 떠 있으면 그 위로 비켜 준다
+                        var r = new RectangleF(pill.Right - w, pill.Top - h - 5 * s - lift - (1 - echoAlpha) * 6 * s, w, h);
                         int a = (int)(255 * echoAlpha);
                         using (var path = RoundPath(r, h / 2))
                         {
@@ -157,8 +201,42 @@ namespace Bugi
                             g.DrawString(echoText, f, br, new RectangleF(r.Left + 11 * s, r.Top + (h - sz.Height) / 2, w - 22 * s, h), fmt);
                     }
                 }
+                DrawChips(g, pill);
             }
             return bmp;
+        }
+
+        /// <summary>알약 바로 위에 칩을 왼쪽부터 늘어놓는다(알약 너비를 넘는 칩은 뺀다). 하나씩 톡톡 떠오른다.</summary>
+        private void DrawChips(Graphics g, RectangleF pill)
+        {
+            if (chips == null) { chipRects = new RectangleF[0]; return; }
+            var rects = new RectangleF[chips.Length];
+            float h = 26 * s, gap = 6 * s, x = pill.Left + 4 * s, y = pill.Top - h - 6 * s, now = (float)(Environment.TickCount / 1000.0 - chipsStart);
+            using (var f = new Font("Malgun Gothic", 11.5f * s, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
+            {
+                for (int i = 0; i < chips.Length; i++)
+                {
+                    SizeF sz = g.MeasureString(chips[i], f, PointF.Empty, StringFormat.GenericTypographic);
+                    float w = sz.Width + 22 * s;
+                    if (x + w > pill.Right - 2 * s) continue;
+                    var r = new RectangleF(x, y, w, h); rects[i] = r; x += w + gap;
+                    float t = Math.Max(0, Math.Min(1, (now - i * .07f) / .22f)), a = t * t * (3 - 2 * t);       // 차례로 떠오르는 정도
+                    if (a <= 0) continue;
+                    var shown = new RectangleF(r.X, r.Y + (1 - a) * 7 * s, r.Width, r.Height);
+                    bool hot = i == chipHover;
+                    using (var path = RoundPath(shown, h / 2))
+                    {
+                        using (var sh = RoundPath(new RectangleF(shown.X, shown.Y + 2 * s, shown.Width, shown.Height), h / 2))
+                        using (var br = new SolidBrush(Color.FromArgb((int)(40 * a), 20, 30, 60))) g.FillPath(br, sh);
+                        using (var fill = new SolidBrush(hot ? Color.FromArgb((int)(255 * a), 214, 226, 255) : Color.FromArgb((int)(245 * a), 244, 247, 255))) g.FillPath(fill, path);
+                        using (var pen = new Pen(Color.FromArgb((int)(255 * a), hot ? Blue : Color.FromArgb(120, 140, 210)), (hot ? 1.8f : 1.4f) * s)) g.DrawPath(pen, path);
+                    }
+                    using (var br = new SolidBrush(Color.FromArgb((int)(255 * a), hot ? Color.FromArgb(24, 50, 130) : Color.FromArgb(50, 62, 120))))
+                        g.DrawString(chips[i], f, br, shown, fmt);
+                }
+            }
+            chipRects = rects;
         }
 
         private static void DrawStar(Graphics g, float cx, float cy, float r, Color color)
@@ -242,6 +320,7 @@ namespace Bugi
         {
             internal readonly TextBox Box;
             internal event Action Submit, Cancel, GotLostFocus;
+            internal event Action<int> Chip;
 
             protected override bool ShowWithoutActivation { get { return false; } }
             protected override CreateParams CreateParams
@@ -270,6 +349,7 @@ namespace Bugi
             private void OnKey(object sender, KeyEventArgs e)
             {
                 if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; e.Handled = true; if (Cancel != null) Cancel(); return; }
+                if (e.Control && e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D3) { e.SuppressKeyPress = true; e.Handled = true; if (Chip != null) Chip(e.KeyCode - Keys.D0); return; }
                 if (e.KeyCode != Keys.Enter || e.Shift) return;
                 e.SuppressKeyPress = true; e.Handled = true;
                 // 한글 조합 중인 마지막 글자를 확정한 뒤에 읽어야 끝 글자가 남지 않는다

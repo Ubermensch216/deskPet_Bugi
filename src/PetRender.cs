@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -29,6 +28,10 @@ namespace Bugi
             public bool Work;                    // 근무복을 입은 모습(말풍선 테두리를 파랗게)
             public int BubbleReveal;             // AI 대화 말풍선에 지금까지 찍힌 글자 수(-1 이면 전부)
             public bool Ai;                      // AI 가 하는 말(말풍선에 작은 AI 표시)
+            public Font BubbleFont;              // 알림 말풍선의 큰 글자(없으면 기본 글자)
+            public float BubbleWidth;            // 알림 말풍선 글줄 너비(0 이면 기본)
+            public bool CloseMark;               // 말풍선 모서리에 닫기(×) 표시
+            public Color Neon; public float NeonPulse;   // 실루엣을 감싸는 네온 빛(Neon.A == 0 이면 없음), 맥박 0~1
 
             public string Key()
             {
@@ -135,7 +138,7 @@ namespace Bugi
                     // 천장에 발을 붙이고 거꾸로 걷는다: 뒤뚱의 축은 천장에 닿은 발끝.
                     ClimbBody(P, false);
                     L.Upside = true; L.FaceRight = Dir < 0;
-                    L.Px = 0; L.Py = -Art.Ceiling.H; L.Angle = (float)(3 * Math.Sin(ClimbPhase));
+                    L.Px = 0; L.Py = -Art.H; L.Angle = (float)(3 * Math.Sin(ClimbPhase));
                     break;
                 case PetState.Dizzy:
                     DizzyPose(P); L.FaceRight = false;
@@ -331,7 +334,7 @@ namespace Bugi
         }
 
         /// <summary>장식이 몸 상자 바깥으로 얼마나 나가는지 (스프라이트 좌표, 바닥 가운데 원점).</summary>
-        private static RectangleF DecorExtent(Look L, float w, float h, float s, int rotorH)
+        private static RectangleF DecorExtent(Look L, float w, float h, float s)
         {
             float l = 0, t = 0, r = 0, b = 0;
             if ((L.Decor & Decor.Dots) != 0) { r = Math.Max(r, w * .6f); t = Math.Min(t, -h - 14 * s); }
@@ -346,10 +349,9 @@ namespace Bugi
         public static Bitmap Render(Look L, out PointF origin)
         {
             EnsureFonts();
-            float scale = CharacterArt.Scale;
             CharacterArt art = L.Art;
+            float scale = art.Unit;
             float w = art.W, h = art.H;
-            int rotorH = art.RotorH;
             var matrix = new Matrix();
             if (L.Angle != 0) { matrix.Translate(L.Px, L.Py); matrix.Rotate(L.Angle); matrix.Translate(-L.Px, -L.Py); }
             matrix.Scale(L.Sx, L.Sy);
@@ -364,7 +366,7 @@ namespace Bugi
             matrix.TransformPoints(tops);
             float spriteTop = Math.Min(tops[0].Y, Math.Min(tops[1].Y, tops[2].Y));
 
-            RectangleF ext = DecorExtent(L, w, h, scale, rotorH);
+            RectangleF ext = DecorExtent(L, w, h, scale);
             if (!ext.IsEmpty)
             {
                 var ep = new[] { new PointF(ext.Left, ext.Top), new PointF(ext.Right, ext.Top) };
@@ -381,12 +383,19 @@ namespace Bugi
                 using (var g = Graphics.FromImage(tmp))
                 {
                     g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                    textSize = g.MeasureString(L.Bubble, bubbleFont, (int)(170 * scale), StringFormat.GenericTypographic);
+                    textSize = g.MeasureString(L.Bubble, L.BubbleFont ?? bubbleFont, (int)(L.BubbleWidth > 0 ? L.BubbleWidth : 170 * scale), StringFormat.GenericTypographic);
                 }
                 float pad = 7 * scale;
                 float bw = (float)Math.Ceiling(textSize.Width + pad * 2 + 2 * scale), bh = (float)Math.Ceiling(textSize.Height + pad * 1.4f + 2 * scale);
                 bubble = new RectangleF(-bw / 2, spriteTop - 3 * scale - tail - bh, bw, bh);
                 minX = Math.Min(minX, bubble.Left); maxX = Math.Max(maxX, bubble.Right); minY = Math.Min(minY, bubble.Top - (L.Ai ? 6 * scale : 0));
+                if (L.CloseMark) { maxX = Math.Max(maxX, bubble.Right + CloseRadius * scale); minY = Math.Min(minY, bubble.Top - CloseRadius * scale); }
+            }
+            if (L.Neon.A != 0)
+            {
+                // 네온 빛이 번질 여백
+                float glow = NeonGlow.Margin * scale;
+                minX -= glow; maxX += glow; minY -= glow; maxY += glow;
             }
             if (L.ZPhase >= 0) { minY = Math.Min(minY, spriteTop - 44 * scale); maxX = Math.Max(maxX, w / 2 + 22 * scale); minX = Math.Min(minX, -w / 2 - 22 * scale); }
             RectangleF badge = AffinityBadgeBounds(L, w, h, scale);
@@ -401,13 +410,31 @@ namespace Bugi
                 g.Clear(Color.Transparent);
                 CharacterArt.Quality(g);
                 var full = new Matrix(); full.Translate(origin.X, origin.Y); full.Multiply(matrix);
-                g.Transform = full;
-                if (L.Upside) { g.TranslateTransform(0, -h / 2); g.RotateTransform(180); g.TranslateTransform(0, h / 2); }
-                Rig.Draw(g, L.Pose, art.K, L.FaceRight);
+                Action<Graphics> paintBody = bg =>
+                {
+                    bg.Transform = full;
+                    if (L.Upside) { bg.TranslateTransform(0, -h / 2); bg.RotateTransform(180); bg.TranslateTransform(0, h / 2); }
+                    Rig.Draw(bg, L.Pose, art.K, L.FaceRight);
 
-                // 몸에 붙어 따라 움직이는 장식
-                g.Transform = full;
-                DrawDecor(g, L, art, w, h, scale, rotorH);
+                    // 몸에 붙어 따라 움직이는 장식
+                    bg.Transform = full;
+                    DrawDecor(bg, L, art, w, h, scale);
+                };
+                if (L.Neon.A != 0)
+                {
+                    // 몸을 따로 그려 그 실루엣을 따라 네온 빛을 깔고, 그 위에 몸을 얹는다.
+                    using (var body = new Bitmap(result.Width, result.Height, PixelFormat.Format32bppArgb))
+                    {
+                        using (var bg = Graphics.FromImage(body)) { bg.Clear(Color.Transparent); CharacterArt.Quality(bg); paintBody(bg); }
+                        using (Bitmap lit = NeonGlow.Compose(body, L.Neon, L.NeonPulse, scale))
+                        {
+                            g.CompositingMode = CompositingMode.SourceCopy; g.InterpolationMode = InterpolationMode.NearestNeighbor; g.PixelOffsetMode = PixelOffsetMode.Half;
+                            g.DrawImage(lit, 0, 0, lit.Width, lit.Height);
+                            g.CompositingMode = CompositingMode.SourceOver; CharacterArt.Quality(g);
+                        }
+                    }
+                }
+                else paintBody(g);
                 g.ResetTransform(); g.TranslateTransform(origin.X, origin.Y);
                 DrawAffinityBadge(g, L, badge, scale);
                 if (L.ZPhase >= 0) DrawZ(g, L, w, h, scale);
@@ -436,16 +463,32 @@ namespace Bugi
             {
                 var box = new RectangleF(r.Left + (r.Width - textSize.Width) / 2, r.Top + (r.Height - textSize.Height) / 2, textSize.Width + 2, textSize.Height + 2);
                 var saved = g.Save();
+                Font bubbleF = L.BubbleFont ?? bubbleFont;
                 // AI 가 하는 말은 전체 글을 기준으로 자리를 잡고, 찍힌 글자까지만 보여 준다(말풍선 크기가 흔들리지 않게)
                 if (L.BubbleReveal >= 0 && L.BubbleReveal < L.Bubble.Length)
                 {
                     fmt.SetMeasurableCharacterRanges(new[] { new CharacterRange(0, Math.Max(1, L.BubbleReveal)) });
-                    using (Region shown = g.MeasureCharacterRanges(L.Bubble, bubbleFont, box, fmt)[0]) g.SetClip(shown, CombineMode.Replace);
+                    using (Region shown = g.MeasureCharacterRanges(L.Bubble, bubbleF, box, fmt)[0]) g.SetClip(shown, CombineMode.Replace);
                 }
-                g.DrawString(L.Bubble, bubbleFont, text, box, fmt);
+                g.DrawString(L.Bubble, bubbleF, text, box, fmt);
                 g.Restore(saved);
             }
+            if (L.CloseMark) DrawCloseMark(g, r, scale);
             if (L.Ai) DrawAiMark(g, r, scale);
+        }
+
+        private const float CloseRadius = 11f;
+
+        /// <summary>말풍선 오른쪽 위 모서리의 닫기(×) 단추 모양 — 눌러서 닫는다는 표시.</summary>
+        private static void DrawCloseMark(Graphics g, RectangleF r, float scale)
+        {
+            float rad = CloseRadius * scale, cx = r.Right - 2 * scale, cy = r.Top + 2 * scale, a = rad * .36f;
+            using (var fill = new SolidBrush(Color.FromArgb(255, 40, 40, 40)))
+            using (var cross = new Pen(Color.White, 2.2f * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.FillEllipse(fill, cx - rad, cy - rad, rad * 2, rad * 2);
+                g.DrawLine(cross, cx - a, cy - a, cx + a, cy + a); g.DrawLine(cross, cx - a, cy + a, cx + a, cy - a);
+            }
         }
 
         /// <summary>AI 가 한 말임을 밝히는 작은 뱃지(말풍선 왼쪽 위 모서리).</summary>
@@ -539,7 +582,7 @@ namespace Bugi
             }
         }
 
-        private static void DrawDecor(Graphics g, Look L, CharacterArt art, float w, float h, float s, int rotorH)
+        private static void DrawDecor(Graphics g, Look L, CharacterArt art, float w, float h, float s)
         {
             if (L.Decor == Decor.None) return;
             float t = L.DecorPhase;

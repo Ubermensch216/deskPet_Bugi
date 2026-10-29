@@ -9,7 +9,7 @@ $csc = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\dotnet\sdk\*\Roslyn\bincore\cs
 if (-not $csc) { throw 'Roslyn csc.dll 을 찾지 못했어요. .NET SDK 를 설치해 주세요.' }
 $fw = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
 $refs = 'mscorlib', 'System', 'System.Core', 'System.Drawing', 'System.Windows.Forms', 'System.Xml', 'System.Xml.Linq'
-New-Item -ItemType Directory -Force "$root\output", "$root\obj" | Out-Null
+New-Item -ItemType Directory -Force (Split-Path $Out), "$root\obj" | Out-Null
 
 function Invoke-Csc([string]$target, [string]$icon) {
     $rsp = New-Object System.Collections.Generic.List[string]

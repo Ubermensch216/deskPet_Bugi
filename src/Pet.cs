@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 
 namespace Bugi
 {
@@ -54,14 +53,16 @@ namespace Bugi
         private float S { get { return CharacterArt.Scale; } }
         private double WalkSpeed { get { return 34 * S; } }
         private double HalfW { get { return Art.W * .36; } }
-        /// <summary>프로펠러까지 포함한 높이·반폭 (화면 맨 위/양끝 보정에 쓴다).</summary>
-        internal double HeliH { get { return Art.H + Art.RotorH; } }
-        internal double HeliHalf { get { return Art.W * .66; } }
+        /// <summary>머리 위 여유를 포함한 높이·반폭 (화면 맨 위/양끝 보정에 쓴다).</summary>
+        internal double TopReach { get { return Art.H + Art.HeadRoom; } }
+        internal double SideReach { get { return Art.W * .66; } }
         public bool CanReact { get { return State != PetState.Drag; } }
 
-        public Pet(IWorld w, int character, double x, double y)
+        public Pet(IWorld w, int character, double x, double y) : this(w, CharacterArt.Get(character), x, y) { }
+
+        public Pet(IWorld w, CharacterArt art, double x, double y)
         {
-            Art = CharacterArt.Get(character);
+            Art = art;
             X = x; Y = y;
             Dir = w.Rng.Next(2) != 0 ? 1 : -1;
             Area = FindArea(w, x, y);
@@ -189,7 +190,7 @@ namespace Bugi
             if (Bubble != null && w.Now > BubbleUntil) Bubble = null;
             switch (State)
             {
-                case PetState.Falling: HelicopterDrop(w, dt); break;
+                case PetState.Falling: FlutterDrop(w, dt); break;
                 case PetState.Walk: UpdateWalk(w, dt); break;
                 case PetState.Pause:
                     SnapToFloor(w);
@@ -306,7 +307,5 @@ namespace Bugi
             double speed = Math.Max(WalkSpeed, Math.Abs(d) / secs);
             X += Dir * Math.Min(Math.Abs(d), speed * dt);
         }
-
-        public static Rectangle[] FindAreas(IWorld w) { return w.Areas.ToArray(); }
     }
 }
