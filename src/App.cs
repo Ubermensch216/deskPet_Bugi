@@ -230,6 +230,7 @@ namespace Bugi
             Pet pet = w != null ? w.Pet : null;
             var menu = new ContextMenuStrip();
             menu.Items.Add(new ToolStripMenuItem("말 걸기  (AI 대화)", null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? "Ctrl+Alt+B" : null });
+            menu.Items.Add("부기의 일기장...", null, delegate { BeginInvokeSafe(ShowDiary); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("♥ 친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)) { Enabled = false });
             menu.Items.Add(new ToolStripSeparator());
@@ -352,6 +353,14 @@ namespace Bugi
 
         internal void StartChatFromHotkey() { StartChat(null); }
 
+        private ChatDiaryForm diaryForm;
+        /// <summary>부기가 대화 끝에 한 줄씩 적어 둔 일기장 창(하나만 연다).</summary>
+        internal void ShowDiary()
+        {
+            if (diaryForm != null && !diaryForm.IsDisposed) { diaryForm.Show(); diaryForm.Activate(); return; }
+            diaryForm = new ChatDiaryForm(TrayIconImage); diaryForm.FormClosed += delegate { diaryForm = null; }; diaryForm.Show();
+        }
+
         // ───────── 설정창에서 쓰는 동작 ─────────
         internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); Spawn(character); }
         internal void RemoveByIndex(int index) { if (index >= 0 && index < windows.Count) Remove(windows[index]); }
@@ -391,6 +400,7 @@ namespace Bugi
         {
             FriendData.Current.Save();
             if (friendPanel != null) friendPanel.Close();
+            if (diaryForm != null && !diaryForm.IsDisposed) diaryForm.Close();
             if (settingsForm != null) settingsForm.Close();
         }
 

@@ -67,7 +67,7 @@ namespace Bugi
         // 메모
         private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
-        private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -390,12 +390,16 @@ namespace Bugi
             Note(a, "대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
             var g2 = Group(f, "말 걸기"); var b = In(g2);
             cChatKey = Check(b, "단축키 Ctrl + Alt + B 로 말 걸기", o.Hotkey);
+            cChatChips = Check(b, "부기의 말 끝에 답장 추천 칩 보여주기", o.Chips, "눌러서 바로 보낼 수 있는 짧은 말이에요(Ctrl+1~3). 글자를 치기 시작하면 사라져요.");
             cChatSound = Check(b, "말할 때 글자마다 뽁뽁 소리 내기", o.Sound, "기본은 꺼져 있어요.");
             cChatProactive = Check(b, "부기가 먼저 말 걸기 (선톡)", o.Proactive, "컴퓨터를 쓰는 중일 때 가끔 한마디 건네요. 켜면 모델이 메모리에 올라가 있어요.");
             var rq = Row(b); rq.Controls.Add(Cap("평균 간격", 70)); nProactive = Num(5, 480, o.ProactiveMinutes, 0, 5, 70); rq.Controls.Add(nProactive); rq.Controls.Add(Cap("분"));
             var g3 = Group(f, "기억"); var c = In(g3);
             cChatMemory = Check(c, "대화에서 알게 된 이야기를 기억하기", o.Memory, "대화가 끝날 때 사실만 한두 줄로 적어 둬요. 이 PC 의 파일에만 저장돼요.");
             c.Controls.Add(FriendUI.Button("기억 보기 · 지우기...", delegate { new ChatMemoryForm(app.TrayIconImage).ShowDialog(this); }));
+            var g4 = Group(f, "부기의 일기장"); var d = In(g4);
+            cChatDiary = Check(d, "대화가 끝나면 부기가 일기 한 줄 쓰기", o.Diary, "오늘 나눈 이야기를 부기의 시점에서 한두 문장으로 적어 둬요. 이 PC 의 파일(부기_일기.txt)에만 저장돼요.");
+            d.Controls.Add(FriendUI.Button("일기장 열기...", delegate { new ChatDiaryForm(app.TrayIconImage).ShowDialog(this); }));
             return page;
         }
 
@@ -479,7 +483,7 @@ namespace Bugi
             var chat = ChatOptions.Current;
             chat.Enabled = cChat.Checked; chat.Model = tChatModel.Text.Trim().Length > 0 ? tChatModel.Text.Trim() : "gemma4:e2b";
             chat.Endpoint = tChatUrl.Text.Trim().Length > 0 ? tChatUrl.Text.Trim().TrimEnd('/') : "http://localhost:11434";
-            chat.Hotkey = cChatKey.Checked; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked;
+            chat.Hotkey = cChatKey.Checked; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();
             app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions();

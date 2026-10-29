@@ -28,6 +28,9 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--selftest") { Environment.Exit(DevTools.SelfTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--ui-test") { Environment.Exit(DevTools.UiTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--smoke") { Environment.Exit(DevTools.Smoke(args[1])); return; }
+            if (args.Length >= 2 && args[0] == "--note-test") { Environment.Exit(DevTools.NoteTest(args[1])); return; }
+            if (args.Length >= 2 && args[0] == "--alert-test") { Environment.Exit(DevTools.AlertTest(args[1], args.Length >= 3 ? args[2].Replace("\\n", "\n") : null)); return; }
+            if (args.Length >= 2 && args[0] == "--note-shots") { Environment.Exit(DevTools.NoteShots(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--chat-live") { Environment.Exit(DevTools.ChatLive(args[1])); return; }
             bool created;
             using (var mutex = new Mutex(true, "Bugi_DeskFriend_single_instance", out created))
@@ -65,7 +68,7 @@ namespace Bugi
         public FakeWorld() { Areas = new List<Rectangle> { new Rectangle(0, 0, 1280, 720) }; Rng = new Random(7); }
     }
 
-    internal static class DevTools
+    internal static partial class DevTools
     {
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void mouse_event(int flags, int dx, int dy, int data, UIntPtr extra);
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, int flags, UIntPtr extra);
@@ -283,9 +286,27 @@ namespace Bugi
             shot("live_5_done");
             if (!lastState.Contains("[") && lastState.Length == 0) failures++;
             if (!app.Chat.DebugState.Contains("/")) { log.AppendLine("대화가 끝났거나 응답 없음"); }
+            // 답장 칩: 부기가 말을 끝내면 알약 위에 뜨고, 하나를 누르면 그 말이 그대로 전달된다
+            string[] chipList = null; for (int i = 0; i < 40 && chipList == null; i++) { pump(.25); chipList = app.Chat.TestChips; }
+            log.AppendLine("칩: " + (chipList == null ? "(없음)" : string.Join(" | ", chipList)));
+            if (chipList == null || chipList.Length == 0) { log.AppendLine("FAIL 답장 칩이 안 떴어요"); failures++; }
+            else
+            {
+                pump(.5); shot("live_5b_chips");
+                int before = app.Chat.History.Count;
+                if (!app.Chat.TestPickChip(1)) { log.AppendLine("FAIL 칩 누르기 실패"); failures++; }
+                pump(.3);
+                if (app.Chat.History.Count != before + 1 || app.Chat.History[app.Chat.History.Count - 1].Content != chipList[0] || app.Chat.TestChips != null) { log.AppendLine("FAIL 칩이 말로 전달되지 않음"); failures++; }
+                for (int i = 0; i < 40 && app.Chat.DebugState.Contains("streaming") || app.Chat.DebugState.StartsWith("Thinking"); i++) pump(.25);
+                pump(.5);
+            }
             app.Chat.End(); pump(.6); shot("live_6_end");
             log.AppendLine("after end: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
             log.AppendLine("history: " + string.Join(" | ", app.Chat.History.Select(m => m.Role + ": " + m.Content).ToArray()));
+            // (2b) 일기: 대화가 끝나면 한 줄이 일기장에 쌓인다
+            for (int i = 0; i < 80 && ChatDiary.Entries.Count == 0; i++) pump(.25);
+            ChatDiary.Reload(); log.AppendLine("일기: " + string.Join(" / ", ChatDiary.Entries.Select(e => e.When.ToString("HH:mm") + " " + e.Text).ToArray()));
+            if (ChatDiary.Entries.Count == 0) { log.AppendLine("FAIL 일기가 안 쓰임"); failures++; }
             // (3) 기억 추려내기: 대화 → 사실 한두 줄
             string memReply = OllamaClient.Complete(opts, ChatPersona.MemoryRequest("사용자: 나 이번 주 금요일에 면접 있어\n부기: [놀람] 헉, 어디 면접이야?\n사용자: 네이버 백엔드 개발자 면접이야. 우리 집 고양이 이름은 두부야\n부기: [기쁨] 두부? 이름 귀엽다! 면접 잘 될 거야.\n"), 120, .2);
             var memFacts = ChatPersona.ParseFacts(memReply);
@@ -314,6 +335,9 @@ namespace Bugi
                 var mf = new ChatMemoryForm(app.TrayIconImage); mf.Show(); pump(.3);
                 using (var b = new Bitmap(mf.Width, mf.Height)) { mf.DrawToBitmap(b, new Rectangle(0, 0, mf.Width, mf.Height)); b.Save(Path.Combine(dir, "live_8_memory.png"), ImageFormat.Png); }
                 mf.Close(); ChatMemory.Clear();
+                var df = new ChatDiaryForm(app.TrayIconImage); df.Show(); pump(.3);
+                using (var b = new Bitmap(df.Width, df.Height)) { df.DrawToBitmap(b, new Rectangle(0, 0, df.Width, df.Height)); b.Save(Path.Combine(dir, "live_10_diary.png"), ImageFormat.Png); }
+                df.Close();
             }
             catch (Exception e) { log.AppendLine("FAIL 설정·기억 창: " + e); failures++; }
             log.AppendLine(failures == 0 ? "ALL OK" : failures + " FAILED");
@@ -561,6 +585,18 @@ namespace Bugi
                 ChatMemory.Reload(); ChatMemory.Clear(); int added = ChatMemory.Add(new[] { "- 이름은 민수", "- 이름은 민수야", "없음", "- 고양이를 키운다" });
                 check(added == 2 && ChatMemory.Facts.Count == 2, "기억: 중복·'없음' 거르고 저장 (" + added + ")");
                 ChatMemory.Reload(); check(ChatMemory.Facts.Count == 2, "기억 파일 다시 읽기"); ChatMemory.Clear();
+                // 일기장: 정리·중복·저장·삭제, 모델 답변에서 문장만 남기기, 답장 칩
+                ChatDiary.Reload(); ChatDiary.Clear(); var day = new DateTime(2026, 10, 29, 21, 30, 0);
+                check(ChatDiary.Add(day, "오늘 너랑 점심 얘기를 했어.	새우깡 먹고 싶다") && !ChatDiary.Add(day.AddHours(1), "오늘 너랑 점심 얘기를 했어. 새우깡 먹고 싶다") && !ChatDiary.Add(day, "짧아") && !ChatDiary.Add(day, new string('가', 200)), "일기: 탭 정리 · 같은 날 같은 문장 · 너무 짧거나 긴 글 거르기");
+                ChatDiary.Reload(); check(ChatDiary.Entries.Count == 1 && ChatDiary.Entries[0].When == day && ChatDiary.Entries[0].Text.StartsWith("오늘 너랑"), "일기 파일 다시 읽기");
+                ChatDiary.RemoveAt(0); ChatDiary.Reload(); check(ChatDiary.Entries.Count == 0, "일기 지우기");
+                check(ChatPersona.ParseDiary("**일기:** \"오늘은 네가 말 걸어줘서 기뻤어!\"\n둘째 줄") == "오늘은 네가 말 걸어줘서 기뻤어!" && ChatPersona.ParseDiary("[기쁨] 오늘 네가 와서 신났어") == "오늘 네가 와서 신났어" && ChatPersona.ParseDiary("") == null && ChatPersona.ParseDiary("네") == null, "일기 답변에서 문장만 남김");
+                var chipRng = new Random(3); bool chipsOk = true;
+                foreach (ChatMood cm in Enum.GetValues(typeof(ChatMood))) { var cs = ChatPersona.Chips(cm, false, chipRng); chipsOk &= cs.Length >= 2 && cs.Length <= 3 && cs.Distinct().Count() == cs.Length && cs.Sum(c => c.Length) <= 17 && cs.All(c => c.Length > 1); }
+                var starters = ChatPersona.Chips(ChatMood.Joy, true, chipRng);
+                check(chipsOk && starters.Length >= 2 && ChatPersona.Chips(ChatMood.Neutral, true, chipRng).All(c => c.Length > 1), "답장 칩: 감정마다 서로 다른 짧은 말 2~3개(알약 폭 안) · 첫머리엔 말문 트는 칩");
+                var co = new ChatOptions { Chips = false, Diary = false }; co.Save(); ChatOptions.Load();
+                check(!ChatOptions.Current.Chips && !ChatOptions.Current.Diary, "칩·일기 설정 저장·불러오기"); new ChatOptions().Save(); ChatOptions.Load();
                 var cw = new FakeWorld(); var cp = new Pet(cw, 0, 640, 720) { Area = cw.Areas[0] }; cp.SetState(PetState.Pause, cw); cp.X = 640; cp.Y = 720;
                 check(cp.BeginChat(cw, 1) && cp.State == PetState.Chat && cp.ChatActive, "대화 시작: 자세가 대화로 바뀜");
                 cp.ChatThink(); cp.ChatSay(ChatMood.Joy, "안녕! 반가워", false);
@@ -573,6 +609,8 @@ namespace Bugi
                 check(!cp.ChatActive && cp.State != PetState.Chat && cp.GetLook(cw.Now).Pose.AiBadge < .01f, "대화가 끝나면 뱃지가 사라지고 다시 돌아다님");
                 var fp = new Pet(cw, 0, 640, 100) { Area = cw.Areas[0] };
                 check(!fp.BeginChat(cw, 1), "낙하 중에는 대화 시작 안 함");
+
+                NoteSelfTests(check, dir);
             }
             catch (Exception e) { log.AppendLine("EXCEPTION " + e); failures++; }
             log.AppendLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");

@@ -245,8 +245,14 @@ namespace Bugi
                 case ChatMood.Hungry: pool = new[] { "간식 줄게!", "뭐 먹고 싶어?", "조금만 참아", "새우깡 사 올까?", "배고파? 나도!" }; break;
                 default: pool = new[] { "그래서 어떻게 됐어?", "그렇구나", "고마워", "더 얘기해 줘", "다른 얘기 하자" }; break;
             }
-            var pick = pool.OrderBy(_ => rng.Next()).Take(3).ToList();
-            if (starter && FriendData.Current.Satiety <= 30) pick[0] = "간식 줄게!";
+            // 알약 한 줄에 다 들어가도록 글자 수 합계(공백 포함)를 17자 안쪽으로 맞춰 최대 3개를 고른다
+            var pick = new List<string>(); int total = 0;
+            foreach (string c in pool.OrderBy(_ => rng.Next()))
+            {
+                if (pick.Count == 3 || total + c.Length > 17) continue;
+                pick.Add(c); total += c.Length;
+            }
+            if (starter && FriendData.Current.Satiety <= 30 && !pick.Contains("간식 줄게!")) { pick.Insert(0, "간식 줄게!"); while (pick.Count > 1 && pick.Sum(c => c.Length) > 17) pick.RemoveAt(pick.Count - 1); }
             return pick.ToArray();
         }
 

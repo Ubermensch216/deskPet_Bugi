@@ -16,15 +16,15 @@ namespace Bugi
     /// </summary>
     internal sealed class ChatController : IDisposable
     {
-        private enum Kind { Token, Done, Error, Probe, Facts, Silent }
-        private sealed class Evt { internal int Gen; internal Kind Kind; internal string Text; internal ProbeResult Probe; internal List<string> Facts; }
+        private enum Kind { Token, Done, Error, Probe, Facts, Diary, Silent }
+        private sealed class Evt { internal int Gen; internal Kind Kind; internal string Text; internal ProbeResult Probe; internal List<string> Facts; internal DateTime When; }
 
         private readonly App app;
         private readonly ConcurrentQueue<Evt> inbox = new ConcurrentQueue<Evt>();
         private readonly List<ChatMessage> history = new List<ChatMessage>();
         private Pet pet; private ChatInput input; private ReplyParser parser; private ChatRequest request;
         private int gen, extractedUpTo;
-        private bool streaming;
+        private bool streaming, chipsWanted;
         private double lastActivity, nextProactive = -1, lastWarm = -999, lastTop;
         private HotkeyWindow hotkey;
         private readonly Random rng = new Random();
@@ -66,7 +66,7 @@ namespace Bugi
             {
                 if (!p.CanChat) { Say(p, "잠깐, 땅에 내려가서 얘기하자!"); return; }
                 if (!p.BeginChat(app, p.ChatSide)) return;
-                pet = p; streaming = false;
+                pet = p; streaming = false; chipsWanted = true;
                 ChatMood mood; string hello = ChatPersona.Greeting(rng, DateTime.Now, out mood);
                 p.ChatSayInstant(mood, hello);
                 StartProbe();
@@ -108,11 +108,11 @@ namespace Bugi
         internal void End()
         {
             if (request != null) request.Abort();
-            streaming = false; gen++;
+            streaming = false; chipsWanted = false; gen++;
             Pet p = pet; pet = null;
             if (p != null) { p.OnChatChar = null; p.EndChat(app); }
             if (input != null) { var i = input; input = null; i.Dispose(); }
-            ExtractMemory();
+            Digest();
         }
 
         // ───────── 말 보내기·받기 ─────────
@@ -121,6 +121,7 @@ namespace Bugi
             if (pet == null) return;
             lastActivity = app.Now;
             if (request != null) request.Abort();
+            input.ClearChips(); chipsWanted = false;
             input.Echo(text);
             history.Add(new ChatMessage("user", text));
             pet.ChatThink();
@@ -169,6 +170,12 @@ namespace Bugi
                     if (!streaming && !pet.ChatRevealing && now - lastActivity > (focused ? 60 : 12)) { End(); return; }
                     Point pos = InputPosition(); input.Place(pos.X, pos.Y);
                     if (now - lastTop > 2) { lastTop = now; input.KeepOnTop(); }
+                    // 부기가 말을 끝까지 하고 나면 답장 칩을 내민다(말하는 동안엔 시선을 뺏지 않는다)
+                    if (chipsWanted && !streaming && !pet.ChatRevealing && pet.Phase != ChatPhase.Thinking)
+                    {
+                        chipsWanted = false;
+                        if (o.Chips) input.ShowChips(ChatPersona.Chips(pet.Mood, history.Count == 0, rng));
+                    }
                 }
                 else if (pet.Phase == ChatPhase.Listening && !streaming) End();      // 먼저 건넨 말이 끝났다
                 return;
@@ -179,6 +186,7 @@ namespace Bugi
         private void Handle(Evt e, double now)
         {
             if (e.Kind == Kind.Facts) { if (e.Facts != null) ChatMemory.Add(e.Facts); return; }
+            if (e.Kind == Kind.Diary) { ChatDiary.Add(e.When, e.Text); return; }
             if (pet == null || e.Gen != gen) return;
             switch (e.Kind)
             {
@@ -191,7 +199,7 @@ namespace Bugi
                     break;
                 case Kind.Done:
                 {
-                    streaming = false; lastActivity = now;
+                    streaming = false; lastActivity = now; chipsWanted = true;
                     ChatMood mood = parser.Mood; string text = parser.Text;
                     if (string.IsNullOrEmpty(text)) { mood = ChatMood.Think; text = "음... 뭐라고 해야 할지 모르겠어."; }
                     pet.ChatSay(mood, text, true);
@@ -245,25 +253,35 @@ namespace Bugi
             return pool[rng.Next(pool.Length)];
         }
 
-        // ───────── 기억 ─────────
-        /// <summary>대화가 끝나면 알게 된 사실만 한두 줄로 추려 둔다(다음에 자연스럽게 꺼내려고).</summary>
-        private void ExtractMemory()
+        // ───────── 기억·일기 ─────────
+        /// <summary>
+        /// 대화가 끝나면 (1) 알게 된 사실만 한두 줄로 추려 두고(다음에 자연스럽게 꺼내려고) (2) 부기의 일기장에 한 줄을 적는다.
+        /// 한 모델에 동시에 두 번 묻지 않도록 한 일꾼이 차례로 한다.
+        /// </summary>
+        private void Digest()
         {
             var o = ChatOptions.Current;
             var fresh = history.Skip(extractedUpTo).ToList(); extractedUpTo = history.Count;
-            if (!o.Memory || fresh.Count(m => m.Role == "user" && !m.Content.StartsWith("(상황")) < 2) return;
+            if ((!o.Memory && !o.Diary) || fresh.Count(m => m.Role == "user" && !m.Content.StartsWith("(상황")) < 2) return;
             var sb = new StringBuilder();
             foreach (var m in fresh)
             {
                 if (m.Role == "user" && m.Content.StartsWith("(상황")) continue;
                 sb.Append(m.Role == "user" ? "사용자: " : "부기: ").Append(m.Content).Append('\n');
             }
-            var msgs = ChatPersona.MemoryRequest(sb.ToString());
+            string transcript = sb.ToString(); DateTime when = DateTime.Now;
             new Thread(delegate ()
             {
-                string reply = OllamaClient.Complete(o, msgs, 120, .2);
-                if (string.IsNullOrWhiteSpace(reply)) return;
-                inbox.Enqueue(new Evt { Kind = Kind.Facts, Facts = ChatPersona.ParseFacts(reply) });
+                if (o.Memory)
+                {
+                    string reply = OllamaClient.Complete(o, ChatPersona.MemoryRequest(transcript), 120, .2);
+                    if (!string.IsNullOrWhiteSpace(reply)) inbox.Enqueue(new Evt { Kind = Kind.Facts, Facts = ChatPersona.ParseFacts(reply) });
+                }
+                if (o.Diary)
+                {
+                    string line = ChatPersona.ParseDiary(OllamaClient.Complete(o, ChatPersona.DiaryRequest(transcript, when), 160, .7));
+                    if (line != null) inbox.Enqueue(new Evt { Kind = Kind.Diary, Text = line, When = when });
+                }
             }) { IsBackground = true }.Start();
         }
 
@@ -271,6 +289,8 @@ namespace Bugi
         internal string DebugState { get { return pet == null ? "idle" : pet.Phase + "/" + pet.Mood + (streaming ? "/streaming" : "") + "/" + (pet.ChatText ?? ""); } }
         internal void TestType(string text) { if (input != null) input.Text = text; }
         internal void TestSubmit() { if (input != null) { string t = input.Text.Trim(); if (t.Length > 0) Send(t); } }
+        internal string[] TestChips { get { return input != null ? input.Chips : null; } }
+        internal bool TestPickChip(int number) { return input != null && input.ChooseChip(number); }
         internal Rectangle? InputBounds { get { return input != null ? (Rectangle?)input.Bounds : null; } }
 
         public void Dispose()

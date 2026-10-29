@@ -1,0 +1,6 @@
+# 빌드 중간 산물
+obj/
+
+# 실행 파일(output/bugi.exe)만 남기고 나머지는 무시
+output/*
+!output/bugi.exe

@@ -215,6 +215,15 @@ namespace Bugi
             using (var f = new Font("Malgun Gothic", 11.5f * s, FontStyle.Regular, GraphicsUnit.Pixel))
             using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
             {
+                // 알약 너비 안에 다 들어가는 칩만 남긴다(번호 Ctrl+1~3 이 보이는 칩과 어긋나지 않게)
+                var fit = new System.Collections.Generic.List<string>(); float used = x;
+                foreach (string c in chips)
+                {
+                    float cw = g.MeasureString(c, f, PointF.Empty, StringFormat.GenericTypographic).Width + 22 * s;
+                    if (used + cw > pill.Right - 2 * s) continue;
+                    fit.Add(c); used += cw + gap;
+                }
+                if (fit.Count != chips.Length) { chips = fit.ToArray(); rects = new RectangleF[chips.Length]; }
                 for (int i = 0; i < chips.Length; i++)
                 {
                     SizeF sz = g.MeasureString(chips[i], f, PointF.Empty, StringFormat.GenericTypographic);

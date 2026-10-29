@@ -6,7 +6,7 @@
 /nowarn:CS0649,CS0169,CS0414,CS0219
 /utf8output
 /langversion:latest
-/out:"D:\Dev\deskPet_Bugi\obj\dev\bugi.exe"
+/out:"D:\Dev\deskPet_Bugi\output\bugi.exe"
 /win32manifest:"D:\Dev\deskPet_Bugi\assets\app.manifest"
 /win32icon:"D:\Dev\deskPet_Bugi\assets\bugi.ico"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll"
@@ -21,12 +21,14 @@
 "D:\Dev\deskPet_Bugi\src\Art.cs"
 "D:\Dev\deskPet_Bugi\src\ChatClient.cs"
 "D:\Dev\deskPet_Bugi\src\ChatController.cs"
+"D:\Dev\deskPet_Bugi\src\ChatDiaryForm.cs"
 "D:\Dev\deskPet_Bugi\src\ChatInput.cs"
 "D:\Dev\deskPet_Bugi\src\ChatJson.cs"
 "D:\Dev\deskPet_Bugi\src\ChatMemoryForm.cs"
 "D:\Dev\deskPet_Bugi\src\ChatOptions.cs"
 "D:\Dev\deskPet_Bugi\src\ChatPersona.cs"
 "D:\Dev\deskPet_Bugi\src\ChatSound.cs"
+"D:\Dev\deskPet_Bugi\src\DevToolsNotes.cs"
 "D:\Dev\deskPet_Bugi\src\FormsHelper.cs"
 "D:\Dev\deskPet_Bugi\src\FormsSettings.cs"
 "D:\Dev\deskPet_Bugi\src\LogoArt.cs"
