@@ -23,6 +23,8 @@ namespace Bugi
         internal static readonly Color White = Color.White;                      // 몸통 · 날개 · 신발 밑창 · 신발끈
         // p22 보조색(로고타입): 짙은 빨강 0 100 100 60 — 망토 안쪽 같은 그늘색에 쓴다
         internal static readonly Color DarkRed = Color.FromArgb(110, 18, 24);
+        // p13 배경색(CMYK → sRGB, 가이드북 쪽을 그려 찍은 값): 부기를 올려 두는 바탕. 노랑 0 25 100 0 · 빨강 0 100 100 25 · 민트 70 0 50 0 · 파랑 100 70 0 0
+        internal static readonly Color BgYellow = Color.FromArgb(254, 193, 11), BgRed = Color.FromArgb(186, 18, 24), BgMint = Color.FromArgb(56, 186, 156), BgBlue = Color.FromArgb(0, 90, 170);
 
         /// <summary>선 굵기: 캐릭터 전체 키(머리카락 끝~밑창)의 약 1%(p17 라인규정: 얇은 선·굵기가 다른 선은 금지).</summary>
         internal const float OutlineRatioMin = .0075f, OutlineRatioMax = .014f;

@@ -434,7 +434,9 @@ namespace Bugi
             step("정각 카드 + 가장자리 빛", () =>
             {
                 var n = new HourlyNotice(app.TrayIconImage); n.SetMessage(App.HourlyMessage(DateTime.Now, true, "13:00", "점심 먹으러 가자!", false, "18:00", "x"));
-                n.EnableEdgeGlow(true, 1, 1, 1); n.Show(); pump(1.2); screen("ui_notice_glow"); if (!n.GlowRunning) throw new Exception("glow not running"); n.Close(); pump(.3);
+                n.EnableEdgeGlow(true, 1, 1, 1); n.Show(); pump(1.2); screen("ui_notice_glow");
+                using (var card = new Bitmap(n.Width, n.Height)) { n.DrawToBitmap(card, new Rectangle(0, 0, n.Width, n.Height)); card.Save(Path.Combine(dir, "ui_notice.png"), ImageFormat.Png); }
+                if (!n.GlowRunning) throw new Exception("glow not running"); n.Close(); pump(.3);
             });
             step("펫 걷기 관찰", () => { pump(20); screen("ui_pets"); });
             step("실제 마우스: 클릭·드래그·던지기", () =>

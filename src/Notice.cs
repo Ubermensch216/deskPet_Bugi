@@ -11,13 +11,28 @@ using Microsoft.Win32;
 
 namespace Bugi
 {
-    /// <summary>정각·타이머 알림 카드. 직접 닫을 때까지 남고, 화면 가장자리 빛과 함께 보인다.</summary>
+    /// <summary>
+    /// 정각 알림 카드(알림 부기를 끈 경우): 가이드북 p13 파랑 바탕 위에 부기가 서서 폴짝폴짝 뛰며 시간을 알려 준다.
+    /// 부기는 걸어 다니는 부기와 같은 그림을 그대로 쓴다(변형 없음). 직접 닫을 때까지 남고, 화면 가장자리 빛과 함께 보인다.
+    /// </summary>
     internal sealed class HourlyNotice : Form
     {
+        // 논리 픽셀(배율 1) 기준 배치: 파랑 머리띠 영역 높이, 부기 발바닥 위치, 부기 확대 배율
+        private const float HeaderHeight = 156, FootX = 84, FootY = 146, BugiZoom = 1.05f;
+        private static readonly Color Paper = Color.FromArgb(255, 253, 249), Ink = Color.FromArgb(45, 48, 64);   //ui
+        private static readonly Color Blue = BugiGuide.BgBlue, BlueHover = Color.FromArgb(24, 112, 190);          //ui 파랑의 밝은 눌림색
+        private static readonly Color OnBlueSoft = Color.FromArgb(214, 229, 245);                                 //ui 파랑 위의 작은 글씨
+
         private readonly Label header, caption, clock, message;
         private readonly Button confirm, close;
         private readonly List<Font> ownedFonts = new List<Font>();
         private readonly float scale;
+        private readonly NoticeWorld world = new NoticeWorld();
+        private readonly CharacterArt art;
+        private readonly Pet bugi;
+        private readonly System.Windows.Forms.Timer animate = new System.Windows.Forms.Timer { Interval = 50 };
+        private Bitmap frame; private Point framePos;
+        private double lastT, nextHop = 7;
         private bool edgeRequested;
         private EdgeGlowController glow;
         private int glowTheme, glowWidth = 1, glowStrength = 1;
@@ -33,34 +48,37 @@ namespace Bugi
             scale = Math.Max(1, Native.SystemDpiScale()); AutoScaleMode = AutoScaleMode.None;
             Text = "부기 · 정각 알림"; FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = true; TopMost = true; MaximizeBox = false; MinimizeBox = false; DoubleBuffered = true;
-            BackColor = Color.FromArgb(255, 253, 249); ForeColor = Color.FromArgb(45, 48, 64); if (icon != null) Icon = icon;
-            header = LabelAt("부기", 24, 21, 264, 22, 9, Color.FromArgb(110, 103, 115));
-            caption = LabelAt("정각 알림", 24, 58, 290, 19, 9, Color.FromArgb(153, 117, 92));
-            clock = LabelAt("00:00", 20, 77, 310, 72, 38, ForeColor); clock.Font = OwnFont("Segoe UI", 38, FontStyle.Regular);
-            message = LabelAt("", 24, 155, 312, 46, 10, Color.FromArgb(91, 87, 101));
-            close = new CardButton(true) { Text = "×", Name = "close", AccessibleName = "알림 닫기", Bounds = Rect(311, 15, 32, 32), Font = OwnFont("Segoe UI", 14, FontStyle.Regular) };
+            BackColor = Paper; ForeColor = Ink; if (icon != null) Icon = icon;
+            header = LabelAt("부기", 178, 24, 120, 22, 9.5f, Color.White, Blue, FontStyle.Bold);
+            caption = LabelAt("정각 알림", 178, 49, 150, 19, 9, OnBlueSoft, Blue, FontStyle.Regular);
+            clock = LabelAt("00:00", 172, 68, 180, 72, 38, Color.White, Blue, FontStyle.Regular); clock.Font = OwnFont("Segoe UI", 38, FontStyle.Regular);
+            message = LabelAt("", 24, HeaderHeight + 18, 312, 46, 10.5f, Ink, Paper, FontStyle.Regular);
+            close = new CardButton(true, Blue, BlueHover, Blue) { Text = "×", Name = "close", AccessibleName = "알림 닫기", Bounds = Rect(311, 15, 32, 32), Font = OwnFont("Segoe UI", 14, FontStyle.Regular) };
             close.Click += delegate { Close(); }; Controls.Add(close);
-            confirm = new CardButton(false) { Text = "확인했어", Name = "confirm", Bounds = Rect(239, 218, 97, 38), Font = OwnFont("Malgun Gothic", 9.5f, FontStyle.Regular) };
+            confirm = new CardButton(false, Blue, BlueHover, Paper) { Text = "확인했어", Name = "confirm", Bounds = Rect(239, 218, 97, 38), Font = OwnFont("Malgun Gothic", 9.5f, FontStyle.Regular) };
             confirm.Click += delegate { Close(); }; Controls.Add(confirm); AcceptButton = confirm; CancelButton = close;
             ClientSize = new Size(Pixel(360), Pixel(277));
-            header.MouseDown += DragCard; MouseDown += DragCard; caption.MouseDown += DragCard;
+            header.MouseDown += DragCard; caption.MouseDown += DragCard; clock.MouseDown += DragCard; MouseDown += DragCard;
+
+            art = CharacterArt.Zoomed(0, BugiZoom);
+            bugi = new Pet(world, art, Pixel(FootX), Pixel(FootY)); bugi.StartAlert(world);
+            animate.Tick += delegate { Step(); };
+            RenderFrame();
             SetMessage(App.HourlyText(DateTime.Now));
         }
 
         private int Pixel(float v) { return (int)Math.Round(v * scale); }
         private Rectangle Rect(float x, float y, float w, float h) { return new Rectangle(Pixel(x), Pixel(y), Pixel(w), Pixel(h)); }
         private Font OwnFont(string name, float size, FontStyle style) { var f = new Font(name, size * scale, style, GraphicsUnit.Point); ownedFonts.Add(f); return f; }
-        private Label LabelAt(string text, float x, float y, float w, float h, float size, Color color)
+        private Label LabelAt(string text, float x, float y, float w, float h, float size, Color color, Color back, FontStyle style)
         {
-            var l = new Label { Text = text, Bounds = Rect(x, y, w, h), ForeColor = color, BackColor = BackColor, Font = OwnFont("Malgun Gothic", size, FontStyle.Regular) };
+            var l = new Label { Text = text, Bounds = Rect(x, y, w, h), ForeColor = color, BackColor = back, Font = OwnFont("Malgun Gothic", size, style) };
             Controls.Add(l); return l;
         }
 
         internal void SetMessage(string text)
         {
-            bool timer = Text.Contains("타이머"); DateTime now = DateTime.Now;
-            caption.Text = timer ? "타이머" : "정각 알림"; clock.Text = timer ? "시간이 됐어" : now.Hour.ToString("00") + ":00";
-            if (timer) clock.Font = OwnFont("Malgun Gothic", 23, FontStyle.Regular);
+            clock.Text = DateTime.Now.Hour.ToString("00") + ":00";
             string friendly = (text ?? "").Replace("지금은 ", "").Trim();
             message.Text = friendly;
             int maximum = Math.Max(Pixel(46), Screen.FromPoint(Cursor.Position).WorkingArea.Height / 3);
@@ -68,6 +86,26 @@ namespace Bugi
             message.Height = Math.Min(maximum, Math.Max(Pixel(46), measured.Height + Pixel(5)));
             message.AutoEllipsis = true; confirm.Top = message.Bottom + Pixel(17); ClientSize = new Size(Pixel(360), confirm.Bottom + Pixel(21));
             if (!Visible) PositionCard();
+        }
+
+        /// <summary>부기를 다음 걸음으로: 자세를 진행하고 가끔 다시 폴짝 뛰게 한 뒤 새로 그린다.</summary>
+        private void Step()
+        {
+            if (IsDisposed) return;
+            double t = world.Now, dt = Math.Max(0, Math.Min(.1, t - lastT)); lastT = t;
+            bugi.AdvanceAlert(dt);
+            if (t >= nextHop) { bugi.AlertHop(world); nextHop = t + 7; }
+            RenderFrame(); Invalidate(new Rectangle(0, 0, ClientSize.Width, Pixel(HeaderHeight)));
+        }
+
+        private void RenderFrame()
+        {
+            Pet.Look look = bugi.GetLook(world.Now);
+            look.AffinityLabel = null; look.HopY *= BugiZoom;
+            PointF origin; Bitmap next = Pet.Render(look, out origin);
+            Bitmap old = frame; frame = next;
+            framePos = new Point((int)Math.Round(bugi.X - origin.X), (int)Math.Round(bugi.Y + look.HopY - origin.Y));
+            if (old != null) old.Dispose();
         }
 
         private void PositionCard()
@@ -84,7 +122,11 @@ namespace Bugi
             if (enable && Visible && glow == null) glow = new EdgeGlowController(this, glowTheme, glowWidth, glowStrength);
         }
         private void StopGlow() { if (glow != null) { glow.Dispose(); glow = null; } }
-        protected override void OnShown(EventArgs e) { base.OnShown(e); if (edgeRequested && glow == null) glow = new EdgeGlowController(this, glowTheme, glowWidth, glowStrength); }
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e); animate.Start(); lastT = world.Now;
+            if (edgeRequested && glow == null) glow = new EdgeGlowController(this, glowTheme, glowWidth, glowStrength);
+        }
         protected override void OnSizeChanged(EventArgs e)
         {
             base.OnSizeChanged(e); if (ClientSize.Width < 2 || ClientSize.Height < 2) return;
@@ -93,13 +135,25 @@ namespace Bugi
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            base.OnPaint(e); Graphics g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var fill = new SolidBrush(Blue)) g.FillRectangle(fill, 0, 0, ClientSize.Width, Pixel(HeaderHeight));
+            // 발밑 그림자
+            using (var shade = new SolidBrush(Color.FromArgb(46, 0, 20, 60)))   //ui
+                g.FillEllipse(shade, Pixel(FootX - 34), Pixel(FootY - 5), Pixel(68), Pixel(10));
+            if (frame != null) { g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.DrawImageUnscaled(frame, framePos); }
             using (var path = Rounded(new RectangleF(.6f, .6f, ClientSize.Width - 1.2f, ClientSize.Height - 1.2f), 21 * scale))
-            using (var pen = new Pen(Color.FromArgb(226, 219, 213), 1)) e.Graphics.DrawPath(pen, path);
+            using (var pen = new Pen(Color.FromArgb(226, 219, 213), 1)) g.DrawPath(pen, path);
         }
-        protected override void OnFormClosed(FormClosedEventArgs e) { StopGlow(); base.OnFormClosed(e); }
+        protected override void OnFormClosed(FormClosedEventArgs e) { animate.Stop(); StopGlow(); base.OnFormClosed(e); }
         protected override void Dispose(bool disposing)
-        { StopGlow(); base.Dispose(disposing); if (disposing) { foreach (var f in ownedFonts) f.Dispose(); ownedFonts.Clear(); } }
+        {
+            StopGlow(); base.Dispose(disposing);
+            if (disposing)
+            {
+                animate.Dispose(); if (frame != null) { frame.Dispose(); frame = null; }
+                foreach (var f in ownedFonts) f.Dispose(); ownedFonts.Clear();
+            }
+        }
         private void DragCard(object sender, MouseEventArgs e)
         { if (e.Button != MouseButtons.Left) return; Native.ReleaseCapture(); Native.SendMessage(Handle, 0xA1, new IntPtr(2), IntPtr.Zero); }
 
@@ -110,18 +164,32 @@ namespace Bugi
             p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); p.AddArc(r.Left, r.Bottom - d, d, d, 90, 90); p.CloseFigure(); return p;
         }
 
+        /// <summary>알림 카드 안의 부기가 쓰는 작은 세계(걷지 않으므로 영역은 형식뿐).</summary>
+        private sealed class NoticeWorld : IWorld
+        {
+            private readonly Stopwatch clock = Stopwatch.StartNew();
+            public List<Rectangle> Areas { get { return areas; } }
+            private readonly List<Rectangle> areas = new List<Rectangle> { new Rectangle(0, 0, 1000, 1000) };
+            public Random Rng { get { return rng; } }
+            private readonly Random rng = new Random();
+            public double Now { get { return clock.Elapsed.TotalSeconds; } }
+        }
+
         private sealed class CardButton : Button
         {
-            private readonly bool icon; private bool hover;
-            internal CardButton(bool icon) { this.icon = icon; FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true); }
+            private readonly bool icon; private readonly Color normal, hoverColor, surround; private bool hover;
+            internal CardButton(bool icon, Color normal, Color hoverColor, Color surround)
+            {
+                this.icon = icon; this.normal = normal; this.hoverColor = hoverColor; this.surround = surround;
+                FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            }
             protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
             protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
             protected override void OnPaint(PaintEventArgs e)
             {
-                e.Graphics.Clear(Parent == null ? Color.FromArgb(255, 253, 249) : Parent.BackColor); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Color bg = icon ? (hover ? Color.FromArgb(242, 236, 229) : Color.FromArgb(255, 253, 249)) : (hover ? Color.FromArgb(78, 81, 101) : Color.FromArgb(60, 63, 81));
-                using (var path = Rounded(new RectangleF(0, 0, Width - 1, Height - 1), icon ? 8 : 12)) using (var brush = new SolidBrush(bg)) e.Graphics.FillPath(brush, path);
-                TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, icon ? Color.FromArgb(108, 103, 114) : Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                e.Graphics.Clear(surround); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var path = Rounded(new RectangleF(0, 0, Width - 1, Height - 1), icon ? 8 : 12)) using (var brush = new SolidBrush(hover ? hoverColor : normal)) e.Graphics.FillPath(brush, path);
+                TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -5, -5));
             }
         }

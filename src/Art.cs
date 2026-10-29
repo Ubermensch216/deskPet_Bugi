@@ -59,7 +59,7 @@ namespace Bugi
             H = (int)Math.Round(BaseHeight * Scale * zoom);
             K = H / Rig.RefH;
             W = (int)Math.Round(150 * K);
-            HeadRoom = (int)Math.Round(H * .08f);
+            HeadRoom = (int)Math.Round(H * .12f);   // 안전모(키 상자 위로 약 .11H 솟음)가 화면 맨 위에서도 잘리지 않을 만큼
         }
 
         internal static void Quality(Graphics g)

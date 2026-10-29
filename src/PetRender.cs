@@ -360,7 +360,9 @@ namespace Bugi
             if (L.Angle != 0) { matrix.Translate(L.Px, L.Py); matrix.Rotate(L.Angle); matrix.Translate(-L.Px, -L.Py); }
             matrix.Scale(L.Sx, L.Sy);
             // 팔을 벌리거나 꼬리가 흔들려도 잘리지 않도록 몸 상자보다 넉넉하게 잡는다.
-            float padX = w * .42f, padTop = 3 * scale, padBottom = 3 * scale;
+            // 안전모는 키 상자(머리카락 끝)보다 위로 솟는다(꼭지가 기준 그림 약 31칸 위) — 위쪽 여유를 그만큼 더 잡아 잘리지 않게 한다.
+            float helmetUp = L.Pose.Helmet ? 34 * art.K : 0;
+            float padX = w * .42f, padTop = 3 * scale + helmetUp, padBottom = 3 * scale;
             var corners = new[] { new PointF(-w / 2 - padX, -h - padTop), new PointF(w / 2 + padX, -h - padTop), new PointF(w / 2 + padX, padBottom), new PointF(-w / 2 - padX, padBottom) };
             matrix.TransformPoints(corners);
             float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
@@ -368,7 +370,7 @@ namespace Bugi
             // 말풍선·Z 는 몸의 맨 위(귀 끝)를 기준으로 얹는다
             var tops = new[] { new PointF(0, -h), new PointF(-w / 2, -h), new PointF(w / 2, -h) };
             matrix.TransformPoints(tops);
-            float spriteTop = Math.Min(tops[0].Y, Math.Min(tops[1].Y, tops[2].Y));
+            float spriteTop = Math.Min(tops[0].Y, Math.Min(tops[1].Y, tops[2].Y)) - helmetUp;   // 말풍선·Z 가 안전모를 가리지 않게 모자 위에 얹는다
 
             RectangleF ext = DecorExtent(L, w, h, scale);
             if (!ext.IsEmpty)
