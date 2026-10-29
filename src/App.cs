@@ -260,13 +260,15 @@ namespace Bugi
             };
             var rest = new ToolStripMenuItem("쉬는 모습"); fill(rest, new[] { new[] { "앉아서 쉬기", "sit" }, new[] { "잠자기", "sleep" }, new[] { "멍때리기", "daydream" }, new[] { "기지개", "stretch" }, new[] { "누워서 쉬기", "lie" } });
             var idle = new ToolStripMenuItem("멈춰 섰을 때 몸짓"); fill(idle, new[] { new[] { "머리 긁적", "scratch" }, new[] { "팔짱", "cross" }, new[] { "안녕! 인사", "wave" }, new[] { "곡괭이질", "mine" }, new[] { "스마트 안경 검색", "search" } });
-            var work = new ToolStripMenuItem("근무복 동작"); fill(work, new[] { new[] { "안내하기", "guide" }, new[] { "배꼽인사", "bow" }, new[] { "신분증 보여주기", "idcard" }, new[] { "로고 깃발 흔들기", "flag" } });
+            var skits = new ToolStripMenuItem("가이드북 응용동작");
+            fill(skits, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select((Skit[])Enum.GetValues(typeof(Skit)), s => new[] { Pet.SkitTitle(s), "skit:" + s })));
+            var work = new ToolStripMenuItem("근무복 동작"); fill(work, new[] { new[] { "안내하기", "guide" }, new[] { "배꼽인사", "bow" } });
             var react = new ToolStripMenuItem("반응"); fill(react, new[] { new[] { "발끈!", "angry" }, new[] { "클릭할 때 달달 떨며 우는 모습", "cry" }, new[] { "배고플 때 우는 모습", "weep" }, new[] { "폴짝 뛰기", "hop" }, new[] { "슬라이딩 (커서 피해 도망)", "slide" } });
             var move = new ToolStripMenuItem("이동"); fill(move, new[] { new[] { "날개 퍼덕 낙하", "fall" }, new[] { "벽 타기", "wall" }, new[] { "천장 타기", "ceiling" }, new[] { "창 타기", "window" } });
             var secret = new ToolStripMenuItem("숨은 반응");
             secret.DropDownItems.Add("어질어질", null, delegate { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Demonstrate(this, "dizzy"); });
             secret.DropDownItems.Add("몰래 하는 군무", null, delegate { DemonstrateSecretDance(pet); });
-            demo.DropDownItems.AddRange(new ToolStripItem[] { rest, idle, work, react, move, secret });
+            demo.DropDownItems.AddRange(new ToolStripItem[] { rest, idle, skits, work, react, move, secret });
             return demo;
         }
 

@@ -25,6 +25,7 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--make-icon") { DevTools.MakeIcon(args[1]); return; }
             if (args.Length >= 2 && args[0] == "--render-test") { DevTools.RenderSheet(args[1], args.Length >= 3 ? float.Parse(args[2]) : Native.SystemDpiScale()); return; }
             if (args.Length >= 2 && args[0] == "--spec-test") { CharacterArt.Reset(1f); SpecTools.Render(args[1]); return; }
+            if (args.Length >= 1 && args[0] == "--guide-test") { CharacterArt.Reset(1f); Environment.Exit(BugiGuide.Run(args.Length >= 2 ? args[1] : null)); return; }
             if (args.Length >= 2 && args[0] == "--selftest") { Environment.Exit(DevTools.SelfTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--ui-test") { Environment.Exit(DevTools.UiTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--smoke") { Environment.Exit(DevTools.Smoke(args[1])); return; }
@@ -121,8 +122,12 @@ namespace Bugi
                 K("근무복", (p, w) => { PlayOptions.Current.Outfit = true; p.SetState(PetState.Pause, w); }),
                 K("안내", (p, w) => { p.Demonstrate(w, "guide"); for (int i = 0; i < 125; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("배꼽인사", (p, w) => { p.Demonstrate(w, "bow"); for (int i = 0; i < 115; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
-                K("신분증", (p, w) => { p.Demonstrate(w, "idcard"); for (int i = 0; i < 160; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
-                K("깃발", (p, w) => { p.Demonstrate(w, "flag"); for (int i = 0; i < 150; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("멍...", (p, w) => { p.Demonstrate(w, "daydream"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("안녕", (p, w) => SkitShot(p, w, Skit.Hello)), K("ㅋㅋ", (p, w) => SkitShot(p, w, Skit.Laugh)), K("하트", (p, w) => SkitShot(p, w, Skit.HeartHug)),
+                K("두두등장", (p, w) => SkitShot(p, w, Skit.Hero)), K("응원", (p, w) => SkitShot(p, w, Skit.Cheer)), K("뿌듯", (p, w) => SkitShot(p, w, Skit.Proud)),
+                K("발표", (p, w) => SkitShot(p, w, Skit.Present)), K("Good", (p, w) => SkitShot(p, w, Skit.Good)), K("OKAY", (p, w) => SkitShot(p, w, Skit.Okay)),
+                K("분주분주", (p, w) => SkitShot(p, w, Skit.Busy)), K("Busan", (p, w) => SkitShot(p, w, Skit.Busan)), K("여행", (p, w) => SkitShot(p, w, Skit.Travel)),
+                K("토닥토닥", (p, w) => SkitShot(p, w, Skit.Pat)),
                 K("낮잠", (p, w) => p.SetState(PetState.Sleep, w)),
                 K("눌림", (p, w) => { p.StartSquish(w, .4, .24, PetState.Walk, false); w.Now += .2; p.Update(w, .2, null, 0); }),
                 K("우는중", (p, w) => p.Demonstrate(w, "cry")),
@@ -196,8 +201,9 @@ namespace Bugi
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("검색", (p, w) => { p.Y = 720; p.Demonstrate(w, "search"); }, 8.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("안내", (p, w) => { p.Y = 720; p.Demonstrate(w, "guide"); }, 5.6, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("배꼽인사", (p, w) => { p.Y = 720; p.Demonstrate(w, "bow"); }, 4.6, 0),
-                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("신분증", (p, w) => { p.Y = 720; p.Demonstrate(w, "idcard"); }, 5.6, 0),
-                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("깃발", (p, w) => { p.Y = 720; p.Demonstrate(w, "flag"); }, 7.0, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("응원", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Cheer"); }, 5.0, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("ㅋㅋ", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Laugh"); }, 4.2, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("여행", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Travel"); }, 5.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("도망", (p, w) => { p.Y = 720; p.Demonstrate(w, "slide"); }, 0.8, 0),
                 };
                 int cw = (int)Math.Round(100 * scale), ch = (int)Math.Round(92 * scale), frameCols = 12;
@@ -227,6 +233,15 @@ namespace Bugi
                     strip.Save(Path.Combine(dir, "motion_" + CharacterArt.Infos[c].Key + ".png"), ImageFormat.Png);
                 }
             }            Console.WriteLine("saved " + dir);
+        }
+
+        internal static double SkitLen(Skit s) { return Pet.SkitSecondsOf(s); }
+
+        /// <summary>가이드북 응용동작을 한창일 때(1.6초 뒤)의 모습으로 보여 준다.</summary>
+        internal static void SkitShot(Pet p, FakeWorld w, Skit s)
+        {
+            p.Demonstrate(w, "skit:" + s);
+            for (int i = 0; i < 80; i++) { w.Now += .02; p.Update(w, .02, null, 0); }
         }
 
         /// <summary>AI 대화 자세를 그림으로 확인하려고, 대화를 시작시킨 뒤 steps 만큼(0.02초씩) 시간을 흘려 보낸다.</summary>
@@ -559,7 +574,7 @@ namespace Bugi
                 PlayOptions.Current = new PlayOptions { Escape = false, Idle = false, Windows = false };
                 var wo = new FakeWorld(); var po = new Pet(wo, 0, 640, 720) { Area = wo.Areas[0] };
                 po.SetState(PetState.Pause, wo); po.X = 640; po.Y = 720;
-                foreach (string kind in new[] { "guide", "bow", "idcard", "flag" })
+                foreach (string kind in new[] { "guide", "bow" })
                 {
                     po.Demonstrate(wo, kind);
                     bool outfitOn = true, drew = true, entered = po.State == PetState.Resting;
@@ -577,6 +592,42 @@ namespace Bugi
                 Func<float, int> inkH = sq =>
                 { using (var bm = new Bitmap(300, 400)) using (var gg = Graphics.FromImage(bm)) { CharacterArt.Quality(gg); gg.Clear(Color.Transparent); gg.TranslateTransform(150, 380); Rig.Draw(gg, new Pose { Squash = sq }, 1.2f, false); return CharacterArt.Bounds(bm).Height; } };
                 check(inkH(.4f) == inkH(.05f) && inkH(-.4f) == inkH(-.05f), "규격 가드: 몸이 눌리거나 늘어나는 정도 5% 한도");
+
+                // 가이드북(docs/GUIDE_RULES.md): 색·선·비율 점검과 응용동작(p27~36) 열네 가지
+                var gw = new List<string>(); var gi = new List<string>(); BugiGuide.Check(gw, gi);
+                check(gw.Count == 0, "가이드북 점검(색·선 굵기·비율)" + (gw.Count == 0 ? "" : ": " + string.Join(" / ", gw)));
+                PlayOptions.Current.Outfit = false;
+                foreach (Skit sk in Enum.GetValues(typeof(Skit)))
+                {
+                    po.Demonstrate(wo, "skit:" + sk);
+                    bool entered = po.State == PetState.Resting, drew = true, outfitOff = true;
+                    for (double t = 0; t < SkitLen(sk) + .5; t += .1)
+                    {
+                        wo.Now += .1; po.Update(wo, .1, null, 0);
+                        Pet.Look lk = po.GetLook(wo.Now);
+                        outfitOff &= !lk.Work;
+                        try { PointF oo; using (Bitmap bo = Pet.Render(lk, out oo)) drew &= bo.Width > 10 && bo.Width < 4000; } catch { drew = false; }
+                    }
+                    check(entered && drew && outfitOff && po.State != PetState.Resting, "가이드북 응용동작: " + sk);
+                }
+                var rpa = new ReplyParser(); rpa.Feed("[인사] 안녕! 오랜만이야.");
+                var rpb = new ReplyParser(); rpb.Feed("[기쁨] 이번 주말에 부산 여행 가자!");
+                var rpc = new ReplyParser(); rpc.Feed("[슬픔] 부산 얘기를 하니 눈물 나.");
+                Skit sk0;
+                check(rpa.Mood == ChatMood.Greet && rpb.Mood == ChatMood.Travel && rpc.Mood == ChatMood.Sad, "AI 대화: 감정 태그와 화제(여행·부산)가 응용동작 감정으로 이어지고, 슬픔은 덮어쓰지 않음");
+                bool allMapped = true;
+                foreach (ChatMood cm in new[] { ChatMood.Greet, ChatMood.Laugh, ChatMood.Love, ChatMood.Cheer, ChatMood.Praise, ChatMood.Comfort, ChatMood.Proud, ChatMood.Busy, ChatMood.Travel, ChatMood.Explain, ChatMood.Hero, ChatMood.Okay, ChatMood.Busan }) allMapped &= Pet.MoodSkit(cm, out sk0);
+                check(allMapped && !Pet.MoodSkit(ChatMood.Joy, out sk0), "AI 대화 감정마다 가이드북 응용동작이 정해져 있음");
+                var pc = new Pet(wo, 0, 640, 720) { Area = wo.Areas[0] }; pc.SetState(PetState.Pause, wo); pc.X = 640; pc.Y = 720;
+                bool chatOk = true;
+                foreach (ChatMood cm in Enum.GetValues(typeof(ChatMood)))
+                {
+                    pc.BeginChat(wo, 1); pc.ChatThink(); pc.ChatSay(cm, "테스트 말풍선이야.", true);
+                    for (int i = 0; i < 60; i++) { wo.Now += .02; pc.Update(wo, .02, null, 0); }
+                    try { PointF oo; using (Bitmap bo = Pet.Render(pc.GetLook(wo.Now), out oo)) chatOk &= bo.Width > 10 && bo.Width < 4000; } catch { chatOk = false; }
+                    pc.EndChat(wo);
+                }
+                check(chatOk, "AI 대화: 모든 감정(응용동작 포함)이 그려짐");
 
                 // 위치 고정
                 PlayOptions.Current = new PlayOptions { PositionFixed = true };

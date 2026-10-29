@@ -9,7 +9,7 @@ namespace Bugi
     [Flags]
     internal enum Decor
     {
-        None = 0, Stars = 8, Flower = 16, Notes = 64, Speed = 256, Sleepy = 512, Dots = 2048, Tool = 4096
+        None = 0, Stars = 8, Flower = 16, Notes = 64, Speed = 256, Sleepy = 512, Dots = 2048, Tool = 4096, Prop = 8192
     }
 
     internal sealed partial class Pet
@@ -159,6 +159,11 @@ namespace Bugi
             }
             L.Bubble = PersistentBubble(hourlyBubble, Bubble);
             CompanionLook(ref L, now);
+            {
+                // 소품·글자·하트가 몸 상자 밖으로 나가므로 그림 상자를 넓힌다(응용동작 그림 p27~36)
+                Pose q = L.Pose;
+                if (q.Prop != PropKind.None || q.Cape || q.Chair || !string.IsNullOrEmpty(q.Sfx) || q.Hearts >= 0 || q.Stars >= 0 || q.Marks >= 0) L.Decor |= Decor.Prop;
+            }
             L.Pose.Outfit = L.Work = WearsOutfit;
             if (L.Pose.Outfit) L.Pose.CardSwing += F(-L.Pose.Lean * .8 + Math.Sin(animT * 2.4) * 1.6);   // 명찰은 몸이 기울면 반대로 흔들린다
             L.BubbleReveal = -1;
@@ -194,8 +199,12 @@ namespace Bugi
                     SleepPose(P, t); L.ZPhase = (int)(t * 20) % 100000; L.ZTime = (float)t; L.Decor |= Decor.Sleepy;
                     break;
                 case RestPose.Daydream:
-                    // 멍때리기: 위를 쳐다보며 몸이 아주 느리게 흔들리고 생각 점 세 개가 차례로 떠오른다.
-                    DaydreamPose(P, t); L.Decor |= Decor.Dots; L.DecorPhase = (float)t;
+                    // 멍...(가이드북 p32): 퍼질러 앉아 옆을 멍하니 바라본다.
+                    DaydreamPose(P, t);
+                    break;
+                case RestPose.Skit:
+                    // 가이드북 응용동작(p27~36)
+                    SkitPose(P, ref L, skit, t, extraDuration);
                     break;
                 case RestPose.Stretch:
                 {
@@ -238,18 +247,6 @@ namespace Bugi
                     // 배꼽인사(근무복 그림 10): 날개를 배 앞에 모으고 눈을 감은 채 공손히 숙인다.
                     BowPose(P, t);
                     break;
-                case RestPose.IdCard:
-                    // 신분증 보여주기: 목걸이 명찰(로고)을 번쩍 들어 보인다.
-                    IdCardPose(P, t);
-                    break;
-                case RestPose.Flag:
-                {
-                    // 로고 깃발 흔들기: 첨부한 로고를 단 깃발을 높이 들고 폴짝폴짝.
-                    FlagPose(P, t); L.Decor |= Decor.Tool;
-                    double fe = Window(t, .2, extraDuration - .4, .5);
-                    L.HopY = -(float)(Math.Abs(Math.Sin(t * 5.2)) * 6 * S * fe);
-                    break;
-                }
                 default:
                     SitIdlePose(P, animT);
                     break;
@@ -340,6 +337,7 @@ namespace Bugi
             if ((L.Decor & Decor.Stars) != 0) { l = Math.Min(l, -w * .45f); r = Math.Max(r, w * .45f); t = Math.Min(t, -h - 14 * s); }
             if ((L.Decor & Decor.Flower) != 0) { l = Math.Min(l, -w * .3f); r = Math.Max(r, w * .3f); t = Math.Min(t, -h * .6f); }
             if ((L.Decor & Decor.Tool) != 0) { l = Math.Min(l, -w * .8f); r = Math.Max(r, w * .95f); t = Math.Min(t, -h * 1.18f); }
+            if ((L.Decor & Decor.Prop) != 0) { l = Math.Min(l, -w * 1.35f); r = Math.Max(r, w * 1.75f); t = Math.Min(t, -h * 1.3f); }
             if ((L.Decor & Decor.Notes) != 0) { l = Math.Min(l, -w * .47f - 20 * s); r = Math.Max(r, w * .47f + 24 * s); t = Math.Min(t, -h * 1.0f - 18 * s); }
             if ((L.Decor & Decor.Speed) != 0) { l = Math.Min(l, -w * .5f - 24 * s); r = Math.Max(r, w * .5f + 24 * s); }
             return new RectangleF(l, t, r - l, b - t);

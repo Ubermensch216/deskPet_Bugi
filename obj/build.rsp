@@ -6,7 +6,7 @@
 /nowarn:CS0649,CS0169,CS0414,CS0219
 /utf8output
 /langversion:latest
-/out:"C:\Users\Lips Builder\AppData\Local\Temp\claude\C--Users-Lips-Builder--claude-spares-spare-djLb0Y\07c044de-852b-410c-a8cf-ab369a3d30d5\scratchpad\build0\bugi.exe"
+/out:"D:\Dev\deskPet_Bugi\output\bugi.exe"
 /win32manifest:"D:\Dev\deskPet_Bugi\assets\app.manifest"
 /win32icon:"D:\Dev\deskPet_Bugi\assets\bugi.ico"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll"
@@ -33,6 +33,7 @@
 "D:\Dev\deskPet_Bugi\src\DevToolsNotes.cs"
 "D:\Dev\deskPet_Bugi\src\FormsHelper.cs"
 "D:\Dev\deskPet_Bugi\src\FormsSettings.cs"
+"D:\Dev\deskPet_Bugi\src\Guide.cs"
 "D:\Dev\deskPet_Bugi\src\LogoArt.cs"
 "D:\Dev\deskPet_Bugi\src\LogoData.cs"
 "D:\Dev\deskPet_Bugi\src\MarkdownEditing.cs"
@@ -48,6 +49,7 @@
 "D:\Dev\deskPet_Bugi\src\NoteStore.cs"
 "D:\Dev\deskPet_Bugi\src\NoteWindow.cs"
 "D:\Dev\deskPet_Bugi\src\Notice.cs"
+"D:\Dev\deskPet_Bugi\src\OllamaSetup.cs"
 "D:\Dev\deskPet_Bugi\src\Options.cs"
 "D:\Dev\deskPet_Bugi\src\Pet.cs"
 "D:\Dev\deskPet_Bugi\src\PetChat.cs"
@@ -55,7 +57,9 @@
 "D:\Dev\deskPet_Bugi\src\PetPoses.cs"
 "D:\Dev\deskPet_Bugi\src\PetRender.cs"
 "D:\Dev\deskPet_Bugi\src\PetSecrets.cs"
+"D:\Dev\deskPet_Bugi\src\PetSkits.cs"
 "D:\Dev\deskPet_Bugi\src\PetWindow.cs"
 "D:\Dev\deskPet_Bugi\src\Program.cs"
 "D:\Dev\deskPet_Bugi\src\Rig.cs"
+"D:\Dev\deskPet_Bugi\src\RigProps.cs"
 "D:\Dev\deskPet_Bugi\src\SpecTools.cs"

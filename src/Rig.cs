@@ -6,7 +6,10 @@ using System.Drawing.Drawing2D;
 namespace Bugi
 {
     internal enum EyeStyle { Dot, Half, Closed, Happy, Squint, Wide, Spiral }
-    internal enum ToolKind { None, Pickaxe, Flag }
+    internal enum ToolKind { None, Pickaxe }
+
+    /// <summary>가이드북 응용동작(p27~36)에 나오는 소품. RigProps.cs 가 그린다.</summary>
+    internal enum PropKind { None, Heart, Pompom, Board, Megaphone, Laptop, Map, Sign }
 
     /// <summary>
     /// 부기의 한 순간 자세. 좌표는 Rig 의 기준 치수 단위이고 각도는 화면 기준 시계 방향이 +,
@@ -56,7 +59,14 @@ namespace Bugi
         public float CardSwing;                // 명찰이 흔들리는 각도
         public float CardShow;                 // 0 가슴에 걸림, 1 번쩍 들어 보여줌
         public float Sparkle = -1;             // >=0 이면 짠! 반짝임(위상)
-        public float FlagWave;                 // 깃발 펄럭임 위상
+        // 가이드북 응용동작(p27~36): 소품·옷·효과. 그림은 왼쪽을 보는(또는 정면) 모습으로만 쓴다.
+        public PropKind Prop; public float PropT;          // 소품과 그 움직임 위상
+        public bool Gray;                                  // 몸이 회색 실루엣으로 비어 보임(p31 "네..?")
+        public bool Casual;                                // 회색 티셔츠 + 청바지(p31 발표)
+        public bool Hat, Shades, Cape, Mask, Lanyard, Chair;   // 밀짚모자 · 선글라스 · 망토 · "b" 입가리개 · 목걸이 명찰 · 감독 의자
+        public float Hearts = -1, Stars = -1, Marks = -1;      // 떠오르는 하트 · 노란 반짝별 · "ㅋ" 표시 (위상, <0 이면 없음)
+        public string Sfx; public float SfxT;                  // 만화 글자(안녕·Good!·멍...) 와 흔들림 위상
+        public PointF SfxAt = new PointF(200, 4); public float SfxSize = 20; public int SfxStyle;   // 글자 자리(가운데 기준) · 크기 · 0 검정 손글씨 / 1 노랑 테두리 큰 글자
 
         public static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 
@@ -80,7 +90,11 @@ namespace Bugi
                 add(Tail, 3); add(TailWag, 3);
                 add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8);
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
-                add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8); add(FlagWave, 6);
+                add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8);
+                add((int)Prop, 1); add(PropT, 8); add(Gray ? 1 : 0, 1); add(Casual ? 1 : 0, 1);
+                add((Hat ? 1 : 0) + (Shades ? 2 : 0) + (Cape ? 4 : 0) + (Mask ? 8 : 0) + (Lanyard ? 16 : 0) + (Chair ? 32 : 0), 1);
+                add(Hearts, 10); add(Stars, 10); add(Marks, 10); add(SfxT, 8); add(SfxAt.X, 1); add(SfxAt.Y, 1); add(SfxSize, 1); add(SfxStyle, 1);
+                if (Sfx != null) foreach (char ch in Sfx) h = (h ^ ch) * 1099511628211L;
                 return h;
             }
         }
@@ -165,7 +179,7 @@ namespace Bugi
     /// 좌표 원점: 발바닥 y=300, 몸 가운데 x=200. 몸·머리·날개·꼬리·신발은 각각 회전(yaw)을 따로 받아
     /// 도면의 정면·3/4·옆모습이 그대로 나온다.
     /// </summary>
-    internal static class Rig
+    internal static partial class Rig
     {
         internal const float RefH = 298f, RefFootX = 200f, RefFootY = 300f;
         internal const float Axis = 200f;
@@ -173,10 +187,13 @@ namespace Bugi
         private const float HipY = 258f, LeanPivotY = 262f;
         internal static readonly PointF HeadLocalOrigin = new PointF(200, 88);
         private const float HeadR = 48f;                     // 눈 높이의 머리 반지름(원통 근사)
+        /// <summary>규격 가드(가이드북 p17 형태규정): 몸이 눌리거나 늘어나는 정도와 머리 기울임의 한도. 늘리면 --guide-test 가 경고한다.</summary>
+        internal const float MaxSquash = .05f, MaxHeadTilt = 12f;
 
-        private static readonly Color cInk = Color.FromArgb(30, 28, 32), cBody = Color.FromArgb(255, 255, 255);
-        private static readonly Color cBeak = Color.FromArgb(255, 214, 10), cRed = Color.FromArgb(232, 20, 30);
-        private static readonly Color cLeg = Color.FromArgb(255, 200, 20), cPink = Color.FromArgb(240, 124, 146), cMouth = Color.FromArgb(128, 40, 46);
+        // 캐릭터 색은 가이드북 p12 전용색상(BugiGuide)만 쓴다. 입속·혀·볼은 공식 이모티콘에 나오는 표정 효과색이다.
+        private static readonly Color cInk = BugiGuide.Black, cBody = BugiGuide.White;
+        private static readonly Color cBeak = BugiGuide.Yellow, cRed = BugiGuide.Red;
+        private static readonly Color cLeg = BugiGuide.Yellow, cPink = Color.FromArgb(240, 124, 146), cMouth = Color.FromArgb(128, 40, 46);   //fx
         private static readonly SolidBrush bBody = new SolidBrush(cBody), bInk = new SolidBrush(cInk), bBeak = new SolidBrush(cBeak);
         private static readonly SolidBrush bRed = new SolidBrush(cRed), bLeg = new SolidBrush(cLeg);
         private static readonly SolidBrush bPink = new SolidBrush(cPink), bMouth = new SolidBrush(cMouth), bWhite = new SolidBrush(Color.White);
@@ -212,11 +229,11 @@ namespace Bugi
                 BCos = (float)Math.Cos(Bd); BSin = (float)Math.Sin(Bd); HCos = (float)Math.Cos(Hd); HSin = (float)Math.Sin(Hd);
                 HeadC = Map(HeadLocalOrigin.X, HeadLocalOrigin.Y);
                 float sq = Sq;
-                HeadAng = Clamp(p.HeadTilt, -12f, 12f) + extraTilt + p.Lean; HeadSx = 1 + sq * .5f; HeadSy = 1 - sq;
+                HeadAng = Clamp(p.HeadTilt, -MaxHeadTilt, MaxHeadTilt) + extraTilt + p.Lean; HeadSx = 1 + sq * .5f; HeadSy = 1 - sq;
             }
 
             /// <summary>규격 가드: 몸이 눌리거나 늘어나는 정도는 최대 5%까지만 허용한다.</summary>
-            private float Sq { get { return Clamp(P.Squash - P.Breath * .012f, -.05f, .05f); } }
+            private float Sq { get { return Clamp(P.Squash - P.Breath * .012f, -MaxSquash, MaxSquash); } }
 
             public PointF Map(float x, float y)
             {
@@ -225,7 +242,7 @@ namespace Bugi
                 float w = SmoothStep((150 - y) / 80f);
                 if (w > 0)
                 {
-                    double a = (Clamp(P.HeadTilt, -12f, 12f) + ExtraTilt) * w * Math.PI / 180, ca = Math.Cos(a), sa = Math.Sin(a);
+                    double a = (Clamp(P.HeadTilt, -MaxHeadTilt, MaxHeadTilt) + ExtraTilt) * w * Math.PI / 180, ca = Math.Cos(a), sa = Math.Sin(a);
                     float dx = x - Axis, dy = y - 150;
                     x = Axis + (float)(dx * ca - dy * sa) + Clamp(P.HeadX, -6f, 6f) * w; y = 150 + (float)(dx * sa + dy * ca) + Clamp(P.HeadY, -6f, 8f) * w;
                 }
@@ -249,19 +266,24 @@ namespace Bugi
             {
                 var c = new Ctx(p, faceRight, ink, k, 0);
                 if (p.Ghost > .02f) DrawGhosts(g, p, faceRight, ink, k);
+                DrawPropsBack(g, c);
                 DrawTail(g, c);
                 for (int s = 0; s < 2; s++) if (!WingInFront(c, s)) DrawWing(g, c, s);
                 if (!p.Sit) DrawLegs(g, c);
                 DrawBody(g, c);
                 if (p.Outfit) DrawOutfit(g, c);
+                if (p.Casual) DrawCasual(g, c);
+                if (p.Lanyard) DrawLanyard(g, c);
                 if (p.Sit) DrawSitFeet(g, c);
                 DrawFace(g, c);
                 if (p.Outfit && p.CardShow >= .02f) DrawHeldCard(g, c);
+                DrawPropsMid(g, c);
                 for (int s = 0; s < 2; s++) if (WingInFront(c, s)) DrawWing(g, c, s);
                 if (p.Tool == ToolKind.Pickaxe) { Wing w = WingGeom(c, 1); DrawPickaxe(g, c, w.W); }
-                if (p.Tool == ToolKind.Flag) { Wing w = WingGeom(c, 1); DrawFlag(g, c, w.W); }
+                DrawPropsFront(g, c);
                 if (p.Cookie >= 0) DrawCookie(g, c);
                 if (p.Debris >= 0) DrawDebris(g, p);
+                DrawEffects(g, c);
             }
             g.Restore(saved);
         }
@@ -280,7 +302,8 @@ namespace Bugi
         private static void DrawBody(Graphics g, Ctx c)
         {
             PointF[] body = BodyOutline(c);
-            g.FillPolygon(bBody, body);
+            if (c.P.Gray) using (var gray = new SolidBrush(Color.FromArgb(204, 204, 206))) g.FillPolygon(gray, body);   //fx p31 "네..?" 회색 실루엣
+            else g.FillPolygon(bBody, body);
             g.DrawPolygon(c.Ink, body);
         }
 
@@ -293,14 +316,14 @@ namespace Bugi
                 var c = new Ctx(p, mirror, ink, k, p.GhostAng * m);
                 PointF[] body = BodyOutline(c);
                 int a = (int)(95 * Math.Min(1f, p.Ghost));
-                using (var fill = new SolidBrush(Color.FromArgb(a / 2, 235, 235, 238)))
-                using (var edge = new Pen(Color.FromArgb(a, 150, 150, 160), ink.Width * .7f) { LineJoin = LineJoin.Round })
+                using (var fill = new SolidBrush(Color.FromArgb(a / 2, 235, 235, 238)))   //fx
+                using (var edge = new Pen(Color.FromArgb(a, 150, 150, 160), ink.Width * .7f) { LineJoin = LineJoin.Round })   //fx
                 { g.FillPolygon(fill, body); g.DrawPolygon(edge, body); }
                 var st = g.Save();
                 g.TranslateTransform(c.HeadC.X, c.HeadC.Y); g.RotateTransform(c.HeadAng);
-                using (var red = new Pen(Color.FromArgb(a, 232, 20, 30), ink.Width * .9f))
+                using (var red = new Pen(Color.FromArgb(a, BugiGuide.Red), ink.Width * .9f))
                 { g.DrawEllipse(red, -24, -78, 20, 20); g.DrawEllipse(red, 4, -78, 20, 20); }
-                using (var beak = new SolidBrush(Color.FromArgb(a, 255, 214, 10))) g.FillEllipse(beak, -22 + p.Look * 15, 0, 44, 25);
+                using (var beak = new SolidBrush(Color.FromArgb(a, BugiGuide.Yellow))) g.FillEllipse(beak, -22 + p.Look * 15, 0, 44, 25);
                 g.Restore(st);
             }
         }
@@ -385,14 +408,14 @@ namespace Bugi
 
         private static void DrawCamellia(Graphics g, float x, float y, float r)
         {
-            using (var leaf = new SolidBrush(Color.FromArgb(70, 170, 70)))
+            using (var leaf = new SolidBrush(BugiGuide.Green))
             { g.FillEllipse(leaf, x - r * 1.25f, y + r * .1f, r * .9f, r * .7f); g.FillEllipse(leaf, x + r * .35f, y + r * .55f, r * .9f, r * .65f); }
             for (int i = 0; i < 5; i++)
             {
                 double a = i * Math.PI * 2 / 5 - Math.PI / 2;
                 g.FillEllipse(bRed, x + (float)Math.Cos(a) * r * .62f - r * .55f, y + (float)Math.Sin(a) * r * .62f - r * .55f, r * 1.1f, r * 1.1f);
             }
-            using (var center = new SolidBrush(Color.FromArgb(255, 218, 60))) g.FillEllipse(center, x - r * .3f, y - r * .3f, r * .6f, r * .6f);
+            using (var center = new SolidBrush(BugiGuide.Yellow)) g.FillEllipse(center, x - r * .3f, y - r * .3f, r * .6f, r * .6f);
         }
 
         /// <summary>앉았을 때: 두 다리를 앞으로 내밀어 신발 바닥(회색 무늬)이 보인다(참조 그림 2).</summary>
@@ -416,7 +439,7 @@ namespace Bugi
                     path.AddEllipse(soleRect);
                     g.FillPath(bBody, path); g.DrawPath(c.Ink, path);
                     var rim = RectangleF.Inflate(soleRect, -5, -5);
-                    using (var fill = new SolidBrush(Color.FromArgb(160, 162, 170))) g.FillEllipse(fill, rim);
+                    using (var fill = new SolidBrush(Color.FromArgb(160, 162, 170))) g.FillEllipse(fill, rim);   //fx
                     g.DrawEllipse(c.Ink, rim);
                     using (var tread = new Pen(cInk, Math.Max(2f, c.Ink.Width * .6f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                         for (int i = 0; i < 3; i++) g.DrawLine(tread, -10, 3 + i * 9, 10, 3 + i * 9);
@@ -436,7 +459,7 @@ namespace Bugi
             // 볼(도면에는 없지만 공식 이모티콘에 나오는 발그레한 볼)
             if (p.Blush > .01f)
             {
-                using (var blush = new SolidBrush(Color.FromArgb((int)(175 * Math.Min(1f, p.Blush)), 255, 128, 138)))
+                using (var blush = new SolidBrush(Color.FromArgb((int)(175 * Math.Min(1f, p.Blush)), 255, 128, 138)))   //fx
                     for (int s = -1; s <= 1; s += 2)
                     {
                         float x = s * 36f, z = (float)Math.Sqrt(HeadR * HeadR - x * x), xs = x * cs - z * sn, f = Math.Min(1f, (x * sn + z * cs) / z);
@@ -578,7 +601,7 @@ namespace Bugi
                 float y = -65f + pts[i][1] * D + (1 - (float)Math.Cos(sway)) * h * 4f;
                 list[i] = new PointF(x * c.HCos - 18 * c.HSin, y);
             }
-            using (var pen = new Pen(cInk, Math.Max(3.2f, c.Ink.Width * 1.05f)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            using (var pen = new Pen(cInk, c.Ink.Width) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })   // 선 굵기는 몸 윤곽선과 같게(p17 라인규정)
                 g.DrawLines(pen, list);
         }
 
@@ -599,14 +622,15 @@ namespace Bugi
                 for (int s = -1; s <= 1; s += 2)
                 {
                     float cx = s * lensX * cs - zg * sn;
-                    if (p.GlassGlow > .01f || d > .5f)
-                        using (var glow = new SolidBrush(Color.FromArgb((int)(55 + 130 * gl), 140, 214, 255)))
+                    if (p.Shades && d > .5f) g.FillEllipse(bInk, cx - rc * lensScale, -rc, rc * 2 * lensScale, rc * 2);   // 선글라스(p33 · p34): 검은 렌즈
+                    else if (p.GlassGlow > .01f || d > .5f)
+                        using (var glow = new SolidBrush(Color.FromArgb((int)(55 + 130 * gl), 140, 214, 255)))   //fx
                             g.FillEllipse(glow, cx - rc * lensScale, -rc, rc * 2 * lensScale, rc * 2);
                     if (rc * 2 * lensScale < th * 1.8f)
                         g.FillEllipse(bRed, cx - th / 2, -rc - th / 2, th, rc * 2 + th);      // 옆에서 보면 렌즈는 세로 눈금
                     else g.DrawEllipse(ring, cx - rc * lensScale, -rc, rc * 2 * lensScale, rc * 2);
                     if (p.GlassGlow > .05f)
-                        using (var scan = new Pen(Color.FromArgb((int)(220 * gl), 255, 255, 255), 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                        using (var scan = new Pen(Color.FromArgb((int)(220 * gl), 255, 255, 255), 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
                         {
                             float q = ((p.TuftPhase * .5f) % 1f + 1f) % 1f, yy = -rc + 2 + q * (rc * 2 - 4), hw = (float)Math.Sqrt(Math.Max(0, rc * rc - yy * yy)) - 2;
                             if (hw > 1) g.DrawLine(scan, cx - hw * lensScale, yy, cx + hw * lensScale, yy);
@@ -644,24 +668,24 @@ namespace Bugi
             float t = p.Holo;
             var panel = new RectangleF(58, -92, 62, 46);
             using (var path = RoundRect(panel, 6))
-            using (var fill = new SolidBrush(Color.FromArgb(120, 150, 215, 255)))
-            using (var edge = new Pen(Color.FromArgb(220, 90, 160, 230), 3f))
+            using (var fill = new SolidBrush(Color.FromArgb(120, 150, 215, 255)))   //fx
+            using (var edge = new Pen(Color.FromArgb(220, 90, 160, 230), 3f))   //fx
             { g.FillPath(fill, path); g.DrawPath(edge, path); }
-            using (var bar = new Pen(Color.FromArgb(235, 255, 255, 255), 3.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (var bar = new Pen(Color.FromArgb(235, 255, 255, 255), 3.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
                 for (int i = 0; i < 4; i++)
                 {
                     float len = 12 + (float)((Math.Sin(t * 3 + i * 1.7) * .5 + .5) * 30) * (i == 0 ? .6f : 1f);
                     g.DrawLine(bar, panel.Left + 8, panel.Top + 8 + i * 9.5f, panel.Left + 8 + len, panel.Top + 8 + i * 9.5f);
                 }
             float blink = (float)(Math.Sin(t * 6) * .5 + .5);
-            using (var dot = new SolidBrush(Color.FromArgb((int)(255 * blink), 255, 255, 255))) g.FillEllipse(dot, panel.Right - 10, panel.Top + 5, 5, 5);
+            using (var dot = new SolidBrush(Color.FromArgb((int)(255 * blink), 255, 255, 255))) g.FillEllipse(dot, panel.Right - 10, panel.Top + 5, 5, 5);   //fx
         }
 
         private static void DrawPuff(Graphics g, float q, float shift)
         {
             // 후~ 내쉬는 한숨: 부리 옆에서 작은 구름 세 개가 퍼지며 사라진다(참조 그림 2)
             float a = Math.Max(0, 1 - q);
-            using (var edge = new Pen(Color.FromArgb((int)(200 * a), 90, 90, 100), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (var edge = new Pen(Color.FromArgb((int)(200 * a), 90, 90, 100), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
                 for (int i = 0; i < 3; i++)
                 {
                     float x = -52 + shift * .3f - q * 22 - i * 7 * q, y = 14 - q * 8 + (i - 1) * 7 * q, r = 4 + i * 1.5f + q * 3;
@@ -678,15 +702,15 @@ namespace Bugi
                 float cx = x * c.HCos - z * c.HSin, depth = x * c.HSin + z * c.HCos;
                 if (depth < .14f * z) continue;
                 float dir = side == 0 ? -1 : 1;
-                using (var streak = new Pen(Color.FromArgb(190, 150, 205, 255), 5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                using (var streak = new Pen(Color.FromArgb(190, 150, 205, 255), 5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
                     g.DrawLine(streak, cx + dir * 1, -6, cx + dir * 4, 12 + 5 * (float)Math.Sin(t * 9 + side));
                 for (int i = 0; i < 2; i++)
                 {
                     float q = (t * 1.5f + i * .5f + side * .27f) % 1f;
                     float px = cx + dir * (3 + q * 14), py = 2 + q * 66, r = 5 - 2f * q;
                     int a = (int)(235 * (1 - q * q));
-                    using (var drop = new SolidBrush(Color.FromArgb(a, 120, 190, 255)))
-                    using (var rim = new Pen(Color.FromArgb(a, 60, 110, 180), 2.4f))
+                    using (var drop = new SolidBrush(Color.FromArgb(a, 120, 190, 255)))   //fx
+                    using (var rim = new Pen(Color.FromArgb(a, 60, 110, 180), 2.4f))   //fx
                     { g.FillEllipse(drop, px - r, py - r * 1.3f, r * 2, r * 2.6f); g.DrawEllipse(rim, px - r, py - r * 1.3f, r * 2, r * 2.6f); }
                 }
             }
@@ -696,8 +720,8 @@ namespace Bugi
         {
             float q = t % 1.2f / 1.2f;
             float x = 58 + 5 * q, y = -52 + q * 40; int a = (int)(235 * (1 - q * q * q));
-            using (var drop = new SolidBrush(Color.FromArgb(a, 170, 214, 255)))
-            using (var rim = new Pen(Color.FromArgb(a, 70, 120, 190), 3f))
+            using (var drop = new SolidBrush(Color.FromArgb(a, 170, 214, 255)))   //fx
+            using (var rim = new Pen(Color.FromArgb(a, 70, 120, 190), 3f))   //fx
             {
                 var pts = new[] { new PointF(x, y - 14), new PointF(x + 7, y + 1), new PointF(x, y + 8), new PointF(x - 7, y + 1) };
                 var path = new GraphicsPath(); path.AddCurve(pts, 0f); path.CloseFigure();
@@ -715,7 +739,7 @@ namespace Bugi
                 float s = (i == 0 ? 11f : 9f) * pulse * Math.Min(1f, p.Anger * 1.2f);
                 var st = g.Save();
                 g.TranslateTransform(spots[i][0], spots[i][1]);
-                using (var pen = new Pen(Color.FromArgb(226, 56, 44), 5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                using (var pen = new Pen(BugiGuide.Red, 5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                 {
                     g.DrawArc(pen, -s - 3, -s - 3, s + 1, s + 1, 100, 80); g.DrawArc(pen, 2, -s - 3, s + 1, s + 1, 280, 80);
                     g.DrawArc(pen, -s - 3, 2, s + 1, s + 1, 80, -80); g.DrawArc(pen, 2, 2, s + 1, s + 1, 260, -80);
@@ -726,7 +750,7 @@ namespace Bugi
 
         // ───────── 근무복(공식 3D 근무복 그림): 흰 셔츠 깃 + 하늘색 조끼 + 파란 목걸이 명찰(로고) ─────────
         // 모두 몸 윤곽 안쪽에 겹쳐 그리므로(몸 윤곽으로 자름) 부기의 비율·형태는 그대로다.
-        private static readonly Color cVest = Color.FromArgb(112, 162, 214), cStrap = Color.FromArgb(34, 70, 170);
+        private static readonly Color cVest = Color.FromArgb(112, 162, 214), cStrap = Color.FromArgb(34, 70, 170);   //fx
 
         private static float BodyHalfAt(float dd)
         {
@@ -798,11 +822,11 @@ namespace Bugi
             float w = 1.9f * D * scale, h = 2.7f * D * scale;
             var st = g.Save();
             g.TranslateTransform(top.X, top.Y); g.RotateTransform(angle); g.ScaleTransform(Math.Max(.2f, fx), 1);
-            using (var clipBr = new SolidBrush(Color.FromArgb(140, 140, 150))) g.FillRectangle(clipBr, -w * .14f, -h * .06f, w * .28f, h * .1f);
+            using (var clipBr = new SolidBrush(Color.FromArgb(140, 140, 150))) g.FillRectangle(clipBr, -w * .14f, -h * .06f, w * .28f, h * .1f);   //fx
             using (var path = RoundRect(new RectangleF(-w / 2, 0, w, h), 2.2f * scale)) { g.FillPath(bBody, path); g.DrawPath(c.Ink, path); }
             float ls = w * .66f;
             LogoArt.Draw(g, new RectangleF(-ls / 2, h * .11f, ls, ls * .98f));
-            using (var line = new Pen(Color.FromArgb(150, 150, 162), Math.Max(1.4f, 1.5f * scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (var line = new Pen(Color.FromArgb(150, 150, 162), Math.Max(1.4f, 1.5f * scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
             { g.DrawLine(line, -w * .3f, h * .70f, w * .3f, h * .70f); g.DrawLine(line, -w * .3f, h * .84f, w * .12f, h * .84f); }
             g.Restore(st);
         }
@@ -818,7 +842,7 @@ namespace Bugi
         private static void DrawSparkle(Graphics g, float t)
         {
             float a = .6f + .4f * (float)Math.Sin(t * 9);
-            var orange = Color.FromArgb((int)(255 * (.78f + .22f * a)), 240, 148, 24);
+            var orange = Color.FromArgb((int)(255 * (.78f + .22f * a)), BugiGuide.Yellow);   // 반짝임은 가이드북 p30 처럼 전용 노랑   //fx
             using (var pen = new Pen(orange, 3.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             { g.DrawArc(pen, 58, -86, 34, 16, 195, 110); g.DrawArc(pen, 62, -68, 34, 16, 195, 110); }
             using (var br = new SolidBrush(orange)) DrawStar(g, br, 102 + (float)Math.Sin(t * 5) * 1.5f, -84, 8f * (.8f + .3f * a), t * 20);
@@ -833,33 +857,6 @@ namespace Bugi
                 pts[i] = new PointF(cx + (float)Math.Cos(ang) * rr, cy + (float)Math.Sin(ang) * rr);
             }
             g.FillPolygon(br, pts);
-        }
-
-        // ───────── 로고 깃발: 첨부한 로고 이미지를 천에 그려 펄럭인다 ─────────
-        private static void DrawFlag(Graphics g, Ctx c, PointF grip)
-        {
-            Pose p = c.P;
-            double a = p.ToolAng * Math.PI / 180;
-            PointF up = new PointF((float)Math.Sin(a), -(float)Math.Cos(a)), side = new PointF((float)Math.Cos(a), (float)Math.Sin(a));
-            PointF end = new PointF(grip.X + up.X * 104, grip.Y + up.Y * 104), back = new PointF(grip.X - up.X * 14, grip.Y - up.Y * 14);
-            using (var edge = new Pen(cInk, 6f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            using (var pole = new Pen(Color.FromArgb(196, 198, 206), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            { g.DrawLine(edge, back, end); g.DrawLine(pole, back, end); }
-            const int n = 14; const float fw = 52f, fh = 46f;
-            var topPts = new PointF[n + 1]; var botPts = new PointF[n + 1];
-            for (int i = 0; i <= n; i++)
-            {
-                float u = i / (float)n, wav = (float)Math.Sin(p.FlagWave - u * 5.5) * 5.5f * u;
-                PointF t = new PointF(end.X - up.X * 3 + side.X * u * fw + up.X * wav, end.Y - up.Y * 3 + side.Y * u * fw + up.Y * wav);
-                topPts[i] = t; botPts[i] = new PointF(t.X - up.X * fh, t.Y - up.Y * fh);
-            }
-            for (int i = 0; i < n; i++)
-                LogoArt.DrawSlice(g, topPts[i], topPts[i + 1], botPts[i], i / (float)n, (i + 1) / (float)n);
-            using (var rim = new Pen(cInk, Math.Max(2.4f, c.Ink.Width * .8f)) { LineJoin = LineJoin.Round })
-            {
-                g.DrawLines(rim, topPts); g.DrawLines(rim, botPts);
-                g.DrawLine(rim, topPts[0], botPts[0]); g.DrawLine(rim, topPts[n], botPts[n]);
-            }
         }
 
         // ───────── 날개: 흰 지느러미 + 검은 끝(도면 5). 옆에서 보면 넓은 날개판(U 모양)으로 보인다 ─────────
@@ -895,7 +892,12 @@ namespace Bugi
         {
             Wing w = WingGeom(c, side);
             float wm = w.Width;
-            PointF[] band = Geo.Limb(new[] { w.S, w.E, w.W }, new[] { 21f * wm, 20f * wm, 18f * wm }, true, 6);
+            // 몸 뒤에 그리는 날개는 뿌리를 몸 안쪽으로 조금 밀어 넣어, 날개 윤곽이 몸 윤곽에서 끊기지 않고 이어지게 한다(p17 DO)
+            bool tucked = !WingInFront(c, side) && c.BCos > .5f;
+            float o = side == 1 ? 1 : -1;
+            PointF[] band = tucked
+                ? Geo.Limb(new[] { new PointF(w.S.X - o * 9 * c.BCos, w.S.Y - 3), w.S, w.E, w.W }, new[] { 21f * wm, 21f * wm, 20f * wm, 18f * wm }, true, 6)
+                : Geo.Limb(new[] { w.S, w.E, w.W }, new[] { 21f * wm, 20f * wm, 18f * wm }, true, 6);
             g.FillPolygon(bBody, band); g.DrawLines(c.Ink, band);   // 뿌리 쪽은 선을 긋지 않아 몸에서 이어져 보인다
             if (c.P.Outfit)
             {
@@ -945,12 +947,12 @@ namespace Bugi
             PointF up = new PointF((float)Math.Sin(a), -(float)Math.Cos(a)), side = new PointF((float)Math.Cos(a), (float)Math.Sin(a));
             PointF end = new PointF(grip.X + up.X * 84, grip.Y + up.Y * 84);
             PointF back = new PointF(grip.X - up.X * 12, grip.Y - up.Y * 12);
-            using (var edge = new Pen(Color.FromArgb(60, 40, 24), 9f) { StartCap = LineCap.Square, EndCap = LineCap.Square })
-            using (var wood = new Pen(Color.FromArgb(150, 104, 58), 5.4f) { StartCap = LineCap.Square, EndCap = LineCap.Square })
+            using (var edge = new Pen(Color.FromArgb(60, 40, 24), 9f) { StartCap = LineCap.Square, EndCap = LineCap.Square })   //ref 가이드북에 없는 곡괭이(참조 그림 4)
+            using (var wood = new Pen(Color.FromArgb(150, 104, 58), 5.4f) { StartCap = LineCap.Square, EndCap = LineCap.Square })   //ref 가이드북에 없는 곡괭이(참조 그림 4)
             { g.DrawLine(edge, back, end); g.DrawLine(wood, back, end); }
-            using (var stone = new SolidBrush(Color.FromArgb(150, 152, 160)))
-            using (var shade = new SolidBrush(Color.FromArgb(104, 106, 114)))
-            using (var rim = new Pen(Color.FromArgb(52, 52, 60), 2.4f) { LineJoin = LineJoin.Miter })
+            using (var stone = new SolidBrush(Color.FromArgb(150, 152, 160)))   //ref 가이드북에 없는 곡괭이(참조 그림 4)
+            using (var shade = new SolidBrush(Color.FromArgb(104, 106, 114)))   //ref 가이드북에 없는 곡괭이(참조 그림 4)
+            using (var rim = new Pen(Color.FromArgb(52, 52, 60), 2.4f) { LineJoin = LineJoin.Miter })   //ref 가이드북에 없는 곡괭이(참조 그림 4)
             {
                 float[] off = { -30, -19, -8, 3, 14 }, bend = { 12f, 5f, 0, 5f, 12f };
                 for (int i = 0; i < 5; i++)
@@ -978,8 +980,8 @@ namespace Bugi
             {
                 float x = p.DebrisX + bits[i][0] * 30 * q, y = p.DebrisY - (bits[i][1] * 40 * q - 70 * q * q), sz = bits[i][2] * (1 - q * .4f);
                 int a = (int)(255 * (1 - q * q));
-                using (var fill = new SolidBrush(Color.FromArgb(a, i % 2 == 0 ? 150 : 110, i % 2 == 0 ? 152 : 112, i % 2 == 0 ? 160 : 118)))
-                using (var rim = new Pen(Color.FromArgb(a, 52, 52, 60), 1.8f))
+                using (var fill = new SolidBrush(Color.FromArgb(a, i % 2 == 0 ? 150 : 110, i % 2 == 0 ? 152 : 112, i % 2 == 0 ? 160 : 118)))   //ref 가이드북에 없는 곡괭이(참조 그림 4)
+                using (var rim = new Pen(Color.FromArgb(a, 52, 52, 60), 1.8f))   //ref 가이드북에 없는 곡괭이(참조 그림 4)
                 { g.FillRectangle(fill, x - sz / 2, y - sz / 2, sz, sz); g.DrawRectangle(rim, x - sz / 2, y - sz / 2, sz, sz); }
             }
         }
@@ -991,8 +993,8 @@ namespace Bugi
             PointF at = c.Map(200, 150);
             var st = g.Save();
             g.TranslateTransform(at.X, at.Y);
-            using (var cookie = new SolidBrush(Color.FromArgb(240, 192, 128)))
-            using (var chip = new SolidBrush(Color.FromArgb(104, 62, 40)))
+            using (var cookie = new SolidBrush(Color.FromArgb(240, 192, 128)))   //fx
+            using (var chip = new SolidBrush(Color.FromArgb(104, 62, 40)))   //fx
             {
                 float r = 18;
                 const int n = 40;

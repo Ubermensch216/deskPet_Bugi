@@ -35,3 +35,20 @@ if (-not (Test-Path $icon)) {
 }
 Invoke-Csc $Out $icon
 Write-Host ("빌드 완료: {0} ({1:N0} bytes)" -f $Out, (Get-Item $Out).Length)
+
+# ───── 가이드북 점검 (docs/GUIDE_RULES.md) ─────
+# 1) 캐릭터 그리기 코드에 숫자로 쓴 색은 출처(//g:쪽수 가이드북, //fx 표정 효과, //ref 가이드북에 없는 참조 그림)를 줄 끝에 적어야 한다.
+$untagged = Get-ChildItem "$root\src\Rig*.cs" | ForEach-Object {
+    $f = $_; $n = 0
+    Get-Content $f.FullName -Encoding UTF8 | ForEach-Object { $n++; if ($_ -match 'Color\.FromArgb\([^)]*\d+\s*,\s*\d+\s*,\s*\d+' -and $_ -notmatch '//\s*(g:|fx|ref)') { "{0}:{1}: {2}" -f $f.Name, $n, $_.Trim() } }
+}
+if ($untagged) {
+    Write-Host "경고: 가이드북 전용색상이 아닌 색 리터럴에 출처 표기(//g:쪽수, //fx, //ref)가 없어요 — 가이드북(p12)을 먼저 확인하세요." -ForegroundColor Yellow
+    $untagged | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+}
+# 2) 그려 본 캐릭터가 가이드북 색·선·비율을 지키는지 (bugi.exe --guide-test)
+$gOut = Join-Path $env:TEMP 'bugi_guide_out.txt'
+$proc = Start-Process -FilePath $Out -ArgumentList '--guide-test' -Wait -PassThru -RedirectStandardOutput $gOut -WindowStyle Hidden
+$gText = if (Test-Path $gOut) { Get-Content $gOut -Encoding UTF8 } else { @() }
+foreach ($line in $gText) { if ($line -match 'WARNING|※') { Write-Host $line -ForegroundColor Yellow } else { Write-Host $line -ForegroundColor DarkGray } }
+if ($proc.ExitCode -eq 2) { Write-Host '⚠ 가이드북에 어긋나는 항목이 있어요. 위 경고를 확인해 주세요.' -ForegroundColor Yellow }

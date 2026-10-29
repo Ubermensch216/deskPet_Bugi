@@ -68,6 +68,7 @@ namespace Bugi
         private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
         private ComboBox cMode; private Label modeDesc; private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private Button bChatSetup, bChatSetupCancel; private ProgressBar chatSetupBar; private Label chatSetupText; private ChatRequest setupHandle;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -107,7 +108,7 @@ namespace Bugi
             live = new System.Windows.Forms.Timer { Interval = 500 };
             live.Tick += delegate { RefreshLive(); };
             live.Start(); RefreshLive();
-            FormClosed += delegate { live.Stop(); live.Dispose(); };
+            FormClosed += delegate { live.Stop(); live.Dispose(); if (setupHandle != null) setupHandle.Abort(); };
         }
 
         internal void SelectPage(int i) { if (i >= 0 && i < pages.Length) nav.SelectedIndex = i; }
@@ -387,7 +388,14 @@ namespace Bugi
             var rp = Row(a);
             chatProbe = new Label { AutoSize = true, Margin = new Padding(6, 8, 3, 3), ForeColor = Color.DimGray };
             rp.Controls.Add(FriendUI.Button("연결 확인", delegate { ProbeChat(); })); rp.Controls.Add(chatProbe);
-            Note(a, "대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
+            var rs = Row(a);
+            bChatSetup = FriendUI.Button("AI 자동 설치", delegate { StartChatSetup(); });
+            bChatSetupCancel = FriendUI.Button("취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
+            rs.Controls.Add(bChatSetup); rs.Controls.Add(bChatSetupCancel);
+            chatSetupBar = new ProgressBar { Width = 440, Height = 14, Margin = new Padding(6, 3, 3, 3), Visible = false };
+            a.Controls.Add(chatSetupBar);
+            chatSetupText = Note(a, "Ollama 나 모델이 없는 PC 에서 누르면 공식 사이트에서 내려받아 설치하고 모델까지 받아요(서버 주소가 이 PC 일 때만). 내려받기 전에 한 번 물어봐요.");
+            Note(a,"대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
             var gm = Group(f, "대화 모드"); var m = In(gm);
             var rmo = Row(m); rmo.Controls.Add(Cap("모드", 60)); cMode = Combo(ChatMode.All.Select(x => x.Name).ToArray(), o.Mode, 120); rmo.Controls.Add(cMode);
             modeDesc = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 4, 3, 3), Text = ChatMode.At(o.Mode).Desc };
@@ -427,11 +435,61 @@ namespace Bugi
                     BeginInvoke(new Action(delegate
                     {
                         chatProbe.ForeColor = r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick;
-                        chatProbe.Text = r == ProbeResult.Ok ? "연결됐어요. 모델도 있어요." : r == ProbeResult.ModelMissing ? "서버는 켜져 있는데 이 모델이 없어요." : "서버에 연결하지 못했어요. Ollama 가 켜져 있나요?";
+                        chatProbe.Text = r == ProbeResult.Ok ? "연결됐어요. 모델도 있어요." : r == ProbeResult.ModelMissing ? "서버는 켜져 있는데 이 모델이 없어요. 'AI 자동 설치'로 받을 수 있어요." : "서버에 연결하지 못했어요. Ollama 가 켜져 있나요? 없다면 'AI 자동 설치'를 눌러 보세요.";
                     }));
                 }
                 catch { }
             }) { IsBackground = true }.Start();
+        }
+
+        // ───────── AI 자동 설치 (Ollama + 모델) ─────────
+        private void StartChatSetup()
+        {
+            if (setupHandle != null) return;
+            string url = tChatUrl.Text.Trim().TrimEnd('/'), model = tChatModel.Text.Trim();
+            if (url.Length == 0) url = "http://localhost:11434";
+            if (model.Length == 0) model = "gemma4:e2b";
+            if (!OllamaSetup.IsLocalEndpoint(url)) { Warn("자동 설치는 서버 주소가 이 PC(localhost)일 때만 쓸 수 있어요.\n다른 PC 의 서버를 쓰는 중이라면 그 PC 에서 직접 설치해 주세요."); return; }
+            var opts = new ChatOptions { Endpoint = url, Model = model };
+            var handle = setupHandle = new ChatRequest();
+            chatProbe.Text = "";
+            ShowSetup("시작하는 중...", -1, true); bChatSetup.Enabled = false; chatSetupBar.Visible = true;
+            new System.Threading.Thread(delegate ()
+            {
+                string err;
+                try
+                {
+                    err = OllamaSetup.Run(opts, handle,
+                        (text, pct, cancellable) => PostUi(delegate { ShowSetup(text, pct, cancellable); }),
+                        msg =>
+                        {
+                            bool yes = false;
+                            try { Invoke(new Action(delegate { yes = MessageBox.Show(this, msg, "부기 · AI 자동 설치", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; })); } catch { }
+                            return yes;
+                        });
+                }
+                catch (Exception e) { err = "예상하지 못한 오류가 났어요. (" + e.Message + ")"; }
+                PostUi(delegate { FinishSetup(handle, err); });
+            }) { IsBackground = true }.Start();
+        }
+
+        private void PostUi(Action a) { try { if (!IsDisposed) BeginInvoke(a); } catch { } }
+
+        private void ShowSetup(string text, int pct, bool cancellable)
+        {
+            chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = text;
+            if (pct < 0) chatSetupBar.Style = ProgressBarStyle.Marquee;
+            else { chatSetupBar.Style = ProgressBarStyle.Continuous; chatSetupBar.Value = Math.Min(100, pct); }
+            bChatSetupCancel.Enabled = cancellable;
+        }
+
+        private void FinishSetup(ChatRequest handle, string err)
+        {
+            if (setupHandle == handle) setupHandle = null;
+            chatSetupBar.Visible = false; bChatSetup.Enabled = true; bChatSetupCancel.Enabled = false;
+            if (err == null) { chatSetupText.ForeColor = Color.FromArgb(30, 130, 70); chatSetupText.Text = "준비 끝! 이제 부기와 이야기할 수 있어요. ('AI 대화 사용'이 켜져 있는지 확인하고 저장해 주세요)"; }
+            else if (err == OllamaSetup.Cancelled) { chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = "취소했어요. 모델은 다시 누르면 받던 곳부터 이어서 받아요."; }
+            else { chatSetupText.ForeColor = Color.Firebrick; chatSetupText.Text = err; }
         }
 
         private void PickColor(bool background)

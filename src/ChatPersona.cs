@@ -6,7 +6,12 @@ using System.Text;
 namespace Bugi
 {
     /// <summary>대화에서 부기가 보여 줄 감정. 새 표정을 만들지 않고 공식 이모티콘에 있는 표정·몸짓에만 연결한다.</summary>
-    internal enum ChatMood { Neutral, Joy, Shy, Sad, Surprise, Sleepy, Think, Pout, Hungry }
+    internal enum ChatMood
+    {
+        Neutral, Joy, Shy, Sad, Surprise, Sleepy, Think, Pout, Hungry,
+        // 가이드북 응용동작(p27~36)에 연결되는 감정: 모델이 태그로 고르는 것(인사~멍)과, 대사에 담긴 화제로 알아채는 것(바쁨~부산)
+        Greet, Laugh, Love, Cheer, Praise, Comfort, Proud, Blank, Busy, Travel, Explain, Hero, Okay, Busan
+    }
 
     /// <summary>모델이 한 줄로 돌려주는 "[감정] 대사"를 스트리밍 도중에도 읽어 낸다.</summary>
     internal sealed class ReplyParser
@@ -33,6 +38,7 @@ namespace Bugi
             }
             string text = Clean(s, maxSentences, maxChars);
             if (!tag && text.Length >= 4) mood = Guess(text);
+            if (text.Length >= 4) mood = Refine(mood, text);
             bool changed = text != Text || mood != Mood || tag != HasTag;
             Text = text; Mood = mood; HasTag = tag;
             return changed;
@@ -43,6 +49,20 @@ namespace Bugi
         internal static ChatMood ParseTag(string t)
         {
             t = (t ?? "").Trim();
+            if (t.Contains("인사") || t.Contains("안녕")) return ChatMood.Greet;
+            if (t.Contains("웃음") || t.Contains("웃")) return ChatMood.Laugh;
+            if (t.Contains("사랑") || t.Contains("하트")) return ChatMood.Love;
+            if (t.Contains("응원") || t.Contains("파이팅") || t.Contains("화이팅")) return ChatMood.Cheer;
+            if (t.Contains("칭찬") || t.Contains("최고")) return ChatMood.Praise;
+            if (t.Contains("위로") || t.Contains("토닥")) return ChatMood.Comfort;
+            if (t.Contains("뿌듯") || t.Contains("자랑")) return ChatMood.Proud;
+            if (t.Contains("멍")) return ChatMood.Blank;
+            if (t.Contains("바쁨") || t.Contains("바빠")) return ChatMood.Busy;
+            if (t.Contains("여행")) return ChatMood.Travel;
+            if (t.Contains("설명") || t.Contains("발표")) return ChatMood.Explain;
+            if (t.Contains("등장") || t.Contains("영웅")) return ChatMood.Hero;
+            if (t.Contains("오케이") || t.Contains("촬영")) return ChatMood.Okay;
+            if (t.Contains("부산")) return ChatMood.Busan;
             if (t.Contains("기쁨") || t.Contains("기뻐") || t.Contains("행복")) return ChatMood.Joy;
             if (t.Contains("부끄") || t.Contains("수줍")) return ChatMood.Shy;
             if (t.Contains("슬") || t.Contains("눈물")) return ChatMood.Sad;
@@ -58,14 +78,36 @@ namespace Bugi
         internal static ChatMood Guess(string text)
         {
             if (text.Contains("ㅠ") || text.Contains("슬퍼") || text.Contains("힘들")) return ChatMood.Sad;
+            if (text.Contains("ㅋㅋ") || text.Contains("웃기") || text.Contains("푸하")) return ChatMood.Laugh;
+            if (text.Contains("화이팅") || text.Contains("파이팅") || text.Contains("힘내")) return ChatMood.Cheer;
+            if (text.Contains("잘했") || text.Contains("최고") || text.Contains("대단")) return ChatMood.Praise;
+            if (text.Contains("괜찮아") || text.Contains("토닥")) return ChatMood.Comfort;
+            if (text.Contains("뿌듯") || text.Contains("자랑")) return ChatMood.Proud;
+            if (text.Contains("사랑") || text.Contains("좋아해") || text.Contains("♥")) return ChatMood.Love;
+            if (text.StartsWith("안녕") || text.Contains("반가워") || text.Contains("어서 와")) return ChatMood.Greet;
             if (text.Contains("배고") || text.Contains("간식")) return ChatMood.Hungry;
             if (text.Contains("졸려") || text.Contains("자야") || text.Contains("피곤")) return ChatMood.Sleepy;
             if (text.Contains("깜짝") || text.Contains("헉") || text.Contains("어머")) return ChatMood.Surprise;
             if (text.Contains("부끄") || text.Contains("쑥스") || text.Contains("부끄")) return ChatMood.Shy;
-            if (text.Contains("좋아") || text.Contains("고마") || text.Contains("반가") || text.Contains("신나") || text.Contains("ㅎㅎ") || text.Contains("ㅋㅋ")) return ChatMood.Joy;
+            if (text.Contains("좋아") || text.Contains("고마") || text.Contains("반가") || text.Contains("신나") || text.Contains("ㅎㅎ")) return ChatMood.Joy;
             if (text.EndsWith("?") || text.Contains("음...") || text.Contains("글쎄")) return ChatMood.Think;
             return ChatMood.Neutral;
         }
+
+        /// <summary>대사에 화제(여행·발표·부산·촬영·일·등장)가 있으면 그에 맞는 응용동작으로 바꾼다. 슬픔·졸림 같은 마음 상태는 덮어쓰지 않는다.</summary>
+        internal static ChatMood Refine(ChatMood mood, string text)
+        {
+            if (mood != ChatMood.Neutral && mood != ChatMood.Joy && mood != ChatMood.Think && mood != ChatMood.Surprise && mood != ChatMood.Greet) return mood;
+            if (Has(text, "여행", "휴가", "공항", "캐리어", "비행기", "떠나")) return ChatMood.Travel;
+            if (Has(text, "발표", "프레젠", "보고서", "회의", "자료", "설명해")) return ChatMood.Explain;
+            if (Has(text, "부산", "해운대", "광안", "자갈치", "돼지국밥", "태종대", "송정", "감천")) return ChatMood.Busan;
+            if (Has(text, "촬영", "오케이", "감독", "영화", "컷!")) return ChatMood.Okay;
+            if (Has(text, "히어로", "영웅", "짜잔", "슈퍼", "등장")) return ChatMood.Hero;
+            if (Has(text, "바빠", "바쁘", "야근", "마감", "일이 많", "작업 중")) return ChatMood.Busy;
+            return mood;
+        }
+
+        private static bool Has(string text, params string[] words) { foreach (string w in words) if (text.Contains(w)) return true; return false; }
 
         /// <summary>말풍선에 어울리게 다듬는다: 첫 줄만, 마크다운·이모지·괄호 지문 제거, 세 문장·130자까지.</summary>
         internal const int MaxSentences = 3, MaxChars = 130;
@@ -116,14 +158,17 @@ namespace Bugi
     /// <summary>부기의 말투·성격과 지금 상태를 담은 프롬프트.</summary>
     internal static class ChatPersona
     {
-        internal static readonly string[] TagNames = { "기쁨", "부끄", "슬픔", "놀람", "졸림", "생각", "삐짐", "배고픔" };
+        internal static readonly string[] TagNames = { "기쁨", "부끄", "슬픔", "놀람", "졸림", "생각", "삐짐", "배고픔", "인사", "웃음", "사랑", "응원", "칭찬", "위로", "뿌듯", "멍" };
 
         internal static string TagOf(ChatMood m)
         {
             switch (m)
             {
                 case ChatMood.Joy: return "기쁨"; case ChatMood.Shy: return "부끄"; case ChatMood.Sad: return "슬픔"; case ChatMood.Surprise: return "놀람";
-                case ChatMood.Sleepy: return "졸림"; case ChatMood.Pout: return "삐짐"; case ChatMood.Hungry: return "배고픔"; default: return "생각";
+                case ChatMood.Sleepy: return "졸림"; case ChatMood.Pout: return "삐짐"; case ChatMood.Hungry: return "배고픔";
+                case ChatMood.Greet: return "인사"; case ChatMood.Laugh: return "웃음"; case ChatMood.Love: return "사랑"; case ChatMood.Cheer: return "응원";
+                case ChatMood.Praise: return "칭찬"; case ChatMood.Comfort: return "위로"; case ChatMood.Proud: return "뿌듯"; case ChatMood.Blank: return "멍";
+                default: return "생각";
             }
         }
 
@@ -149,7 +194,7 @@ namespace Bugi
             b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
             b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
             b.Append("말투: " + ChatMode.Current.Style + " 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마.\n");
-            b.Append("형식: 반드시 \"[감정] 대사\" 한 줄로만 답해. 감정은 " + string.Join(" · ", TagNames) + " 중 하나이고, 대사 내용에 가장 잘 맞는 걸 골라. 인사나 좋은 일엔 기쁨, 칭찬엔 부끄, 깜짝 놀랄 땐 놀람, 위로할 땐 슬픔을 써. 생각은 정말 고민할 때만 써.\n");
+            b.Append("형식: 반드시 \"[감정] 대사\" 한 줄로만 답해. 감정은 " + string.Join(" · ", TagNames) + " 중 하나이고, 대사 내용에 가장 잘 맞는 걸 골라. 첫인사나 헤어질 땐 인사, 좋은 일엔 기쁨, 웃긴 말엔 웃음, 고마움이나 애정엔 사랑, 힘을 북돋울 땐 응원, 잘했다고 말할 땐 칭찬, 위로할 땐 위로, 칭찬받으면 부끄, 자랑스러우면 뿌듯, 깜짝 놀랄 땐 놀람, 할 말이 없어 멍해지면 멍, 슬플 땐 슬픔을 써. 생각은 정말 고민할 때만 써.\n");
             // 프롬프트 앞부분이 자주 바뀌면 모델이 앞서 계산해 둔 것을 못 쓰고 매번 처음부터 읽어 느려진다 → 상태는 거친 단계로만 적는다.
             b.Append("\n[지금 상태]\n");
             b.Append("- 지금은 " + now.ToString("M월 d일") + " " + TimeOfDay(now) + "이야.\n");
@@ -170,7 +215,7 @@ namespace Bugi
         private static IEnumerable<ChatMessage> Examples()
         {
             yield return new ChatMessage("user", "안녕");
-            yield return new ChatMessage("assistant", "[기쁨] 어, 왔네! 기다리고 있었어.");
+            yield return new ChatMessage("assistant", "[인사] 어, 왔네! 기다리고 있었어.");
             yield return new ChatMessage("user", "점심 뭐 먹지");
             yield return new ChatMessage("assistant", "[생각] 음... 난 갈매기니까 새우깡! 근데 넌 뭐가 땡겨?");
             yield return new ChatMessage("user", "너 AI야?");
@@ -186,7 +231,9 @@ namespace Bugi
             yield return new ChatMessage("user", "헉 나 로또 당첨됐어");
             yield return new ChatMessage("assistant", "[놀람] 헉, 진짜?! 그럼 새우깡 한 박스만 사 줘!");
             yield return new ChatMessage("user", "오늘 너무 힘들었어");
-            yield return new ChatMessage("assistant", "[슬픔] 무슨 일 있었어? 난 옆에서 들어줄게.");
+            yield return new ChatMessage("assistant", "[위로] 무슨 일 있었어? 난 옆에서 들어줄게. 토닥토닥."); 
+            yield return new ChatMessage("user", "나 시험 붙었어!");
+            yield return new ChatMessage("assistant", "[칭찬] 우와, 진짜 대단해! 최고야!");
         }
 
         /// <summary>친구 모드가 아닐 때도 늘 쓰는 꼭 필요한 예시: 자기가 AI 라고 밝히기, 실시간 정보는 모른다고 하기.</summary>

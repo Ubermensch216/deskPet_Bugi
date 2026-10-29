@@ -207,10 +207,11 @@ namespace Bugi
                     P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1; P.Beak = F(.25 * e); P.Tuft += F(-10 * fl * e); P.Look = Lerp(P.Look, 0, e);
                     break;
                 }
-                case 7: // 안녕! 날개를 번쩍 들고 흔들며 인사
-                    P.WingRA = Lerp(P.WingRA, 150, e); P.WingRB = Lerp(P.WingRB, 140 + Math.Sin(u * 16) * 28, e);
-                    P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1;
-                    P.Beak = F(.5 * (.5 + .5 * Math.Sin(u * 8)) * e); P.Blush = .3f * ef; P.Look = Lerp(P.Look, 0, e); P.HeadTilt += 4 * ef;
+                case 7: // 안녕(가이드북 p27): 날개를 번쩍 들어 흔들고 한쪽 다리를 차올린다
+                    P.WingLA = Lerp(P.WingLA, 150, e); P.WingLB = Lerp(P.WingLB, 128 + Math.Sin(u * 12) * 30, e);
+                    P.Eyes = EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.FootRY = F(-15 * e); P.FootRX = F(-6 * e); P.FootRRot = F(-38 * e);
+                    P.Beak = F(.18 * (.5 + .5 * Math.Sin(u * 8)) * e); P.Look = Lerp(P.Look, .2, e); P.HeadTilt += 5 * ef; P.Lean += 4 * ef;
+                    P.Sfx = e > .3 ? "안녕" : null; P.SfxAt = new PointF(92, 66); P.SfxSize = 24; P.SfxT = F(u);
                     break;
             }
         }
@@ -344,20 +345,16 @@ namespace Bugi
 
         private void DaydreamPose(Pose P, double t)
         {
+            // 멍...(가이드북 p32): 퍼질러 앉아 날개를 늘어뜨리고 옆을 멍하니 바라본다. 눈은 점 그대로, 입은 다문다.
             SitDown(P);
             P.Breath = F(Math.Sin(t * 1.1) * .6);
             P.OpenL = P.OpenR = BlinkOpen(t * .6); P.Eyes = EyeStyle.Dot;
-            P.Gx = F(Math.Sin(t * .45) * .55); P.Gy = F(-.9 + Math.Sin(t * .31) * .2); P.Look = F(Math.Sin(t * .45) * .3);
-            P.HeadTilt = F(-4 + Math.Sin(t * .7) * 3); P.HeadY = -1;
-            P.Beak = .12f; P.Tuft = F(Math.Sin(t * .9) * 4); P.TuftWave = 4; P.TuftPhase = F(t * 1.4);
-            P.WingLA = F(46 + Math.Sin(t * .6) * 3); P.WingRA = F(46 - Math.Sin(t * .6) * 3); P.WingLB = 30; P.WingRB = 30;
-            // 가끔 날개를 턱에 괴고 생각에 잠긴다
-            double c = t % 7.0, e = Window(c, 1.0, 4.6, .5);
-            if (e > .001)
-            {
-                P.WingRTo = new PointF(Lerp(262, 226, e), Lerp(214, 140, e)); P.HeadTilt += F(-4 * e); P.Eyes = EyeStyle.Half; P.Brow = F(.15 * e);
-            }
-            P.TailWag = F(Math.Sin(t * .8) * 4);
+            P.Gx = F(-.75 + Math.Sin(t * .45) * .12); P.Gy = F(.05 + Math.Sin(t * .31) * .1); P.Look = F(-.28 + Math.Sin(t * .45) * .05);
+            P.HeadTilt = F(-5 + Math.Sin(t * .7) * 1.5); P.HeadY = -1;
+            P.Beak = 0; P.Tuft = F(Math.Sin(t * .9) * 3); P.TuftWave = 3; P.TuftPhase = F(t * 1.4);
+            P.WingLA = F(26 + Math.Sin(t * .6) * 2); P.WingRA = F(26 - Math.Sin(t * .6) * 2); P.WingLB = 12; P.WingRB = 12;
+            P.Sfx = "멍..."; P.SfxAt = new PointF(212, -4); P.SfxSize = 22; P.SfxT = F(t * .5);
+            P.TailWag = F(Math.Sin(t * .8) * 3);
         }
 
         private void SitIdlePose(Pose P, double t)
@@ -616,34 +613,6 @@ namespace Bugi
             P.Turn = Lerp(0, -.45, bow); P.Look = Lerp(P.Look, 0, bow);
             P.Lean = F(P.Lean - 17 * bow); P.HeadTilt = F(P.HeadTilt - 9 * bow); P.HeadY += F(4 * bow); P.Squash = F(.03 * bow);
             P.Tuft += F(-8 * bow); P.CardSwing += F(-12 * bow);
-        }
-
-        /// <summary>신분증 보여주기: 목걸이 명찰(로고)을 번쩍 들어 보이며 활짝 웃는다.</summary>
-        private void IdCardPose(Pose P, double t)
-        {
-            IdleBase(P, animT, false);
-            double e = Window(t, .2, extraDuration - .4, .6);
-            P.CardShow = F(e);
-            P.WingRTo = new PointF(Lerp(262, 232, e), Lerp(214, 160, e));
-            P.Eyes = e > .4 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.3 * e);
-            P.HeadTilt += F(3 * e); P.Look = Lerp(P.Look, -.1, e); P.Beak = F(.1 * e);
-            P.Sparkle = e > .6 ? F(t) : -1f;
-            P.CardSwing += F(Math.Sin(t * 5) * 2 * e);
-        }
-
-        /// <summary>로고 깃발 흔들기: 첨부한 로고를 단 깃발을 높이 들고 폴짝폴짝 응원한다.</summary>
-        private void FlagPose(Pose P, double t)
-        {
-            IdleBase(P, animT, false);
-            double e = Window(t, .2, extraDuration - .4, .5), hop = Math.Abs(Math.Sin(t * 5.2)) * e;
-            P.Tool = ToolKind.Flag; P.FlagWave = F(t * 9);
-            P.WingRTo = new PointF(Lerp(262, 262 + Math.Sin(t * 3) * 5, e), Lerp(214, 124, e));
-            P.ToolAng = F(Math.Sin(t * 3.2) * 12 * e);
-            P.WingLA = Lerp(P.WingLA, 118 + Math.Sin(t * 6) * 8, e); P.WingLB = Lerp(P.WingLB, 126, e);
-            P.Eyes = e > .3 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.4 * e);
-            P.Beak = F(.25 * e * Math.Max(0, Math.Sin(t * 5.2)));
-            P.FootLY = P.FootRY = F(-4 * hop); P.FootLRot = P.FootRRot = F(-12 * hop);
-            P.Tuft += F(-8 * hop); P.TuftWave += 4; P.CardSwing += F(Math.Sin(t * 5.2) * 6 * e);
         }
     }
 }
