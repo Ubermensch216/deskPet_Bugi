@@ -129,6 +129,13 @@ namespace Bugi
             else if (e.Button == MouseButtons.Right) app.ShowPetMenu(this, Cursor.Position);
         }
 
+        /// <summary>더블클릭하면 말을 건다.</summary>
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            base.OnMouseDoubleClick(e);
+            if (e.Button == MouseButtons.Left) app.StartChat(Pet);
+        }
+
         protected override void OnMouseCaptureChanged(EventArgs e)
         {
             base.OnMouseCaptureChanged(e);

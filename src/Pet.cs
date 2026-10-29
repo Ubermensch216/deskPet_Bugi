@@ -8,7 +8,8 @@ namespace Bugi
     internal enum PetState
     {
         Falling, Walk, Pause, Squish, Drag, Climb, Sleep, Waking, Gather, WaitHome, Cheer,
-        Resting, IdleCry, TouchCry, Hop, Sliding, Wall, Ceiling, WindowClimb, Eating, Thrown, Dizzy, SecretDance, PilotRise
+        Resting, IdleCry, TouchCry, Hop, Sliding, Wall, Ceiling, WindowClimb, Eating, Thrown, Dizzy, SecretDance, PilotRise,
+        Chat      // AI 와 이야기하는 중 (PetChat.cs). Resting 보다 뒤에 두어 특수 동작 쪽(AdvanceFeatures)에서 처리된다.
     }
 
     internal interface IWorld
@@ -181,7 +182,7 @@ namespace Bugi
 
         public void Update(IWorld w, double dt, List<Pet> all, double mouseX)
         {
-            UpdateWalkBlend(dt); UpdateGait(dt);
+            UpdateWalkBlend(dt); UpdateGait(dt); UpdateChat(w, dt);
             if (AdvanceFeatures(w, dt)) return;
             StateT += dt; animT += dt;
             if (collideCooldown > 0) collideCooldown -= dt;

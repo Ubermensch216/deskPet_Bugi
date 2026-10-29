@@ -91,10 +91,14 @@ namespace Bugi
         public Random Rng { get { return rng; } }
         public double Now { get { return clock.Elapsed.TotalSeconds; } }
         internal List<PetWindow> LiveWindows { get { return windows; } }
+        internal bool Paused { get { return paused; } }
+        internal bool AllHidden { get { return hidden || autoHidden; } }
+        internal ChatController Chat;
 
         public App(bool testMode = false)
         {
             Settings = Settings.Load();
+            Chat = new ChatController(this);
             RefreshAreas();
             int[] roster = ParseRoster(Settings.Roster);
             TrayIconImage = CharacterArt.MakeIcon(roster.Length > 0 ? roster[0] : rng.Next(CharacterArt.Count));
@@ -222,6 +226,8 @@ namespace Bugi
         {
             Pet pet = w != null ? w.Pet : null;
             var menu = new ContextMenuStrip();
+            menu.Items.Add(new ToolStripMenuItem("말 걸기  (AI 대화)", null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? "Ctrl+Alt+B" : null });
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("♥ 친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)) { Enabled = false });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
@@ -331,6 +337,17 @@ namespace Bugi
             t.Start();
         }
 
+        // ───────── AI 대화 ─────────
+        /// <summary>부기에게 말 걸기. pet 이 없으면(트레이 메뉴) 보이는 첫 친구와.</summary>
+        internal void StartChat(Pet pet)
+        {
+            if (hidden) ToggleHidden();
+            Pet p = pet ?? (Chat.Pet != null ? Chat.Pet : windows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden) ?? windows.Select(w => w.Pet).FirstOrDefault());
+            if (p != null) Chat.Begin(p);
+        }
+
+        internal void StartChatFromHotkey() { StartChat(null); }
+
         // ───────── 설정창에서 쓰는 동작 ─────────
         internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); Spawn(character); }
         internal void RemoveByIndex(int index) { if (index >= 0 && index < windows.Count) Remove(windows[index]); }
@@ -340,6 +357,7 @@ namespace Bugi
         internal void ResetAllSettings()
         {
             PlayOptions.Current = new PlayOptions(); PlayOptions.Current.Save();
+            ChatOptions.Current = new ChatOptions(); ChatOptions.Current.Save(); Chat.ApplyOptions();
             string roster = Settings.Roster; Settings = new Settings { Roster = roster }; Settings.Save();
             try { StartupOption.SetEnabled(false); } catch { }
             OnSettingsChanged(); ApplyCharacterSettings(); ApplyHelperOptions();
@@ -549,6 +567,7 @@ namespace Bugi
             if (dt > .1) dt = .1; if (dt < 0) dt = 0;
             if (now - lastSlow >= 1) { lastSlow = now; SlowTick(now); }
             CompanionTick(now, !paused);
+            try { Chat.Tick(now); } catch (Exception error) { FeatureLog.Write(error); }
             if (!paused) FriendData.Current.PollTimer(this);
             if (paused || hidden) return;
             CheckAlarms(now);
@@ -693,6 +712,7 @@ namespace Bugi
 
         public void Quit()
         {
+            Chat.Dispose();
             CloseFeatureWindows(); ClearHourly(); ActivityInput.Stop();
             SaveRoster();
             timer.Stop();

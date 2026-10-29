@@ -28,6 +28,7 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--selftest") { Environment.Exit(DevTools.SelfTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--ui-test") { Environment.Exit(DevTools.UiTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--smoke") { Environment.Exit(DevTools.Smoke(args[1])); return; }
+            if (args.Length >= 2 && args[0] == "--chat-live") { Environment.Exit(DevTools.ChatLive(args[1])); return; }
             bool created;
             using (var mutex = new Mutex(true, "Bugi_DeskFriend_single_instance", out created))
             {
@@ -132,6 +133,18 @@ namespace Bugi
                 K("먹는중", (p, w) => { FriendData.Current.Satiety = 40; p.Feed(w); }),
                 K("꽃다발", (p, w) => p.StartFlower(w, 100)),
                 K("말풍선", (p, w) => p.Cheer(w, "점심 먹으러 가자!", 8)),
+                K("대화-듣는중", (p, w) => ChatDemo(p, w, ChatPhase.Listening, ChatMood.Neutral, "", 30, 8)),
+                K("대화-생각중", (p, w) => ChatDemo(p, w, ChatPhase.Thinking, ChatMood.Think, "", 70, 0)),
+                K("대화-기쁨", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Joy, "어, 왔네! 기다리고 있었어.", 40, 0)),
+                K("대화-부끄", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Shy, "그, 그런 말 하면 부끄럽잖아...", 90, 0)),
+                K("대화-슬픔", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Sad, "무슨 일 있었어? 난 옆에서 들어줄게.", 90, 0)),
+                K("대화-놀람", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Surprise, "헉, 진짜? 깜짝 놀랐잖아!", 10, 0)),
+                K("대화-졸림", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Sleepy, "이 시간에 안 자고 뭐 해?", 100, 0)),
+                K("대화-생각", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Think, "음... 난 갈매기니까 새우깡!", 90, 0)),
+                K("대화-삐짐", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Pout, "흥, 몰라! 나 삐졌어.", 70, 0)),
+                K("대화-배고픔", (p, w) => ChatDemo(p, w, ChatPhase.Talking, ChatMood.Hungry, "나 배고파... 간식 없어?", 90, 0)),
+                K("대화-근무복", (p, w) => { PlayOptions.Current.Outfit = true; ChatDemo(p, w, ChatPhase.Talking, ChatMood.Joy, "명찰이랑 뱃지 둘 다 달았어!", 40, 0); }),
+                K("대화-타이핑", (p, w) => ChatDemo(p, w, ChatPhase.Listening, ChatMood.Neutral, "", 30, 30)),
             };
             int cell = (int)Math.Round(150 * scale), cols = 8, rows = (int)Math.Ceiling(states.Count / (double)cols);
             for (int c = 0; c < CharacterArt.Count; c++)
@@ -211,6 +224,102 @@ namespace Bugi
                     strip.Save(Path.Combine(dir, "motion_" + CharacterArt.Infos[c].Key + ".png"), ImageFormat.Png);
                 }
             }            Console.WriteLine("saved " + dir);
+        }
+
+        /// <summary>AI 대화 자세를 그림으로 확인하려고, 대화를 시작시킨 뒤 steps 만큼(0.02초씩) 시간을 흘려 보낸다.</summary>
+        internal static void ChatDemo(Pet p, FakeWorld w, ChatPhase phase, ChatMood mood, string text, int steps, int typedLen)
+        {
+            p.BeginChat(w, 1);
+            if (phase == ChatPhase.Thinking) p.ChatThink();
+            else if (phase == ChatPhase.Talking) p.ChatSay(mood, text, true);
+            p.ChatTyping(0); if (typedLen > 0) p.ChatTyping(typedLen);
+            for (int i = 0; i < steps; i++) { w.Now += .02; p.Update(w, .02, null, 0); }
+        }
+
+        /// <summary>실제 Ollama 와 끝까지 이어 본다: (1) 말투·감정 태그 품질, (2) 더블클릭 대신 직접 말 걸기 → 입력칸 → 생각 → 스트리밍 말풍선을 화면 캡처로 남긴다.</summary>
+        internal static int ChatLive(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            Paths.StorageOverride = Path.Combine(dir, "data");
+            var log = new StringBuilder(); int failures = 0;
+            Action<double> pump = secs => { var end = DateTime.UtcNow.AddSeconds(secs); while (DateTime.UtcNow < end) { Application.DoEvents(); Thread.Sleep(15); } };
+            PlayOptions.Load(); FriendData.Load(); CharacterArt.Reset(Native.SystemDpiScale()); ChatOptions.Load();
+            var opts = ChatOptions.Current;
+            log.AppendLine("Probe: " + OllamaClient.Probe(opts));
+
+            // (1) 품질
+            foreach (string q in new[] { "안녕", "오늘 너무 피곤해", "너 누구야?", "점심 뭐 먹을까", "서울 인구가 몇 명이야?", "너 AI야?" })
+            {
+                var hist = new List<ChatMessage> { new ChatMessage("user", q) };
+                var parser = new ReplyParser(); var req = new ChatRequest(); var sw = System.Diagnostics.Stopwatch.StartNew(); long first = -1;
+                string err = OllamaClient.Stream(opts, ChatPersona.Build(hist, DateTime.Now), t => { if (first < 0) first = sw.ElapsedMilliseconds; parser.Feed(t); }, req);
+                log.AppendLine(string.Format("Q: {0}\n   -> [{1}] {2}   (첫 글자 {3}ms, 전체 {4}ms, err={5})\n   raw: {6}", q, parser.Mood, parser.Text, first, sw.ElapsedMilliseconds, err, parser.Raw.Replace("\n", "\\n")));
+                if (err != null || parser.Text.Length == 0) failures++;
+            }
+
+            // (2) 화면
+            var app = new App(true); app.Spawn(0);
+            Pet pet = app.LiveWindows[0].Pet;
+            for (int i = 0; i < 60 && !pet.CanChat; i++) pump(.25);      // 날개를 퍼덕이며 내려와 착지할 때까지
+            pump(.6);
+            Action<string> shot = name =>
+            {
+                Rectangle r = Screen.PrimaryScreen.Bounds;
+                int w = 820, h = 420; int x = (int)Math.Max(r.Left, Math.Min(r.Right - w, pet.X - w / 2)), y = (int)Math.Max(r.Top, Math.Min(r.Bottom - h, pet.Y - h + 90));
+                using (var b = new Bitmap(w, h)) using (var g = Graphics.FromImage(b)) { g.CopyFromScreen(x, y, 0, 0, new Size(w, h)); b.Save(Path.Combine(dir, name + ".png"), ImageFormat.Png); }
+            };
+            app.StartChat(pet); pump(.9); shot("live_1_hello");
+            log.AppendLine("after start: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
+            if (pet.State != PetState.Chat || !pet.ChatActive) failures++;
+            app.Chat.TestType("오늘 너무 피곤해"); pump(.5); shot("live_2_typing");
+            app.Chat.TestSubmit(); pump(.35); shot("live_3_thinking"); log.AppendLine("thinking: " + app.Chat.DebugState);
+            string lastState = ""; int n = 0;
+            for (int i = 0; i < 40; i++)
+            {
+                pump(.25); string s = app.Chat.DebugState;
+                if (s != lastState) { log.AppendLine("t+" + (.35 + (i + 1) * .25).ToString("0.00") + " " + s); lastState = s; }
+                if (i == 8 || i == 16) shot("live_4_talking_" + (n++));
+            }
+            shot("live_5_done");
+            if (!lastState.Contains("[") && lastState.Length == 0) failures++;
+            if (!app.Chat.DebugState.Contains("/")) { log.AppendLine("대화가 끝났거나 응답 없음"); }
+            app.Chat.End(); pump(.6); shot("live_6_end");
+            log.AppendLine("after end: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
+            log.AppendLine("history: " + string.Join(" | ", app.Chat.History.Select(m => m.Role + ": " + m.Content).ToArray()));
+            // (3) 기억 추려내기: 대화 → 사실 한두 줄
+            string memReply = OllamaClient.Complete(opts, ChatPersona.MemoryRequest("사용자: 나 이번 주 금요일에 면접 있어\n부기: [놀람] 헉, 어디 면접이야?\n사용자: 네이버 백엔드 개발자 면접이야. 우리 집 고양이 이름은 두부야\n부기: [기쁨] 두부? 이름 귀엽다! 면접 잘 될 거야.\n"), 120, .2);
+            var memFacts = ChatPersona.ParseFacts(memReply);
+            log.AppendLine("기억 추출 raw: " + (memReply ?? "(null)").Replace("\n", " / ") + "  => " + memFacts.Count + "개");
+            if (memFacts.Count == 0) failures++;
+            // (4) 먼저 말 걸기: 입력칸 없이 말풍선만 뜨고, 끝나면 스스로 돌아간다
+            ChatOptions.Current.Enabled = true; app.Settings.NapOn = false; pet.SetState(PetState.Pause, app); pump(.3);
+            if (!app.Chat.StartProactive(app.Now)) { log.AppendLine("FAIL 선톡 시작 못 함"); failures++; }
+            else
+            {
+                string ls = ""; double t0 = DateTime.UtcNow.Ticks / 1e7;
+                for (int i = 0; i < 90 && app.Chat.Active; i++)
+                {
+                    pump(.2); string s = app.Chat.DebugState; if (s != ls) { log.AppendLine("선톡 " + ((DateTime.UtcNow.Ticks / 1e7) - t0).ToString("0.0") + "s " + s); ls = s; }
+                    if (s.StartsWith("Talking") && s.Length > 22) shot("live_9_proactive");
+                }
+                if (app.Chat.Active) { log.AppendLine("FAIL 선톡이 끝나지 않음"); failures++; app.Chat.End(); }
+            }
+            // 설정 페이지와 기억 창 모양
+            try
+            {
+                var sf = new SettingsForm(app, 6); sf.Show(); pump(.4);
+                using (var b = new Bitmap(sf.Width, sf.Height)) { sf.DrawToBitmap(b, new Rectangle(0, 0, sf.Width, sf.Height)); b.Save(Path.Combine(dir, "live_7_settings.png"), ImageFormat.Png); }
+                sf.Close();
+                ChatMemory.Add(new[] { "- 이름은 민수", "- 고양이 두부를 키운다" });
+                var mf = new ChatMemoryForm(app.TrayIconImage); mf.Show(); pump(.3);
+                using (var b = new Bitmap(mf.Width, mf.Height)) { mf.DrawToBitmap(b, new Rectangle(0, 0, mf.Width, mf.Height)); b.Save(Path.Combine(dir, "live_8_memory.png"), ImageFormat.Png); }
+                mf.Close(); ChatMemory.Clear();
+            }
+            catch (Exception e) { log.AppendLine("FAIL 설정·기억 창: " + e); failures++; }
+            log.AppendLine(failures == 0 ? "ALL OK" : failures + " FAILED");
+            File.WriteAllText(Path.Combine(dir, "chat_live_result.txt"), log.ToString(), new UTF8Encoding(true));
+            app.Quit();
+            return failures == 0 ? 0 : 1;
         }
 
         /// <summary>근무복을 입힌 부기를 실제 바탕화면에 잠깐 띄워 화면 아래 띠를 저장한다(마우스는 건드리지 않음, 단일 실행 잠금과 무관).</summary>
@@ -432,6 +541,38 @@ namespace Bugi
                 a1.SetState(PetState.Pause, w4); a2.SetState(PetState.Pause, w4); a1.Y = a2.Y = 720;
                 App.ResolveCompanionContacts(w4, new List<Pet> { a1, a2 }, null);
                 check(a2.ContactBody(0).Left - a1.ContactBody(0).Right > -1 || Math.Abs(a1.X - a2.X) > a1.Art.W * .6, "겹친 친구는 서로 떨어짐");
+
+                // ── AI 대화 ──
+                var j = Json.Parse("{\"message\":{\"role\":\"assistant\",\"content\":\"[기쁨] \\\"안녕\\\"\\n\\u0041\"},\"done\":false,\"n\":-1.5e2}");
+                check(Json.Str(Json.Get(j, "message"), "content") == "[기쁨] \"안녕\"\nA" && !Json.Flag(j, "done") && (double)Json.Get(j, "n") == -150, "JSON 읽기(이스케이프·숫자)");
+                check(Json.Parse("{깨진") == null, "깨진 JSON 은 null");
+                check(Json.Quote("a\"b\n") == "\"a\\\"b\\n\"", "JSON 문자열 만들기");
+                var rp = new ReplyParser(); bool c1 = rp.Feed("[") ; rp.Feed("기"); rp.Feed("쁨"); bool c2 = rp.Feed("] 안녕"); rp.Feed("! 반가워. 또 왔네! 세 번째 문장");
+                check(!c1 && c2 && rp.Mood == ChatMood.Joy && rp.Text == "안녕! 반가워.", "감정 태그가 토큰으로 쪼개져 와도 읽고, 두 문장까지만 남김: " + rp.Text);
+                check(ReplyParser.Clean("**좋아** 😀 (웃으며) 그래\n부기: 둘째 줄") == "좋아 그래", "마크다운·이모지·괄호 지문·둘째 줄 제거: " + ReplyParser.Clean("**좋아** 😀 (웃으며) 그래\n부기: 둘째 줄"));
+                var rq = new ReplyParser(); rq.Feed("힘들었겠다 ㅠㅠ");
+                check(rq.Mood == ChatMood.Sad && !rq.HasTag, "태그가 없으면 글에서 감정을 짐작");
+                check(ReplyParser.Clean(new string('가', 300)).Length <= 101, "너무 긴 말은 잘라 냄");
+                string sys1 = ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 3, 0)), sys2 = ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 47, 0));
+                check(sys1 == sys2 && sys1.Contains("AI"), "시스템 프롬프트는 같은 시간대에 안 바뀜(캐시 유지) · AI 라고 밝힘");
+                ChatOptions.Current = new ChatOptions { Model = "test:1b", Sound = true, Proactive = true, ProactiveMinutes = 15, Hotkey = false }; ChatOptions.Current.Save(); ChatOptions.Load();
+                check(ChatOptions.Current.Model == "test:1b" && ChatOptions.Current.Sound && ChatOptions.Current.Proactive && ChatOptions.Current.ProactiveMinutes == 15 && !ChatOptions.Current.Hotkey, "AI 대화 설정 저장·불러오기");
+                ChatOptions.Current = new ChatOptions();
+                ChatMemory.Reload(); ChatMemory.Clear(); int added = ChatMemory.Add(new[] { "- 이름은 민수", "- 이름은 민수야", "없음", "- 고양이를 키운다" });
+                check(added == 2 && ChatMemory.Facts.Count == 2, "기억: 중복·'없음' 거르고 저장 (" + added + ")");
+                ChatMemory.Reload(); check(ChatMemory.Facts.Count == 2, "기억 파일 다시 읽기"); ChatMemory.Clear();
+                var cw = new FakeWorld(); var cp = new Pet(cw, 0, 640, 720) { Area = cw.Areas[0] }; cp.SetState(PetState.Pause, cw); cp.X = 640; cp.Y = 720;
+                check(cp.BeginChat(cw, 1) && cp.State == PetState.Chat && cp.ChatActive, "대화 시작: 자세가 대화로 바뀜");
+                cp.ChatThink(); cp.ChatSay(ChatMood.Joy, "안녕! 반가워", false);
+                for (int i = 0; i < 8; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
+                var chatLook = cp.GetLook(cw.Now);
+                check(chatLook.Pose.AiBadge > .1f && chatLook.Ai && chatLook.BubbleReveal > 0 && chatLook.BubbleReveal < 7, "대화 중: AI 뱃지가 달리고 말풍선 글자가 한 자씩 찍힘 (" + chatLook.BubbleReveal + ")");
+                for (int i = 0; i < 100; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
+                check(cp.GetLook(cw.Now).BubbleReveal == -1, "다 찍히면 말풍선 전체 표시");
+                cp.EndChat(cw); for (int i = 0; i < 60; i++) { cw.Now += .02; cp.Update(cw, .02, null, 0); }
+                check(!cp.ChatActive && cp.State != PetState.Chat && cp.GetLook(cw.Now).Pose.AiBadge < .01f, "대화가 끝나면 뱃지가 사라지고 다시 돌아다님");
+                var fp = new Pet(cw, 0, 640, 100) { Area = cw.Areas[0] };
+                check(!fp.BeginChat(cw, 1), "낙하 중에는 대화 시작 안 함");
             }
             catch (Exception e) { log.AppendLine("EXCEPTION " + e); failures++; }
             log.AppendLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");

@@ -57,6 +57,8 @@ namespace Bugi
         public float CardShow;                 // 0 가슴에 걸림, 1 번쩍 들어 보여줌
         public float Sparkle = -1;             // >=0 이면 짠! 반짝임(위상)
         public float FlagWave;                 // 깃발 펄럭임 위상
+        // AI 대화 중임을 알리는 가슴 뱃지: 0 없음 · 1 완전히 달림(톡 튀어나오며 붙는다), AiGlow 는 생각하는 동안 반짝이는 정도
+        public float AiBadge, AiGlow;
 
         public static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 
@@ -81,6 +83,7 @@ namespace Bugi
                 add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8);
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
                 add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8); add(FlagWave, 6);
+                add(AiBadge, 20); add(AiGlow, 12);
                 return h;
             }
         }
@@ -254,6 +257,7 @@ namespace Bugi
                 if (!p.Sit) DrawLegs(g, c);
                 DrawBody(g, c);
                 if (p.Outfit) DrawOutfit(g, c);
+                if (p.AiBadge > .01f) DrawAiBadge(g, c);
                 if (p.Sit) DrawSitFeet(g, c);
                 DrawFace(g, c);
                 if (p.Outfit && p.CardShow >= .02f) DrawHeldCard(g, c);
@@ -790,6 +794,68 @@ namespace Bugi
                     for (int sgn = -1; sgn <= 1; sgn += 2)
                     { float ds; PointF s0 = Chest(c, sgn * 2.9f, 10.8f, out ds); g.DrawLine(strap, s0, top); }
             if (p.CardShow < .02f && c.BCos > .25f) DrawCard(g, c, top, 1f, c.BCos, p.CardSwing);
+        }
+
+        // ───────── AI 뱃지: AI 와 대화하는 동안 가슴(심장 쪽)에 다는 작은 알약 모양 표지 ─────────
+        private static System.Drawing.Font aiFont;
+
+        private static void DrawAiBadge(Graphics g, Ctx c)
+        {
+            Pose p = c.P;
+            float depth, da, db;
+            PointF ctr = Chest(c, 2.9f, 14.9f, out depth), a = Chest(c, 2.9f - 1.5f, 14.9f, out da), b = Chest(c, 2.9f + 1.5f, 14.9f, out db);
+            if (depth < .2f) return;                                      // 옆·뒤로 돌아서 가슴이 안 보이면 달려 있어도 안 보인다
+            float t = Clamp(p.AiBadge, 0, 1), u = t - 1f;
+            float pop = t >= 1f ? 1f : 1f + 2.70158f * u * u * u + 1.70158f * u * u;    // 톡 튀어나오듯 붙는 easeOutBack
+            float W = 4.3f * D, H = 2.6f * D;
+            float fx = Clamp(depth, .25f, 1f);
+            double ang = Math.Atan2(b.Y - a.Y, b.X - a.X) * 180 / Math.PI;
+            var st = g.Save();
+            g.TranslateTransform(ctr.X, ctr.Y); g.RotateTransform((float)ang);
+            g.ScaleTransform(fx * pop, pop);
+            if (c.Mirror) g.ScaleTransform(-1, 1);                          // 그림 전체를 좌우로 뒤집어 그리므로 글자는 다시 뒤집는다
+            var rect = new RectangleF(-W / 2, -H / 2, W, H);
+            float pw = Math.Max(1.8f, c.Ink.Width * .72f);
+            if (p.AiGlow > .02f)                                           // 생각하는 동안 바깥으로 번지는 빛
+                for (int i = 0; i < 2; i++)
+                {
+                    float grow = (2.2f + i * 3.4f) * (.6f + .8f * p.AiGlow);
+                    using (var gp = RoundRect(new RectangleF(rect.Left - grow, rect.Top - grow, W + grow * 2, H + grow * 2), H / 2 + grow))
+                    using (var gpen = new Pen(Color.FromArgb((int)(120 * p.AiGlow / (1 + i)), 110, 140, 255), 2.2f)) g.DrawPath(gpen, gp);
+                }
+            using (var path = RoundRect(rect, H / 2))
+            {
+                using (var fill = new System.Drawing.Drawing2D.LinearGradientBrush(new PointF(rect.Left, rect.Top), new PointF(rect.Right, rect.Bottom), Color.FromArgb(70, 140, 255), Color.FromArgb(150, 90, 255)))
+                    g.FillPath(fill, path);
+                var clip = g.Clip; g.SetClip(path, CombineMode.Intersect);
+                using (var gloss = new SolidBrush(Color.FromArgb(70, 255, 255, 255))) g.FillRectangle(gloss, rect.Left, rect.Top, W, H * .46f);
+                g.Clip = clip;
+                using (var edge = new Pen(cInk, pw) { LineJoin = LineJoin.Round }) g.DrawPath(edge, path);
+            }
+            if (aiFont == null) { try { aiFont = new System.Drawing.Font("Segoe UI", 18f, FontStyle.Bold, GraphicsUnit.Pixel); } catch { aiFont = new System.Drawing.Font(FontFamily.GenericSansSerif, 18f, FontStyle.Bold, GraphicsUnit.Pixel); } }
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+            using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            using (var shadow = new SolidBrush(Color.FromArgb(70, 20, 20, 90)))
+            {
+                g.DrawString("AI", aiFont, shadow, new RectangleF(rect.Left, rect.Top + 1f, W, H), fmt);
+                g.DrawString("AI", aiFont, Brushes.White, new RectangleF(rect.Left, rect.Top - .4f, W, H), fmt);
+            }
+            // 모서리의 반짝이: 생각할수록 커진다
+            float sr = (4.2f + 2.4f * p.AiGlow) * Math.Min(1f, pop);
+            DrawSparkle4(g, rect.Right - 1.2f, rect.Top - 1.4f, sr);
+            g.Restore(st);
+        }
+
+        private static void DrawSparkle4(Graphics g, float cx, float cy, float r)
+        {
+            var pts = new PointF[8];
+            for (int i = 0; i < 8; i++)
+            {
+                double ang = i * Math.PI / 4 - Math.PI / 2; float rr = i % 2 == 0 ? r : r * .32f;
+                pts[i] = new PointF(cx + (float)Math.Cos(ang) * rr, cy + (float)Math.Sin(ang) * rr);
+            }
+            using (var br = new SolidBrush(Color.FromArgb(255, 226, 70))) g.FillPolygon(br, pts);
+            using (var pen = new Pen(cInk, 1f) { LineJoin = LineJoin.Round }) g.DrawPolygon(pen, pts);
         }
 
         /// <summary>명찰: 하얀 카드에 첨부한 로고 이미지와 글줄. top 은 끈에 매달린 윗부분.</summary>

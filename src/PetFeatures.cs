@@ -121,7 +121,7 @@ namespace Bugi
 
         internal void ClickFeature(IWorld w)
         {
-            if (State == PetState.Drag || State == PetState.Falling || State == PetState.Thrown || State == PetState.PilotRise) return;
+            if (State == PetState.Drag || State == PetState.Falling || State == PetState.Thrown || State == PetState.PilotRise || State == PetState.Chat) return;
             mouseGrace = w.Now + .7; hoverSince = -1;
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb || State == PetState.Climb)
             {
@@ -294,6 +294,7 @@ namespace Bugi
             switch (State)
             {
                 case PetState.Thrown: AdvanceThrow(w, dt); break;
+                case PetState.Chat: SnapToFloor(w); break;
                 case PetState.Resting:
                 case PetState.IdleCry:
                     if (StateT >= extraDuration) { SetState(PetState.Walk, w); DelayIdle(w); }

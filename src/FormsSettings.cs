@@ -36,14 +36,14 @@ namespace Bugi
     /// </summary>
     internal sealed class SettingsForm : Form
     {
-        internal static readonly string[] PageNames = { "캐릭터", "움직임", "반응", "생활", "알림", "화면 · 시스템" };
-        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 도우미 창 · 자동 시작" };
+        internal static readonly string[] PageNames = { "캐릭터", "움직임", "반응", "생활", "알림", "화면 · 시스템", "AI 대화" };
+        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 도우미 창 · 자동 시작", "Ollama · 단축키 · 기억" };
         private static int lastPage;
 
         private readonly App app;
         private readonly ListBox nav;
         private readonly Panel host;
-        private readonly Panel[] pages = new Panel[6];
+        private readonly Panel[] pages = new Panel[7];
         private readonly Label status;
         private readonly System.Windows.Forms.Timer live;
 
@@ -64,6 +64,8 @@ namespace Bugi
         private ComboBox glowTheme, glowWidth, glowStrength;
         // 화면·시스템
         private NumericUpDown nOpacity, nMemoOpacity; private CheckBox cMemoTop, cStartup;
+        // AI 대화
+        private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -95,7 +97,7 @@ namespace Bugi
             host.BringToFront();
 
             pages[0] = BuildCharacterPage(); pages[1] = BuildMovePage(); pages[2] = BuildReactPage();
-            pages[3] = BuildLifePage(); pages[4] = BuildAlarmPage(); pages[5] = BuildDisplayPage();
+            pages[3] = BuildLifePage(); pages[4] = BuildAlarmPage(); pages[5] = BuildDisplayPage(); pages[6] = BuildChatPage();
             foreach (var pg in pages) { pg.Dock = DockStyle.Fill; pg.Visible = false; host.Controls.Add(pg); }
             nav.SelectedIndexChanged += delegate { ShowPage(nav.SelectedIndex); };
             nav.SelectedIndex = Math.Max(0, Math.Min(pages.Length - 1, page >= 0 ? page : lastPage));
@@ -117,7 +119,7 @@ namespace Bugi
             if (sel) using (var bar = new SolidBrush(FriendUI.Gold)) e.Graphics.FillRectangle(bar, e.Bounds.Left, e.Bounds.Top, 5, e.Bounds.Height);
             using (var f1 = new Font("Malgun Gothic", 11f, FontStyle.Bold)) using (var f2 = new Font("Malgun Gothic", 7.8f))
             {
-                string[] glyph = { "☺", "▶", "☝", "♥", "♪", "▣" };
+                string[] glyph = { "☺", "▶", "☝", "♥", "♪", "▣", "✦" };
                 TextRenderer.DrawText(e.Graphics, glyph[e.Index] + "  " + PageNames[e.Index], f1, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 7, e.Bounds.Width - 16, 22), Color.White, TextFormatFlags.Left | TextFormatFlags.NoPrefix);
                 TextRenderer.DrawText(e.Graphics, PageHints[e.Index], f2, new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 29, e.Bounds.Width - 16, 20), sel ? Color.FromArgb(214, 228, 250) : Color.FromArgb(150, 176, 220), TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             }
@@ -347,6 +349,49 @@ namespace Bugi
             return page;
         }
 
+        // ───────── 7. AI 대화 ─────────
+        private Panel BuildChatPage()
+        {
+            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요. 대화하는 동안 부기 가슴에 AI 뱃지가 달려요", out f);
+            var o = ChatOptions.Current;
+            var g1 = Group(f, "연결"); var a = In(g1);
+            cChat = Check(a, "AI 대화 사용 (더블클릭 · 우클릭 → 말 걸기)", o.Enabled);
+            var rm = Row(a); rm.Controls.Add(Cap("모델", 60)); tChatModel = new TextBox { Text = o.Model, Width = 220, Margin = new Padding(3) }; rm.Controls.Add(tChatModel);
+            var ru = Row(a); ru.Controls.Add(Cap("서버 주소", 60)); tChatUrl = new TextBox { Text = o.Endpoint, Width = 220, Margin = new Padding(3) }; ru.Controls.Add(tChatUrl);
+            var rp = Row(a);
+            chatProbe = new Label { AutoSize = true, Margin = new Padding(6, 8, 3, 3), ForeColor = Color.DimGray };
+            rp.Controls.Add(FriendUI.Button("연결 확인", delegate { ProbeChat(); })); rp.Controls.Add(chatProbe);
+            Note(a, "대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
+            var g2 = Group(f, "말 걸기"); var b = In(g2);
+            cChatKey = Check(b, "단축키 Ctrl + Alt + B 로 말 걸기", o.Hotkey);
+            cChatSound = Check(b, "말할 때 글자마다 뽁뽁 소리 내기", o.Sound, "기본은 꺼져 있어요.");
+            cChatProactive = Check(b, "부기가 먼저 말 걸기 (선톡)", o.Proactive, "컴퓨터를 쓰는 중일 때 가끔 한마디 건네요. 켜면 모델이 메모리에 올라가 있어요.");
+            var rq = Row(b); rq.Controls.Add(Cap("평균 간격", 70)); nProactive = Num(5, 480, o.ProactiveMinutes, 0, 5, 70); rq.Controls.Add(nProactive); rq.Controls.Add(Cap("분"));
+            var g3 = Group(f, "기억"); var c = In(g3);
+            cChatMemory = Check(c, "대화에서 알게 된 이야기를 기억하기", o.Memory, "대화가 끝날 때 사실만 한두 줄로 적어 둬요. 이 PC 의 파일에만 저장돼요.");
+            c.Controls.Add(FriendUI.Button("기억 보기 · 지우기...", delegate { new ChatMemoryForm(app.TrayIconImage).ShowDialog(this); }));
+            return page;
+        }
+
+        private void ProbeChat()
+        {
+            var probe = new ChatOptions { Endpoint = tChatUrl.Text.Trim().TrimEnd('/'), Model = tChatModel.Text.Trim() };
+            chatProbe.ForeColor = Color.DimGray; chatProbe.Text = "확인하는 중...";
+            new System.Threading.Thread(delegate ()
+            {
+                ProbeResult r = OllamaClient.Probe(probe);
+                try
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        chatProbe.ForeColor = r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick;
+                        chatProbe.Text = r == ProbeResult.Ok ? "연결됐어요. 모델도 있어요." : r == ProbeResult.ModelMissing ? "서버는 켜져 있는데 이 모델이 없어요." : "서버에 연결하지 못했어요. Ollama 가 켜져 있나요?";
+                    }));
+                }
+                catch { }
+            }) { IsBackground = true }.Start();
+        }
+
         private void PickColor(bool background)
         {
             var o = PlayOptions.Current;
@@ -405,9 +450,14 @@ namespace Bugi
             if (s.LunchMsg.Length == 0) s.LunchMsg = "점심 먹으러 가자!";
             if (s.LeaveMsg.Length == 0) s.LeaveMsg = "퇴근이다! 오늘도 수고했어";
 
+            var chat = ChatOptions.Current;
+            chat.Enabled = cChat.Checked; chat.Model = tChatModel.Text.Trim().Length > 0 ? tChatModel.Text.Trim() : "gemma4:e2b";
+            chat.Endpoint = tChatUrl.Text.Trim().Length > 0 ? tChatUrl.Text.Trim().TrimEnd('/') : "http://localhost:11434";
+            chat.Hotkey = cChatKey.Checked; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked;
+
             app.OnSettingsChanged();
-            app.ApplyCharacterSettings(); app.ApplyHelperOptions();
-            bool ok = s.Save() & o.Save();
+            app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions();
+            bool ok = s.Save() & o.Save() & chat.Save();
             status.Text = ok ? "저장했어요." : "설정 파일을 저장하지 못했어요. 이번에 켜 있는 동안만 적용돼요.";
             if (!ok) Warn(status.Text);
             return true;

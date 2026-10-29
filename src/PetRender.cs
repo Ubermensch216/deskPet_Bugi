@@ -27,12 +27,14 @@ namespace Bugi
             public Decor Decor; public float DecorPhase;
             public string AffinityLabel; public bool AffinityOnLeft;
             public bool Work;                    // 근무복을 입은 모습(말풍선 테두리를 파랗게)
+            public int BubbleReveal;             // AI 대화 말풍선에 지금까지 찍힌 글자 수(-1 이면 전부)
+            public bool Ai;                      // AI 가 하는 말(말풍선에 작은 AI 표시)
 
             public string Key()
             {
-                return string.Format("{0}|{1}|{2}|{3:0.00}|{4:0.00}|{5:0.0}|{6:0}|{7:0}|{8}|{9}|{10}|{11}|{12}|{13}|{14}",
+                return string.Format("{0}|{1}|{2}|{3:0.00}|{4:0.00}|{5:0.0}|{6:0}|{7:0}|{8}|{9}|{10}|{11}|{12}|{13}|{14}|{15}|{16}",
                     Pose.Hash(), FaceRight ? 1 : 0, Upside ? 1 : 0, Sx, Sy, Angle, Px, Py, Bubble ?? "", ZPhase, (int)Decor,
-                    Decor == Decor.None ? 0 : (int)(DecorPhase * 24), AffinityLabel, AffinityOnLeft, Work);
+                    Decor == Decor.None ? 0 : (int)(DecorPhase * 24), AffinityLabel, AffinityOnLeft, Work, BubbleReveal, Ai);
             }
         }
 
@@ -139,6 +141,9 @@ namespace Bugi
                     DizzyPose(P); L.FaceRight = false;
                     L.Decor |= Decor.Stars; L.DecorPhase = (float)StateT;
                     break;
+                case PetState.Chat:
+                    ChatPose(P, ref L, now);
+                    break;
                 case PetState.SecretDance:
                 {
                     double phase = now - danceStarted;
@@ -153,6 +158,16 @@ namespace Bugi
             CompanionLook(ref L, now);
             L.Pose.Outfit = L.Work = WearsOutfit;
             if (L.Pose.Outfit) L.Pose.CardSwing += F(-L.Pose.Lean * .8 + Math.Sin(animT * 2.4) * 1.6);   // 명찰은 몸이 기울면 반대로 흔들린다
+            L.BubbleReveal = -1;
+            if (chatBadge > .005)
+            {
+                L.Pose.AiBadge = F(chatBadge); L.Pose.AiGlow = Phase == ChatPhase.Thinking ? F(.5 + .5 * Math.Sin(animT * 6)) : 0f;
+                if (Phase != ChatPhase.None && string.IsNullOrEmpty(hourlyBubble) && Bubble == chatText && chatText.Length > 0)
+                {
+                    L.BubbleReveal = ChatRevealCount; L.Ai = true;
+                    if (L.BubbleReveal == 0) L.Bubble = null;
+                }
+            }
             TalkOverlay(L.Pose, L.Bubble, State);
             return L;
         }
@@ -371,7 +386,7 @@ namespace Bugi
                 float pad = 7 * scale;
                 float bw = (float)Math.Ceiling(textSize.Width + pad * 2 + 2 * scale), bh = (float)Math.Ceiling(textSize.Height + pad * 1.4f + 2 * scale);
                 bubble = new RectangleF(-bw / 2, spriteTop - 3 * scale - tail - bh, bw, bh);
-                minX = Math.Min(minX, bubble.Left); maxX = Math.Max(maxX, bubble.Right); minY = Math.Min(minY, bubble.Top);
+                minX = Math.Min(minX, bubble.Left); maxX = Math.Max(maxX, bubble.Right); minY = Math.Min(minY, bubble.Top - (L.Ai ? 6 * scale : 0));
             }
             if (L.ZPhase >= 0) { minY = Math.Min(minY, spriteTop - 44 * scale); maxX = Math.Max(maxX, w / 2 + 22 * scale); minX = Math.Min(minX, -w / 2 - 22 * scale); }
             RectangleF badge = AffinityBadgeBounds(L, w, h, scale);
@@ -420,8 +435,35 @@ namespace Bugi
             using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center })
             {
                 var box = new RectangleF(r.Left + (r.Width - textSize.Width) / 2, r.Top + (r.Height - textSize.Height) / 2, textSize.Width + 2, textSize.Height + 2);
+                var saved = g.Save();
+                // AI 가 하는 말은 전체 글을 기준으로 자리를 잡고, 찍힌 글자까지만 보여 준다(말풍선 크기가 흔들리지 않게)
+                if (L.BubbleReveal >= 0 && L.BubbleReveal < L.Bubble.Length)
+                {
+                    fmt.SetMeasurableCharacterRanges(new[] { new CharacterRange(0, Math.Max(1, L.BubbleReveal)) });
+                    using (Region shown = g.MeasureCharacterRanges(L.Bubble, bubbleFont, box, fmt)[0]) g.SetClip(shown, CombineMode.Replace);
+                }
                 g.DrawString(L.Bubble, bubbleFont, text, box, fmt);
+                g.Restore(saved);
             }
+            if (L.Ai) DrawAiMark(g, r, scale);
+        }
+
+        /// <summary>AI 가 한 말임을 밝히는 작은 뱃지(말풍선 왼쪽 위 모서리).</summary>
+        private static void DrawAiMark(Graphics g, RectangleF r, float s)
+        {
+            var tag = new RectangleF(r.Left + 7 * s, r.Top - 5.5f * s, 17 * s, 10 * s);
+            using (var path = RoundRect(tag, 5 * s))
+            {
+                using (var fill = new LinearGradientBrush(new PointF(tag.Left, tag.Top), new PointF(tag.Right, tag.Bottom), Color.FromArgb(70, 140, 255), Color.FromArgb(150, 90, 255))) g.FillPath(fill, path);
+                using (var pen = new Pen(Color.FromArgb(30, 30, 30), 1.4f * s)) g.DrawPath(pen, path);
+            }
+            try
+            {
+                using (var f = new Font("Segoe UI", 7.2f * s, FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                { g.TextRenderingHint = TextRenderingHint.AntiAlias; g.DrawString("AI", f, Brushes.White, tag, fmt); }
+            }
+            catch { }
         }
 
         // 잠: Z 세 개가 시차를 두고(0 / 0.9 / 1.8초) 떠올라 흩어진다.
