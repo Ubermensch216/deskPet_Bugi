@@ -63,6 +63,8 @@ namespace Bugi
         public PropKind Prop; public float PropT;          // 소품과 그 움직임 위상
         public bool Gray;                                  // 몸이 회색 실루엣으로 비어 보임(p31 "네..?")
         public bool Casual;                                // 회색 티셔츠 + 청바지(p31 발표)
+        public int OutfitKind;                             // 근무복 종류(OutfitStyle): 조끼·제복·구조복·정장·안전복·구명조끼 (p18)
+        public bool Bag, Visor, Sunglasses, Helmet;        // 아이템(p20): 크로스백 · 바이저 · 선글라스 · 안전모
         public bool Hat, Shades, Cape, Mask, Lanyard, Chair;   // 밀짚모자 · 선글라스 · 망토 · "b" 입가리개 · 목걸이 명찰 · 감독 의자
         public float Hearts = -1, Stars = -1, Marks = -1;      // 떠오르는 하트 · 노란 반짝별 · "ㅋ" 표시 (위상, <0 이면 없음)
         public string Sfx; public float SfxT;                  // 만화 글자(안녕·Good!·멍...) 와 흔들림 위상
@@ -92,6 +94,7 @@ namespace Bugi
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
                 add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8);
                 add((int)Prop, 1); add(PropT, 8); add(Gray ? 1 : 0, 1); add(Casual ? 1 : 0, 1);
+                add(OutfitKind, 1); add((Bag ? 1 : 0) + (Visor ? 2 : 0) + (Sunglasses ? 4 : 0) + (Helmet ? 8 : 0), 1);
                 add((Hat ? 1 : 0) + (Shades ? 2 : 0) + (Cape ? 4 : 0) + (Mask ? 8 : 0) + (Lanyard ? 16 : 0) + (Chair ? 32 : 0), 1);
                 add(Hearts, 10); add(Stars, 10); add(Marks, 10); add(SfxT, 8); add(SfxAt.X, 1); add(SfxAt.Y, 1); add(SfxSize, 1); add(SfxStyle, 1);
                 if (Sfx != null) foreach (char ch in Sfx) h = (h ^ ch) * 1099511628211L;
@@ -271,7 +274,8 @@ namespace Bugi
                 for (int s = 0; s < 2; s++) if (!WingInFront(c, s)) DrawWing(g, c, s);
                 if (!p.Sit) DrawLegs(g, c);
                 DrawBody(g, c);
-                if (p.Outfit) DrawOutfit(g, c);
+                if (p.Outfit) { if (p.OutfitKind == 0) DrawOutfit(g, c); else DrawOutfitStyle(g, c); }
+                if (p.Bag) DrawBag(g, c);
                 if (p.Casual) DrawCasual(g, c);
                 if (p.Lanyard) DrawLanyard(g, c);
                 if (p.Sit) DrawSitFeet(g, c);
@@ -898,8 +902,10 @@ namespace Bugi
             PointF[] band = tucked
                 ? Geo.Limb(new[] { new PointF(w.S.X - o * 9 * c.BCos, w.S.Y - 3), w.S, w.E, w.W }, new[] { 21f * wm, 21f * wm, 20f * wm, 18f * wm }, true, 6)
                 : Geo.Limb(new[] { w.S, w.E, w.W }, new[] { 21f * wm, 20f * wm, 18f * wm }, true, 6);
-            g.FillPolygon(bBody, band); g.DrawLines(c.Ink, band);   // 뿌리 쪽은 선을 긋지 않아 몸에서 이어져 보인다
-            if (c.P.Outfit)
+            Color sleeve;
+            if (SleeveColor(c.P, out sleeve)) using (var sb = new SolidBrush(sleeve)) g.FillPolygon(sb, band); else g.FillPolygon(bBody, band);
+            g.DrawLines(c.Ink, band);   // 뿌리 쪽은 선을 긋지 않아 몸에서 이어져 보인다
+            if (c.P.Outfit && (c.P.OutfitKind == 0 || c.P.OutfitKind == 1 || c.P.OutfitKind == 3))
             {
                 // 셔츠 소매의 단(커프스): 검은 끝 바로 앞에 가로선 두 줄. 날개 모양은 그대로다.
                 using (var cuff = new Pen(cInk, Math.Max(2f, c.Ink.Width * .7f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })

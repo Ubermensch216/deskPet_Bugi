@@ -173,7 +173,7 @@ namespace Bugi
             if (p.Prop == PropKind.Megaphone) DrawMegaphone(g, c);
             if (p.Prop == PropKind.Map) DrawMap(g, c);
             if (p.Prop == PropKind.Board) DrawPointer(g, c);
-            if (p.Mask || p.Hat) DrawHeadgear(g, c);
+            if (p.Mask || p.Hat || p.Visor || p.Sunglasses || p.Helmet) DrawHeadgear(g, c);
         }
 
         private static void DrawPompom(Graphics g, Ctx c, int side)
@@ -249,6 +249,7 @@ namespace Bugi
                 g.FillEllipse(bBeak, brim); g.DrawEllipse(c.Ink, brim);
                 using (var weave = new Pen(cInk, c.Ink.Width * .5f)) { g.DrawArc(weave, -42, -76, 84, 16, 20, 140); g.DrawArc(weave, -26, -75, 52, 12, 20, 140); }
             }
+            DrawHeadAccessories(g, c);
             if (p.Mask)
             {
                 var rect = new RectangleF(-50, 2, 100, 34);

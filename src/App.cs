@@ -75,7 +75,6 @@ namespace Bugi
         private bool hidden, paused, locked, napping, autoHidden;
         private NotifyIcon tray;
         private SettingsForm settingsForm;
-        private FriendPanel friendPanel;
         internal NoteManager Notes;
         private double surfaceRefreshAt, forceVisibleUntil = 12;
         public Settings Settings;
@@ -223,7 +222,7 @@ namespace Bugi
         //   ♥ 친밀도 (표시)
         //   ─ 간식 주기 / 동작 보기 ▶ / 근무복 입기 ✓
         //   ─ 친구 ▶ / 빠른 설정 ▶
-        //   ─ 도우미 / 설정
+        //   ─ 새 메모 / 설정
         //   ─ 종료
         private ContextMenuStrip BuildMenu(PetWindow w)
         {
@@ -237,13 +236,12 @@ namespace Bugi
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
             menu.Items.Add(DemoMenu(pet));
-            menu.Items.Add(OutfitItem());
+            menu.Items.Add(OutfitItem()); menu.Items.Add(OutfitStyleMenu()); menu.Items.Add(AccessoryMenu());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(FriendsMenu(w));
             menu.Items.Add(QuickMenu());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(NewNoteItem());
-            menu.Items.Add("도우미  (할 일 · 메모 · 타이머)...", null, delegate { ShowFriendPanel(); });
             menu.Items.Add("설정...", null, delegate { OpenSettings(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("종료", null, delegate { Quit(); });
@@ -275,9 +273,39 @@ namespace Bugi
         /// <summary>자주 바꾸는 옵션이라 하위 메뉴 없이 바로 누를 수 있게 첫 단계에 둔다.</summary>
         private ToolStripMenuItem OutfitItem()
         {
-            var item = new ToolStripMenuItem("근무복 입기  (하늘색 조끼 · 명찰)") { Checked = PlayOptions.Current.Outfit };
+            var item = new ToolStripMenuItem("근무복 입기") { Checked = PlayOptions.Current.Outfit };
             item.Click += delegate { var o = PlayOptions.Current; o.Outfit = !o.Outfit; o.Save(); ApplyCharacterSettings(); item.Checked = o.Outfit; };
             return item;
+        }
+
+        /// <summary>근무복 종류(가이드북 p18): 고르면 바로 입는다.</summary>
+        private ToolStripMenuItem OutfitStyleMenu()
+        {
+            var menu = new ToolStripMenuItem("근무복 종류");
+            for (int i = 0; i < PlayOptions.OutfitNames.Length; i++)
+            {
+                OutfitStyle style = (OutfitStyle)i;
+                var item = new ToolStripMenuItem(PlayOptions.OutfitNames[i]) { Checked = PlayOptions.Current.OutfitStyle == style };
+                item.Click += delegate { var o = PlayOptions.Current; o.OutfitStyle = style; o.Outfit = true; o.Save(); ApplyCharacterSettings(); };
+                menu.DropDownItems.Add(item);
+            }
+            return menu;
+        }
+
+        /// <summary>아이템(가이드북 p20): 크로스백 · 바이저 · 선글라스를 각각 장착/해제한다.</summary>
+        private ToolStripMenuItem AccessoryMenu()
+        {
+            var menu = new ToolStripMenuItem("아이템 장착");
+            Action<string, Func<PlayOptions, bool>, Action<PlayOptions, bool>> add = (name, get, set) =>
+            {
+                var item = new ToolStripMenuItem(name) { Checked = get(PlayOptions.Current) };
+                item.Click += delegate { var o = PlayOptions.Current; set(o, !get(o)); o.Save(); ApplyCharacterSettings(); item.Checked = get(o); };
+                menu.DropDownItems.Add(item);
+            };
+            add("크로스백 (노랑 · 동백꽃)", o => o.AccBag, (o, v) => o.AccBag = v);
+            add("바이저 (노랑)", o => o.AccVisor, (o, v) => o.AccVisor = v);
+            add("선글라스 (노랑 테 · 검은 렌즈)", o => o.AccSunglasses, (o, v) => o.AccSunglasses = v);
+            return menu;
         }
 
         private ToolStripMenuItem FriendsMenu(PetWindow w)
@@ -394,15 +422,13 @@ namespace Bugi
             return new ToolStripMenuItem("새 메모", null, delegate { if (Notes != null) Notes.CreateNote(); }) { ShortcutKeyDisplayString = "Ctrl+Alt+N" };
         }
 
-        internal void ApplyHelperOptions() { if (friendPanel != null && !friendPanel.IsDisposed) friendPanel.ApplyOptions(); }
-
         internal void ResetAllSettings()
         {
             PlayOptions.Current = new PlayOptions(); PlayOptions.Current.Save();
             ChatOptions.Current = new ChatOptions(); ChatOptions.Current.Save(); Chat.ApplyOptions();
             string roster = Settings.Roster; Settings = new Settings { Roster = roster }; Settings.Save();
             try { StartupOption.SetEnabled(false); } catch { }
-            OnSettingsChanged(); ApplyCharacterSettings(); ApplyHelperOptions();
+            OnSettingsChanged(); ApplyCharacterSettings();
         }
 
         // ───────── 창 열기 ─────────
@@ -413,16 +439,9 @@ namespace Bugi
             settingsForm = new SettingsForm(this, page); settingsForm.FormClosed += delegate { settingsForm = null; };
             settingsForm.Show(); settingsForm.Activate();
         }
-        internal void ShowFriendPanel()
-        {
-            if (friendPanel != null && !friendPanel.IsDisposed)
-            { if (friendPanel.WindowState == FormWindowState.Minimized) friendPanel.WindowState = FormWindowState.Normal; friendPanel.Show(); friendPanel.Activate(); return; }
-            friendPanel = new FriendPanel(this); friendPanel.FormClosed += delegate { friendPanel = null; }; friendPanel.Show();
-        }
         internal void CloseFeatureWindows()
         {
             FriendData.Current.Save();
-            if (friendPanel != null) friendPanel.Close();
             if (diaryForm != null && !diaryForm.IsDisposed) diaryForm.Close();
             if (settingsForm != null) settingsForm.Close();
         }
@@ -653,7 +672,6 @@ namespace Bugi
             if (now - lastSlow >= 1) { lastSlow = now; SlowTick(now); }
             CompanionTick(now, !paused);
             try { Chat.Tick(now); } catch (Exception error) { FeatureLog.Write(error); }
-            if (!paused) FriendData.Current.PollTimer(this);
             if (paused || hidden) return;
             CheckAlarms(now);
             MaintainHourly(now);

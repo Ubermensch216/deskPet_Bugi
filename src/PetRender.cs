@@ -162,9 +162,16 @@ namespace Bugi
             {
                 // 소품·글자·하트가 몸 상자 밖으로 나가므로 그림 상자를 넓힌다(응용동작 그림 p27~36)
                 Pose q = L.Pose;
-                if (q.Prop != PropKind.None || q.Cape || q.Chair || !string.IsNullOrEmpty(q.Sfx) || q.Hearts >= 0 || q.Stars >= 0 || q.Marks >= 0) L.Decor |= Decor.Prop;
+                if (q.Prop != PropKind.None || q.Cape || q.Chair || q.Helmet || q.Hat || !string.IsNullOrEmpty(q.Sfx) || q.Hearts >= 0 || q.Stars >= 0 || q.Marks >= 0) L.Decor |= Decor.Prop;
             }
             L.Pose.Outfit = L.Work = WearsOutfit;
+            {
+                // 근무복 종류와 아이템(가이드북 p18·p20). 설정을 끄고 동작만 보는 중이면 기본 조끼를 입는다.
+                var po = PlayOptions.Current; Pose q = L.Pose;
+                q.OutfitKind = po.Outfit ? (int)po.OutfitStyle : 0;
+                q.Bag = po.AccBag; q.Visor = po.AccVisor && !q.Hat; q.Sunglasses = po.AccSunglasses && !q.Shades;
+                if (q.Outfit && q.OutfitKind == (int)OutfitStyle.Safety) { q.Helmet = true; q.GlassDrop = Math.Max(q.GlassDrop, 1f); q.Visor = false; q.Hat = false; }
+            }
             if (L.Pose.Outfit) L.Pose.CardSwing += F(-L.Pose.Lean * .8 + Math.Sin(animT * 2.4) * 1.6);   // 명찰은 몸이 기울면 반대로 흔들린다
             L.BubbleReveal = -1;
             if (chatPresence > .005)

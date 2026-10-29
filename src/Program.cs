@@ -120,6 +120,9 @@ namespace Bugi
                 K("인사", (p, w) => { p.Demonstrate(w, "wave"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("발끈", (p, w) => { p.StartSquish(w, .6, .24, PetState.Walk, false); w.Now += .25; p.Update(w, .25, null, 0); }),
                 K("근무복", (p, w) => { PlayOptions.Current.Outfit = true; p.SetState(PetState.Pause, w); }),
+                K("제복", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.Uniform; p.SetState(PetState.Pause, w); }), K("구조복", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.Rescue; p.SetState(PetState.Pause, w); }),
+                K("정장", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.Suit; p.SetState(PetState.Pause, w); }), K("안전복", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.Safety; p.SetState(PetState.Pause, w); }),
+                K("구명조끼", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.LifeJacket; p.SetState(PetState.Pause, w); }), K("아이템", (p, w) => { PlayOptions.Current.AccBag = PlayOptions.Current.AccVisor = true; p.SetState(PetState.Pause, w); }), K("선글라스", (p, w) => { PlayOptions.Current.AccSunglasses = true; p.SetState(PetState.Pause, w); }),
                 K("안내", (p, w) => { p.Demonstrate(w, "guide"); for (int i = 0; i < 125; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("배꼽인사", (p, w) => { p.Demonstrate(w, "bow"); for (int i = 0; i < 115; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("멍...", (p, w) => { p.Demonstrate(w, "daydream"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
@@ -168,7 +171,7 @@ namespace Bugi
                         var pet = new Pet(w, c, 640, 720) { Area = w.Areas[0] };
                         pet.SetState(PetState.Pause, w);
                         pet.X = 640; pet.Y = 720;
-                        PlayOptions.Current.Outfit = false;
+                        PlayOptions.Current.Outfit = false; PlayOptions.Current.OutfitStyle = OutfitStyle.Vest; PlayOptions.Current.AccBag = PlayOptions.Current.AccVisor = PlayOptions.Current.AccSunglasses = false;
                         states[i].Value(pet, w);
                         FriendData.Current.Satiety = 100;
                         PointF origin; using (Bitmap b = Pet.Render(pet.GetLook(w.Now), out origin))
@@ -428,7 +431,6 @@ namespace Bugi
                 step("통합 설정창: " + SettingsForm.PageNames[p], () => { var f = new SettingsForm(app, p); shot(f, "ui_settings_" + p); f.Close(); });
             }
             step("트레이 메뉴", () => { var m = typeof(App).GetMethod("BuildMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance); using (var menu = (ContextMenuStrip)m.Invoke(app, new object[] { null })) if (menu.Items.Count < 8) throw new Exception("menu items " + menu.Items.Count); });
-            step("도우미 창", () => { FriendData.Current.Todos.Add(new TodoItem { Text = "첫 할 일", Done = true }); FriendData.Current.Todos.Add(new TodoItem { Text = "둘째 할 일" }); var f = new FriendPanel(app); shot(f, "ui_helper"); f.Close(); });
             step("정각 카드 + 가장자리 빛", () =>
             {
                 var n = new HourlyNotice(app.TrayIconImage); n.SetMessage(App.HourlyMessage(DateTime.Now, true, "13:00", "점심 먹으러 가자!", false, "18:00", "x"));
@@ -519,10 +521,10 @@ namespace Bugi
                 PlayOptions.Current.HungerMinutes = 0; d.Satiety = 100; check(d.Hungry, "0분 = 항상 우는 표정");
                 PlayOptions.Current.HungerMinutes = 60;
                 d.Todos.Add(new TodoItem { Text = "첫 할 일", Done = true }); d.Todos.Add(new TodoItem { Text = "둘째", Done = false });
-                d.Notes = "메모\n두 줄"; d.TimerText = "쉬자"; d.TimerUtc = DateTime.UtcNow.AddMinutes(5); d.Discover("dizzy");
+                d.Notes = "메모\n두 줄"; d.Discover("dizzy");
                 check(d.Save(), "기록 저장");
                 FriendData.Load(); var r = FriendData.Current;
-                check(r.Affinity == d.Affinity && r.Todos.Count == 2 && r.Todos[0].Done && !r.Todos[1].Done && r.Notes == "메모\n두 줄" && r.TimerText == "쉬자" && r.Discoveries.Contains("dizzy") && r.TimerUtc > DateTime.UtcNow, "기록 불러오기 일치(할 일·메모·타이머·비밀)");
+                check(r.Affinity == d.Affinity && r.Todos.Count == 2 && r.Todos[0].Done && !r.Todos[1].Done && r.Notes == "메모\n두 줄" && r.Discoveries.Contains("dizzy"), "기록 불러오기 일치(옛 할 일·메모·비밀)");
                 d.Save(); check(File.Exists(FriendData.DataPath + ".bak"), "이전 기록 .bak 유지");
                 FriendData.Current = new FriendData();
 
@@ -610,6 +612,23 @@ namespace Bugi
                     }
                     check(entered && drew && outfitOff && po.State != PetState.Resting, "가이드북 응용동작: " + sk);
                 }
+                // 근무복 종류(p18)와 아이템(p20): 설정 저장 · 모든 조합이 그려짐
+                PlayOptions.Current = new PlayOptions { Outfit = true, OutfitStyle = OutfitStyle.Safety, AccBag = true, AccVisor = true, AccSunglasses = true };
+                PlayOptions.Current.Save(); PlayOptions.Load();
+                check(PlayOptions.Current.OutfitStyle == OutfitStyle.Safety && PlayOptions.Current.AccBag && PlayOptions.Current.AccVisor && PlayOptions.Current.AccSunglasses, "근무복 종류·아이템 설정 저장·불러오기");
+                bool stylesOk = true;
+                foreach (OutfitStyle os in Enum.GetValues(typeof(OutfitStyle)))
+                    foreach (bool acc in new[] { false, true })
+                    {
+                        PlayOptions.Current = new PlayOptions { Outfit = true, OutfitStyle = os, AccBag = acc, AccVisor = acc, AccSunglasses = acc };
+                        foreach (float turn in new[] { 0f, -.5f, -1f })
+                        {
+                            Pet.Look lk = po.GetLook(wo.Now); lk.Pose.Turn = turn;
+                            try { PointF oo; using (Bitmap bo = Pet.Render(lk, out oo)) stylesOk &= bo.Width > 10 && lk.Pose.OutfitKind == (int)os; } catch { stylesOk = false; }
+                        }
+                    }
+                check(stylesOk, "근무복 6종 × 아이템 장착/해제 × 방향이 모두 그려짐");
+                PlayOptions.Current = new PlayOptions { Escape = false, Idle = false, Windows = false };
                 var rpa = new ReplyParser(); rpa.Feed("[인사] 안녕! 오랜만이야.");
                 var rpb = new ReplyParser(); rpb.Feed("[기쁨] 이번 주말에 부산 여행 가자!");
                 var rpc = new ReplyParser(); rpc.Feed("[슬픔] 부산 얘기를 하니 눈물 나.");

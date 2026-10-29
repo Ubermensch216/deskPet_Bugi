@@ -201,7 +201,7 @@ namespace Bugi
             b.Append("- 사용자와의 사이: " + AffinityTone(d.Affinity) + ".\n");
             int sat = (int)Math.Floor(d.Satiety);
             b.Append("- " + (sat <= 20 ? "배가 많이 고파서 간식 이야기를 자꾸 꺼내." : sat <= 50 ? "조금 출출해." : "배는 부른 편이야.") + "\n");
-            if (PlayOptions.Current.Outfit) b.Append("- 지금 하늘색 근무복 조끼와 명찰을 하고 있어.\n");
+            if (PlayOptions.Current.Outfit) b.Append("- 지금 " + PlayOptions.Current.OutfitName + " 근무복을 입고 있어.\n");
             if (ChatOptions.Current.Memory && ChatMemory.Facts.Count > 0)
             {
                 b.Append("\n[네가 기억하는 사용자 이야기]\n");

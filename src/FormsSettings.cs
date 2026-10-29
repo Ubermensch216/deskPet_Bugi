@@ -30,14 +30,14 @@ namespace Bugi
     }
 
     /// <summary>
-    /// 통합 설정창. 흩어져 있던 설정(알림 / 움직임·반응 / 친구 기록·생활 / 도우미 창)을 한 곳에 분류했다.
+    /// 통합 설정창. 흩어져 있던 설정(알림 / 움직임·반응 / 친구 기록·생활 / 화면)을 한 곳에 분류했다.
     ///   캐릭터 · 움직임 · 반응 · 생활 · 알림 · 화면·시스템
     /// 왼쪽에서 분류를 고르고, 저장 한 번으로 모든 분류가 함께 저장된다.
     /// </summary>
     internal sealed class SettingsForm : Form
     {
         internal static readonly string[] PageNames = { "캐릭터", "움직임", "반응", "생활", "알림", "화면 · 시스템", "메모", "AI 대화" };
-        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 도우미 창 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
+        internal static readonly string[] PageHints = { "친구 부르기 · 근무복", "이동 범위 · 속도 · 얌전 모드", "클릭 · 커서 · 숨은 반응", "친밀도 · 간식 · 배고픔", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
         private static int lastPage;
 
         private readonly App app;
@@ -48,7 +48,7 @@ namespace Bugi
         private readonly System.Windows.Forms.Timer live;
 
         // 캐릭터
-        private ListBox rosterList; private CheckBox cOutfit;
+        private ListBox rosterList; private CheckBox cOutfit, cAccBag, cAccVisor, cAccShades; private ComboBox outfitStyle;
         // 움직임
         private CheckBox cWalls, cCeiling, cWindows, cIdle, cShortRest, cPinned, cFocus, cWork, cFull;
         private NumericUpDown nSpeed, nFall, nSlide;
@@ -63,7 +63,7 @@ namespace Bugi
         private NumericUpDown nNap, nStart, nEnd;
         private ComboBox glowTheme, glowWidth, glowStrength;
         // 화면·시스템
-        private NumericUpDown nOpacity, nMemoOpacity; private CheckBox cMemoTop, cStartup;
+        private NumericUpDown nOpacity; private CheckBox cStartup;
         // 메모
         private ComboBox noteColor, noteSize; private Label noteInfo;
         // AI 대화
@@ -202,7 +202,11 @@ namespace Bugi
             Note(r, "마지막에 불러 둔 구성은 다음 실행에도 그대로 나와요.");
 
             var gOutfit = Group(f, "옷차림"); var d = In(gOutfit);
-            cOutfit = Check(d, "근무복 입기 (하늘색 조끼 · 명찰)", o.Outfit, "근무복을 입으면 가끔 안내하기 · 배꼽인사 · 신분증 · 깃발 흔들기를 해요.");
+            cOutfit = Check(d, "근무복 입기", o.Outfit, "근무복을 입으면 가끔 안내하기 · 배꼽인사를 해요.");
+            var ro = Row(d); ro.Controls.Add(Cap("근무복 종류", 80)); outfitStyle = Combo(PlayOptions.OutfitNames, (int)o.OutfitStyle, 300); ro.Controls.Add(outfitStyle);
+            cAccBag = Check(d, "크로스백 메기 (노랑 · 동백꽃)", o.AccBag, "가이드북 p20 아이템이에요.");
+            cAccVisor = Check(d, "바이저 쓰기 (노랑)", o.AccVisor, null);
+            cAccShades = Check(d, "선글라스 끼기 (노랑 테 · 검은 렌즈)", o.AccSunglasses, null);
             RefreshRoster();
             return page;
         }
@@ -330,24 +334,16 @@ namespace Bugi
         // ───────── 6. 화면 · 시스템 ─────────
         private Panel BuildDisplayPage()
         {
-            FlowLayoutPanel f; var page = NewPage("화면 · 시스템", "투명도 · 도우미 창 · Windows 시작", out f);
+            FlowLayoutPanel f; var page = NewPage("화면 · 시스템", "투명도 · Windows 시작", out f);
             var o = PlayOptions.Current;
             var g1 = Group(f, "캐릭터 모습"); var a = In(g1);
             var rp = Row(a); rp.Controls.Add(Cap("캐릭터 진하기", 110)); nOpacity = Num(20, 100, o.PetOpacityPercent, 0, 5, 72); rp.Controls.Add(nOpacity); rp.Controls.Add(Cap("%   낮을수록 투명해요"));
-            var g2 = Group(f, "도우미 창 (할 일 · 메모 · 타이머)"); var b = In(g2);
-            cMemoTop = Check(b, "도우미 창을 맨 앞에 고정", o.MemoTopMost);
-            var rm = Row(b); rm.Controls.Add(Cap("창 진하기", 110)); nMemoOpacity = Num(20, 100, o.MemoOpacityPercent, 0, 5, 72); rm.Controls.Add(nMemoOpacity); rm.Controls.Add(Cap("%"));
-            var rcol = Row(b);
-            rcol.Controls.Add(FriendUI.Button("배경색...", delegate { PickColor(true); }));
-            rcol.Controls.Add(FriendUI.Button("글자색...", delegate { PickColor(false); }));
-            rcol.Controls.Add(FriendUI.Button("기본 색상으로", delegate { o.HelperBackgroundArgb = FriendUI.Paper.ToArgb(); o.HelperForegroundArgb = FriendUI.Ink.ToArgb(); app.ApplyHelperOptions(); }));
-            Note(b, "색상은 누르는 즉시 도우미 창에 적용돼요.");
             var g3 = Group(f, "Windows"); var c = In(g3);
             cStartup = Check(c, "Windows 로그인 시 자동으로 켜기", StartupOption.IsEnabled());
             var g4 = Group(f, "정리"); var d = In(g4);
             d.Controls.Add(FriendUI.Button("설정을 처음 상태로 되돌리기 (기록은 그대로)", delegate
             {
-                if (MessageBox.Show(this, "모든 설정을 처음 값으로 되돌릴까요?\n친밀도·할 일·메모 같은 기록은 지워지지 않아요.", "부기", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                if (MessageBox.Show(this, "모든 설정을 처음 값으로 되돌릴까요?\n친밀도 같은 기록은 지워지지 않아요.", "부기", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                 app.ResetAllSettings(); status.Text = "처음 설정으로 되돌렸어요."; Close(); app.OpenSettingsPage(lastPage);
             }));
             return page;
@@ -492,18 +488,6 @@ namespace Bugi
             else { chatSetupText.ForeColor = Color.Firebrick; chatSetupText.Text = err; }
         }
 
-        private void PickColor(bool background)
-        {
-            var o = PlayOptions.Current;
-            using (var chooser = new ColorDialog { FullOpen = true, Color = Color.FromArgb(background ? o.HelperBackgroundArgb : o.HelperForegroundArgb) })
-                if (chooser.ShowDialog(this) == DialogResult.OK)
-                {
-                    int argb = Color.FromArgb(chooser.Color.R, chooser.Color.G, chooser.Color.B).ToArgb();
-                    if (background) o.HelperBackgroundArgb = argb; else o.HelperForegroundArgb = argb;
-                    app.ApplyHelperOptions();
-                }
-        }
-
         // ───────── 실시간 표시 ─────────
         private void RefreshLive()
         {
@@ -530,7 +514,7 @@ namespace Bugi
             catch (Exception ex) { nav.SelectedIndex = 5; Warn("자동 시작 설정을 저장하지 못했어요.\n" + ex.Message); return false; }
 
             var o = PlayOptions.Current;
-            o.Outfit = cOutfit.Checked;
+            o.Outfit = cOutfit.Checked; o.OutfitStyle = (OutfitStyle)Math.Max(0, outfitStyle.SelectedIndex); o.AccBag = cAccBag.Checked; o.AccVisor = cAccVisor.Checked; o.AccSunglasses = cAccShades.Checked;
             o.Walls = cWalls.Checked; o.Ceiling = cCeiling.Checked; o.Windows = cWindows.Checked; o.Fullscreen = cFull.Checked;
             o.Idle = cIdle.Checked; o.ShortRest = cShortRest.Checked; o.Focus = cFocus.Checked; o.WorkFocus = cWork.Checked; o.PositionFixed = cPinned.Checked;
             o.Speed = (double)nSpeed.Value; o.FallSpeed = (double)nFall.Value; o.SlideSpeed = (double)nSlide.Value;
@@ -538,8 +522,6 @@ namespace Bugi
             o.Escape = rEscape.Checked; o.Follow = rFollow.Checked; o.EscapeDelay = (double)nDelay.Value; o.Secrets = cSecrets.Checked;
             o.HungerMinutes = (int)nHunger.Value; o.HungerCry = cHungerCry.Checked; o.ShowAffinity = cAffinity.Checked;
             o.PetOpacityPercent = (int)nOpacity.Value;
-            o.MemoTopMost = cMemoTop.Checked; o.MemoOpacityPercent = (int)nMemoOpacity.Value;
-
             Settings s = app.Settings;
             s.HourlyOn = cHourly.Checked; s.HourlyWindow = cPopup.Checked; s.AlertPet = cAlertPet.Checked; s.EdgeGlow = cGlow.Checked;
             s.EdgeGlowTheme = glowTheme.SelectedIndex; s.EdgeGlowWidth = glowWidth.SelectedIndex; s.EdgeGlowStrength = glowStrength.SelectedIndex;
@@ -556,7 +538,7 @@ namespace Bugi
             chat.Mode = Math.Max(0, cMode.SelectedIndex); chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();
-            app.ApplyCharacterSettings(); app.ApplyHelperOptions(); app.Chat.ApplyOptions(); app.Chat.ModeChanged();
+            app.ApplyCharacterSettings(); app.Chat.ApplyOptions(); app.Chat.ModeChanged();
             if (chat.Enabled && chat.Hotkey && !app.Chat.HotkeyRegistered) Warn("단축키 " + ChatHotkey.Text(chat.HotkeyMods, chat.HotkeyKey) + " 는 다른 프로그램이 이미 쓰고 있어서 등록하지 못했어요. 다른 조합을 골라 주세요.");
             if (app.Notes != null) { app.Notes.DefaultColor = NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]; app.Notes.DefaultSize = (NoteSizePreset)Math.Max(0, noteSize.SelectedIndex); }
             bool ok = s.Save() & o.Save() & chat.Save();

@@ -106,20 +106,22 @@ namespace Bugi
 
     internal enum ClickReaction { Cycle, Random, Squash, Cry, Hop, None }
 
-    /// <summary>움직임·반응·도우미 창 설정 (부기_움직임.ini).</summary>
+    /// <summary>움직임·반응 설정 (부기_움직임.ini).</summary>
     internal sealed class PlayOptions
     {
         internal bool Walls = true, Ceiling = true, Windows = true, Idle = true;
         internal bool Escape = true, Follow = false, Focus = false, WorkFocus = false, Fullscreen = false;
         internal bool HungerCry = true, Secrets = true, ShortRest = false, ShowAffinity = false;
-        internal bool PositionFixed = false, MemoTopMost = false;
-        internal bool Outfit = false;        // 근무복(하늘색 조끼 + 명찰)을 입고 지내기
+        internal bool PositionFixed = false;
+        internal bool Outfit = false;        // 근무복(기본은 하늘색 조끼 + 명찰)을 입고 지내기
+        internal OutfitStyle OutfitStyle = OutfitStyle.Vest;           // 근무복 종류(가이드북 p18)
+        internal bool AccBag = false, AccVisor = false, AccSunglasses = false;   // 아이템(가이드북 p20)
+        internal static readonly string[] OutfitNames = { "하늘색 조끼 · 명찰", "제복 (파란 셔츠 · 남색 바지)", "구조복 (주황 조끼)", "정장 (남색 재킷 · 빨간 넥타이)", "안전복 (안전모 · 노란 반사 조끼)", "구명조끼 (빨강)" };
+        internal string OutfitName { get { return OutfitNames[(int)OutfitStyle]; } }
         internal double Speed = 1.0, FallSpeed = 1.2, SlideSpeed = 1.0, EscapeDelay = .12;
         internal int HungerMinutes = 60;
-        internal int PetOpacityPercent = 100, MemoOpacityPercent = 100;
+        internal int PetOpacityPercent = 100;
         internal ClickReaction ClickMode = ClickReaction.Cycle;
-        internal int HelperBackgroundArgb = Color.FromArgb(255, 252, 249).ToArgb();
-        internal int HelperForegroundArgb = Color.FromArgb(68, 50, 50).ToArgb();
         internal double FixedX = double.NaN, FixedY = double.NaN;
 
         internal static PlayOptions Current = new PlayOptions();
@@ -152,25 +154,18 @@ namespace Bugi
                 o.Escape = flag("Escape", o.Escape); o.Follow = flag("Follow", o.Follow); o.Focus = flag("Focus", o.Focus); o.WorkFocus = flag("WorkFocus", o.WorkFocus);
                 o.Fullscreen = flag("Fullscreen", o.Fullscreen); o.HungerCry = flag("HungerCry", o.HungerCry); o.Secrets = flag("Secrets", o.Secrets);
                 o.ShortRest = flag("ShortRest", o.ShortRest); o.ShowAffinity = flag("ShowAffinity", o.ShowAffinity);
-                o.PositionFixed = flag("PositionFixed", o.PositionFixed); o.MemoTopMost = flag("MemoTopMost", o.MemoTopMost); o.Outfit = flag("Outfit", o.Outfit);
+                o.PositionFixed = flag("PositionFixed", o.PositionFixed); o.Outfit = flag("Outfit", o.Outfit);
+                o.AccBag = flag("AccBag", o.AccBag); o.AccVisor = flag("AccVisor", o.AccVisor); o.AccSunglasses = flag("AccSunglasses", o.AccSunglasses);
+                OutfitStyle ostyle;
+                if (d.TryGetValue("OutfitStyle", out v) && Enum.TryParse(v, true, out ostyle) && Enum.IsDefined(typeof(OutfitStyle), ostyle)) o.OutfitStyle = ostyle;
                 if (d.TryGetValue("Speed", out v)) o.Speed = ReadNumber(v, o.Speed, .5, 2);
                 if (d.TryGetValue("FallSpeed", out v)) o.FallSpeed = ReadNumber(v, o.FallSpeed, .5, 3);
                 if (d.TryGetValue("SlideSpeed", out v)) o.SlideSpeed = ReadNumber(v, o.SlideSpeed, .5, 3);
                 if (d.TryGetValue("EscapeDelay", out v)) o.EscapeDelay = ReadNumber(v, o.EscapeDelay, .05, 1);
                 if (d.TryGetValue("HungerMinutes", out v) && int.TryParse(v, out n)) o.HungerMinutes = Math.Max(0, Math.Min(360, n));
                 if (d.TryGetValue("PetOpacityPercent", out v) && int.TryParse(v, out n)) o.PetOpacityPercent = Math.Max(20, Math.Min(100, n));
-                if (d.TryGetValue("MemoOpacityPercent", out v) && int.TryParse(v, out n)) o.MemoOpacityPercent = Math.Max(20, Math.Min(100, n));
                 ClickReaction mode;
                 if (d.TryGetValue("ClickMode", out v) && Enum.TryParse(v, true, out mode) && Enum.IsDefined(typeof(ClickReaction), mode)) o.ClickMode = mode;
-                foreach (string key in new[] { "HelperBackground", "HelperForeground" })
-                {
-                    int rgb;
-                    if (d.TryGetValue(key, out v) && v.Length == 6 && int.TryParse(v, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out rgb))
-                    {
-                        int c = Color.FromArgb(255, (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255).ToArgb();
-                        if (key == "HelperBackground") o.HelperBackgroundArgb = c; else o.HelperForegroundArgb = c;
-                    }
-                }
                 double x;
                 if (d.TryGetValue("FixedX", out v) && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out x) && !double.IsNaN(x) && !double.IsInfinity(x)) o.FixedX = x;
                 if (d.TryGetValue("FixedY", out v) && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out x) && !double.IsNaN(x) && !double.IsInfinity(x)) o.FixedY = x;
@@ -186,13 +181,12 @@ namespace Bugi
             t.Append("Walls=" + b(Walls) + "\r\nCeiling=" + b(Ceiling) + "\r\nWindows=" + b(Windows) + "\r\nIdle=" + b(Idle) + "\r\n");
             t.Append("Escape=" + b(Escape) + "\r\nFollow=" + b(Follow) + "\r\nFocus=" + b(Focus) + "\r\nWorkFocus=" + b(WorkFocus) + "\r\nFullscreen=" + b(Fullscreen) + "\r\n");
             t.Append("HungerCry=" + b(HungerCry) + "\r\nSecrets=" + b(Secrets) + "\r\nShortRest=" + b(ShortRest) + "\r\nShowAffinity=" + b(ShowAffinity) + "\r\n");
-            t.Append("PositionFixed=" + b(PositionFixed) + "\r\nMemoTopMost=" + b(MemoTopMost) + "\r\nOutfit=" + b(Outfit) + "\r\n");
+            t.Append("PositionFixed=" + b(PositionFixed) + "\r\nOutfit="+ b(Outfit) + "\r\n");
+            t.Append("OutfitStyle=" + OutfitStyle + "\r\nAccBag=" + b(AccBag) + "\r\nAccVisor=" + b(AccVisor) + "\r\nAccSunglasses=" + b(AccSunglasses) + "\r\n");
             t.Append("Speed=" + f(Speed) + "\r\nFallSpeed=" + f(FallSpeed) + "\r\nSlideSpeed=" + f(SlideSpeed) + "\r\nClickMode=" + ClickMode + "\r\n");
             t.Append("EscapeDelay=" + f(EscapeDelay) + "\r\nHungerMinutes=" + HungerMinutes + "\r\n");
-            t.Append("PetOpacityPercent=" + PetOpacityPercent + "\r\nMemoOpacityPercent=" + MemoOpacityPercent + "\r\n");
+            t.Append("PetOpacityPercent=" + PetOpacityPercent + "\r\n");
             t.Append("FixedX=" + FixedX.ToString("R", CultureInfo.InvariantCulture) + "\r\nFixedY=" + FixedY.ToString("R", CultureInfo.InvariantCulture) + "\r\n");
-            t.Append("HelperBackground=" + (HelperBackgroundArgb & 0xffffff).ToString("X6", CultureInfo.InvariantCulture) + "\r\n");
-            t.Append("HelperForeground=" + (HelperForegroundArgb & 0xffffff).ToString("X6", CultureInfo.InvariantCulture) + "\r\n");
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, t.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }
         }
@@ -204,7 +198,7 @@ namespace Bugi
         public override string ToString() { return Text; }
     }
 
-    /// <summary>친구 기록: 친밀도·함께한 시간·포만감·메모·할 일·타이머·발견한 비밀 (부기_기록.xml).</summary>
+    /// <summary>친구 기록: 친밀도·함께한 시간·포만감·발견한 비밀 (부기_기록.xml). 옛 도우미의 메모·할 일은 새 메모로 옮기기 위해서만 남겨 둔다.</summary>
     internal sealed class FriendData
     {
         internal const double SnackPortion = 25;
@@ -218,8 +212,6 @@ namespace Bugi
         internal HashSet<string> Discoveries = new HashSet<string>();
         internal List<TodoItem> Todos = new List<TodoItem>();
         internal string Notes = "";
-        internal DateTime TimerUtc = DateTime.MinValue;
-        internal string TimerText = "잠깐 쉬어가자!";
         private DateTime lastSave = DateTime.MinValue;
 
         internal bool CanSnack { get { return Satiety < 100; } }
@@ -251,13 +243,6 @@ namespace Bugi
                     d.CelebratedHundreds = d.Affinity / 100;
                     if (long.TryParse(root.GetAttribute("celebratedHundreds"), out l)) d.CelebratedHundreds = Math.Max(0, Math.Min(d.Affinity / 100, l));
                     var notes = root.SelectSingleNode("notes"); if (notes != null) d.Notes = notes.InnerText;
-                    var timer = root.SelectSingleNode("timer");
-                    if (timer != null)
-                    {
-                        var until = timer.Attributes["until"]; DateTime dt;
-                        if (until != null && DateTime.TryParse(until.Value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out dt)) d.TimerUtc = dt.ToUniversalTime();
-                        if (timer.InnerText.Length > 0) d.TimerText = timer.InnerText;
-                    }
                     foreach (XmlNode t in root.SelectNodes("tasks/task"))
                         d.Todos.Add(new TodoItem { Text = t.InnerText, Done = t.Attributes["done"] != null && t.Attributes["done"].Value == "1" });
                     foreach (XmlNode egg in root.SelectNodes("discoveries/egg")) d.Discoveries.Add(egg.InnerText);
@@ -277,7 +262,6 @@ namespace Bugi
             var notes = doc.CreateElement("notes"); notes.InnerText = Notes ?? ""; root.AppendChild(notes);
             var tasks = doc.CreateElement("tasks"); root.AppendChild(tasks);
             foreach (var t in Todos) { var e = doc.CreateElement("task"); e.InnerText = t.Text; e.SetAttribute("done", t.Done ? "1" : "0"); tasks.AppendChild(e); }
-            var timer = doc.CreateElement("timer"); timer.InnerText = TimerText ?? ""; timer.SetAttribute("until", TimerUtc.ToString("o")); root.AppendChild(timer);
             var eggs = doc.CreateElement("discoveries"); root.AppendChild(eggs);
             foreach (string n in Discoveries.OrderBy(x => x)) { var e = doc.CreateElement("egg"); e.InnerText = n; eggs.AppendChild(e); }
             string tmp = null;
@@ -332,15 +316,6 @@ namespace Bugi
         {
             long total = Math.Max(0, (long)(seconds / 60));
             return (total / 60).ToString("N0") + "시간 " + (total % 60) + "분";
-        }
-
-        internal void PollTimer(App app)
-        {
-            if (TimerUtc == DateTime.MinValue || DateTime.UtcNow < TimerUtc) return;
-            TimerUtc = DateTime.MinValue; Save();
-            var notice = new HourlyNotice(app.TrayIconImage) { Text = "부기 · 타이머" };
-            notice.SetMessage(string.IsNullOrWhiteSpace(TimerText) ? "설정한 시간이 됐어!" : TimerText); notice.Show();
-            app.Announce(string.IsNullOrWhiteSpace(TimerText) ? "설정한 시간이 됐어!" : TimerText);
         }
     }
 }
