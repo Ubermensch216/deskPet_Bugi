@@ -25,7 +25,11 @@ namespace Bugi
         private Pet pet; private ChatInput input; private ReplyParser parser; private ChatRequest request;
         private int gen, extractedUpTo;
         private bool streaming, chipsWanted;
-        private double lastActivity, nextProactive = -1, lastWarm = -999, lastTop;
+        private double lastActivity, nextProactive = -1, lastWarm = -999, lastTop, clickGraceUntil;
+        private bool mouseWasDown;
+
+        [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
+        private static bool MouseDown() { try { return GetAsyncKeyState(0x01) < 0 || GetAsyncKeyState(0x02) < 0; } catch { return false; } }
         private HotkeyWindow hotkey;
         private readonly Random rng = new Random();
 
@@ -71,7 +75,7 @@ namespace Bugi
                 p.ChatSayInstant(mood, hello);
                 StartProbe();
             }
-            lastActivity = now;
+            lastActivity = now; clickGraceUntil = now + .6; mouseWasDown = MouseDown();
             pet.OnChatChar = ch => ChatSound.Char(ch, pet != null ? pet.Mood : ChatMood.Neutral);
             OpenInput();
         }
@@ -166,6 +170,9 @@ namespace Bugi
                 if (pet.Hidden || pet.State != PetState.Chat || app.AllHidden) { End(); return; }
                 if (input != null)
                 {
+                    // 대화창(알약·답장 칩) 밖을 누르면 대화를 끝낸다. 말 걸 때의 더블클릭이 바로 닫지 않도록 잠깐은 무시한다.
+                    bool down = MouseDown(), pressed = down && !mouseWasDown; mouseWasDown = down;
+                    if (pressed && now > clickGraceUntil && !input.Contains(Cursor.Position)) { End(); return; }
                     bool focused = input.Focused;
                     if (!streaming && !pet.ChatRevealing && now - lastActivity > (focused ? 60 : 12)) { End(); return; }
                     Point pos = InputPosition(); input.Place(pos.X, pos.Y);

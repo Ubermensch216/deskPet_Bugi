@@ -300,6 +300,19 @@ namespace Bugi
                 for (int i = 0; i < 40 && app.Chat.DebugState.Contains("streaming") || app.Chat.DebugState.StartsWith("Thinking"); i++) pump(.25);
                 pump(.5);
             }
+            // 대화창 밖 클릭: 알약 안을 누르면 계속되고, 바깥을 누르면 대화가 끝난다(실제 마우스를 잠깐 움직인다)
+            Rectangle ib = app.Chat.InputBounds ?? Rectangle.Empty;
+            if (ib.IsEmpty) { log.AppendLine("FAIL 입력칸 없음"); failures++; }
+            else
+            {
+                Point inside = new Point(ib.Left + ib.Width / 2, ib.Bottom - 26), outside = new Point(Screen.PrimaryScreen.Bounds.Left + 40, Screen.PrimaryScreen.Bounds.Top + 40);
+                Cursor.Position = inside; pump(.15); mouse_event(2, 0, 0, 0, UIntPtr.Zero); pump(.05); mouse_event(4, 0, 0, 0, UIntPtr.Zero); pump(.4);
+                log.AppendLine("알약 안 클릭 후 활성: " + app.Chat.Active);
+                if (!app.Chat.Active) { log.AppendLine("FAIL 입력칸 안을 눌렀는데 대화가 끝남"); failures++; }
+                Cursor.Position = outside; pump(.15); mouse_event(2, 0, 0, 0, UIntPtr.Zero); pump(.05); mouse_event(4, 0, 0, 0, UIntPtr.Zero); pump(.6);
+                log.AppendLine("바깥 클릭 후 활성: " + app.Chat.Active);
+                if (app.Chat.Active) { log.AppendLine("FAIL 바깥을 눌렀는데 대화가 안 끝남"); failures++; }
+            }
             app.Chat.End(); pump(.6); shot("live_6_end");
             log.AppendLine("after end: " + app.Chat.DebugState + " badge=" + pet.ChatBadgeLevel.ToString("0.00") + " state=" + pet.State);
             log.AppendLine("history: " + string.Join(" | ", app.Chat.History.Select(m => m.Role + ": " + m.Content).ToArray()));

@@ -44,6 +44,18 @@ namespace Bugi
         internal Rectangle Bounds { get { return new Rectangle(frameX, frameY, frame.Width, frame.Height); } }
         internal string[] Chips { get { return chips; } }
 
+        /// <summary>화면 좌표가 알약이나 답장 칩 위인가(투명한 여백은 아님). 밖을 눌러 대화를 끝낼지 가르는 데 쓴다.</summary>
+        internal bool Contains(Point screen)
+        {
+            if (disposed) return false;
+            var pill = new Rectangle(frameX + margin, frameY + margin + chipRow + echoH, pillW, pillH);
+            pill.Inflate((int)(3 * s), (int)(3 * s));
+            if (pill.Contains(screen)) return true;
+            foreach (RectangleF r in chipRects)
+                if (!r.IsEmpty && new RectangleF(frameX + r.X, frameY + r.Y, r.Width, r.Height).Contains(screen)) return true;
+            return false;
+        }
+
         internal ChatInput()
         {
             pillW = (int)Math.Round(272 * s); pillH = (int)Math.Round(38 * s); margin = (int)Math.Round(8 * s); echoH = (int)Math.Round(34 * s); chipRow = (int)Math.Round(34 * s);
