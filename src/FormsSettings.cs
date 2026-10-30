@@ -46,6 +46,7 @@ namespace Bugi
         private readonly Panel[] pages = new Panel[8];
         private readonly Label status;
         private readonly System.Windows.Forms.Timer live;
+        private readonly ToolTip tips = new ToolTip { AutoPopDelay = 12000 };
 
         // 캐릭터
         private ListBox rosterList; private CheckBox cOutfit, cAccBag, cAccVisor, cAccShades; private ComboBox outfitStyle;
@@ -169,6 +170,41 @@ namespace Bugi
         { var l = new Label { Text = text, AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(3, 3, 3, 3), MaximumSize = new Size(maxW, 0) }; f.Controls.Add(l); return l; }
         private static FlowLayoutPanel Row(FlowLayoutPanel f)
         { var r = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 1, 0, 1), FlowDirection = FlowDirection.LeftToRight }; f.Controls.Add(r); return r; }
+        // 아이콘 글꼴(Segoe MDL2 Assets)의 글리프 하나를 작은 그림으로 그린다. 글꼴이 없으면 null(글자만 보인다).
+        private Bitmap Glyph(char ch, Color col)
+        {
+            try
+            {
+                int px = Math.Max(16, (int)Math.Round(16 * DeviceDpi / 96.0));
+                var bmp = new Bitmap(px, px);
+                using (var g = Graphics.FromImage(bmp))
+                using (var fnt = new Font("Segoe MDL2 Assets", px * 0.78f, FontStyle.Regular, GraphicsUnit.Pixel))
+                using (var br = new SolidBrush(col))
+                using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                {
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                    g.DrawString(ch.ToString(), fnt, br, new RectangleF(0, 0, px, px), sf);
+                }
+                return bmp;
+            }
+            catch { return null; }
+        }
+        private Button IconButton(char glyph, string text, string tip, EventHandler click)
+        {
+            var b = FriendUI.Button(text, click);
+            var img = Glyph(glyph, FriendUI.BlueDark);
+            if (img != null) { b.Image = img; b.TextImageRelation = TextImageRelation.ImageBeforeText; b.ImageAlign = ContentAlignment.MiddleLeft; b.TextAlign = ContentAlignment.MiddleRight; }
+            else if (text.Length == 0) b.Text = "취소";
+            if (img != null && text.Length == 0) { b.AutoSize = false; b.Size = new Size(36, b.Height > 0 ? Math.Max(b.Height, 27) : 27); b.ImageAlign = ContentAlignment.MiddleCenter; b.Padding = Padding.Empty; }
+            tips.SetToolTip(b, tip); return b;
+        }
+        private Label IconCap(char glyph, string tip)
+        {
+            var l = new Label { Width = 24, Height = 22, Margin = new Padding(3, 6, 0, 0), Image = Glyph(glyph, FriendUI.BlueDark), ImageAlign = ContentAlignment.MiddleCenter };
+            if (l.Image == null) l.Text = "?";
+            tips.SetToolTip(l, tip); return l;
+        }
+
         private static Label Cap(string text, int width = 0)
         { var l = new Label { Text = text, AutoSize = width == 0, Margin = new Padding(3, 6, 3, 0), ForeColor = FriendUI.Ink }; if (width > 0) { l.Width = width; l.Height = 22; } return l; }
         private static NumericUpDown Num(decimal min, decimal max, decimal value, int dec = 0, decimal inc = 1, int width = 70)
@@ -375,23 +411,28 @@ namespace Bugi
         // ───────── 8. AI 대화 ─────────
         private Panel BuildChatPage()
         {
-            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요. 대화하는 동안 부기의 말풍선에 작은 AI 표시가 붙어요", out f);
+            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요", out f);
             var o = ChatOptions.Current;
+            // 연결: 글자 대신 아이콘(설정창 전용 글리프)으로 줄여 높이를 절반 가까이로 맞췄다. 자세한 설명은 마우스를 올리면 말풍선으로.
             var g1 = Group(f, "연결"); var a = In(g1);
-            cChat = Check(a, "AI 대화 사용 (더블클릭 · 우클릭 → 말 걸기)", o.Enabled);
-            var rm = Row(a); rm.Controls.Add(Cap("모델", 60)); tChatModel = new TextBox { Text = o.Model, Width = 220, Margin = new Padding(3) }; rm.Controls.Add(tChatModel);
-            var ru = Row(a); ru.Controls.Add(Cap("서버 주소", 60)); tChatUrl = new TextBox { Text = o.Endpoint, Width = 220, Margin = new Padding(3) }; ru.Controls.Add(tChatUrl);
+            var rc = Row(a);
+            cChat = Check(rc, "AI 대화 사용", o.Enabled); tips.SetToolTip(cChat, "켜면 부기를 더블클릭하거나 우클릭 → 말 걸기로 이야기할 수 있어요.");
+            rc.Controls.Add(new Label { Text = "더블클릭 · 우클릭 → 말 걸기", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(0, 6, 3, 0) });
+            var rm = Row(a);
+            rm.Controls.Add(IconCap('', "모델 (Ollama 모델 이름)"));
+            tChatModel = new TextBox { Text = o.Model, Width = 130, Margin = new Padding(3) }; rm.Controls.Add(tChatModel);
+            rm.Controls.Add(IconCap('', "서버 주소\n대화 내용은 이 서버로만 보내져요.\n기본값(localhost)이면 이 PC 밖으로 나가지 않아요."));
+            tChatUrl = new TextBox { Text = o.Endpoint, Width = 215, Margin = new Padding(3) }; rm.Controls.Add(tChatUrl);
             var rp = Row(a);
+            var bProbe = IconButton('', "연결 확인", "서버와 모델이 준비됐는지 확인해요.", delegate { ProbeChat(); });
+            bChatSetup = IconButton('', "자동 설치", "Ollama 나 모델이 없는 PC 에서 공식 사이트에서 내려받아 설치하고 모델까지 받아요.\n서버 주소가 이 PC 일 때만 되고, 내려받기 전에 한 번 물어봐요.", delegate { StartChatSetup(); });
+            bChatSetupCancel = IconButton('', "", "설치 취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
             chatProbe = new Label { AutoSize = true, Margin = new Padding(6, 8, 3, 3), ForeColor = Color.DimGray };
-            rp.Controls.Add(FriendUI.Button("연결 확인", delegate { ProbeChat(); })); rp.Controls.Add(chatProbe);
-            var rs = Row(a);
-            bChatSetup = FriendUI.Button("AI 자동 설치", delegate { StartChatSetup(); });
-            bChatSetupCancel = FriendUI.Button("취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
-            rs.Controls.Add(bChatSetup); rs.Controls.Add(bChatSetupCancel);
-            chatSetupBar = new ProgressBar { Width = 440, Height = 14, Margin = new Padding(6, 3, 3, 3), Visible = false };
+            rp.Controls.Add(bProbe); rp.Controls.Add(bChatSetup); rp.Controls.Add(bChatSetupCancel); rp.Controls.Add(chatProbe);
+            chatSetupBar = new ProgressBar { Width = 440, Height = 8, Margin = new Padding(6, 0, 3, 3), Visible = false };
             a.Controls.Add(chatSetupBar);
-            chatSetupText = Note(a, "Ollama 나 모델이 없는 PC 에서 누르면 공식 사이트에서 내려받아 설치하고 모델까지 받아요(서버 주소가 이 PC 일 때만). 내려받기 전에 한 번 물어봐요.");
-            Note(a,"대화 내용은 위 서버로만 보내져요. 기본값(localhost)이면 이 PC 밖으로 나가지 않아요. 첫 말은 모델을 불러오느라 몇 초 걸릴 수 있어요.");
+            chatSetupText = new Label { Text = "", AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 0, 3, 3), Visible = false };
+            a.Controls.Add(chatSetupText);
             var gm = Group(f, "대화 모드"); var m = In(gm);
             var rmo = Row(m); rmo.Controls.Add(Cap("모드", 60)); cMode = Combo(ChatMode.All.Select(x => x.Name).ToArray(), o.Mode, 120); rmo.Controls.Add(cMode);
             modeDesc = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 4, 3, 3), Text = ChatMode.At(o.Mode).Desc };
@@ -431,7 +472,7 @@ namespace Bugi
                     BeginInvoke(new Action(delegate
                     {
                         chatProbe.ForeColor = r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick;
-                        chatProbe.Text = r == ProbeResult.Ok ? "연결됐어요. 모델도 있어요." : r == ProbeResult.ModelMissing ? "서버는 켜져 있는데 이 모델이 없어요. 'AI 자동 설치'로 받을 수 있어요." : "서버에 연결하지 못했어요. Ollama 가 켜져 있나요? 없다면 'AI 자동 설치'를 눌러 보세요.";
+                        chatProbe.Text = r == ProbeResult.Ok ? "● 연결됐어요" : r == ProbeResult.ModelMissing ? "● 모델이 없어요 → 자동 설치" : "● 연결 안 됨 → Ollama 확인·자동 설치";
                     }));
                 }
                 catch { }
@@ -473,7 +514,7 @@ namespace Bugi
 
         private void ShowSetup(string text, int pct, bool cancellable)
         {
-            chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = text;
+            chatSetupText.Visible = true; chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = text;
             if (pct < 0) chatSetupBar.Style = ProgressBarStyle.Marquee;
             else { chatSetupBar.Style = ProgressBarStyle.Continuous; chatSetupBar.Value = Math.Min(100, pct); }
             bChatSetupCancel.Enabled = cancellable;
@@ -483,8 +524,9 @@ namespace Bugi
         {
             if (setupHandle == handle) setupHandle = null;
             chatSetupBar.Visible = false; bChatSetup.Enabled = true; bChatSetupCancel.Enabled = false;
-            if (err == null) { chatSetupText.ForeColor = Color.FromArgb(30, 130, 70); chatSetupText.Text = "준비 끝! 이제 부기와 이야기할 수 있어요. ('AI 대화 사용'이 켜져 있는지 확인하고 저장해 주세요)"; }
-            else if (err == OllamaSetup.Cancelled) { chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = "취소했어요. 모델은 다시 누르면 받던 곳부터 이어서 받아요."; }
+            chatSetupText.Visible = true;
+            if (err == null) { chatSetupText.ForeColor = Color.FromArgb(30, 130, 70); chatSetupText.Text = "준비 끝! 'AI 대화 사용'을 켜고 저장하세요."; }
+            else if (err == OllamaSetup.Cancelled) { chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = "취소했어요. 다시 누르면 이어서 받아요."; }
             else { chatSetupText.ForeColor = Color.Firebrick; chatSetupText.Text = err; }
         }
 
