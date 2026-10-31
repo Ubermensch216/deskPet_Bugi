@@ -45,7 +45,7 @@ namespace Bugi
         {
             try
             {
-                var r = Make(o, "/api/tags", "GET", 2500);
+                var r = Make(o, "/api/tags", "GET", 6000);
                 using (var resp = (HttpWebResponse)r.GetResponse())
                 using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
@@ -68,8 +68,8 @@ namespace Bugi
         {
             try
             {
-                var r = Make(o, "/api/generate", "POST", 3000);
-                WriteBody(r, "{\"model\":" + Json.Quote(o.Model) + ",\"keep_alive\":" + Json.Quote(o.KeepAlive) + "}");
+                var r = Make(o, "/api/generate", "POST", 60000);
+                WriteBody(r, "{\"model\":" + Json.Quote(o.Model) + ",\"keep_alive\":" + Json.Quote(o.KeepAlive) + ",\"options\":{\"num_ctx\":3072}}");
                 using (r.GetResponse()) { }
             }
             catch { }
@@ -91,7 +91,7 @@ namespace Bugi
         {
             try
             {
-                var r = Make(o, "/api/chat", "POST", 15000);
+                var r = Make(o, "/api/chat", "POST", 60000);
                 handle.Attach(r);
                 WriteBody(r, Body(o, msgs, true, numPredict, temperature));
                 using (var resp = (HttpWebResponse)r.GetResponse())
@@ -119,7 +119,7 @@ namespace Bugi
         {
             try
             {
-                var r = Make(o, "/api/chat", "POST", 15000);
+                var r = Make(o, "/api/chat", "POST", 60000);
                 WriteBody(r, Body(o, msgs, false, numPredict, temperature).Replace(",\"stop\":[\"\\n\",\"사용자:\",\"부기:\"]", ""));
                 using (var resp = (HttpWebResponse)r.GetResponse())
                 using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))

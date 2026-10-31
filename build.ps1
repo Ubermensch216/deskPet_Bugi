@@ -4,7 +4,7 @@ param([string]$Out = "$PSScriptRoot\output\bugi.exe")
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $dotnet = (Get-Command dotnet).Source
-$csc = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\dotnet\sdk\*\Roslyn\bincore\csc.dll", 'C:\Program Files\dotnet\sdk\*\Roslyn\bincore\csc.dll' -ErrorAction SilentlyContinue |
+$csc = Get-ChildItem "$env:USERPROFILE\.dotnet\sdk\*\Roslyn\bincore\csc.dll", "$env:LOCALAPPDATA\Microsoft\dotnet\sdk\*\Roslyn\bincore\csc.dll", 'C:\Program Files\dotnet\sdk\*\Roslyn\bincore\csc.dll' -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1
 if (-not $csc) { throw 'Roslyn csc.dll 을 찾지 못했어요. .NET SDK 를 설치해 주세요.' }
 $fw = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'

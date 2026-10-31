@@ -223,7 +223,10 @@ namespace Bugi
                 case Kind.Error:
                     streaming = false; lastActivity = now;
                     if (history.Count > 0 && history[history.Count - 1].Role == "user") history.RemoveAt(history.Count - 1);
-                    pet.ChatSayInstant(ChatMood.Sleepy, "으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?");
+                    bool timeout = e.Text != null && (e.Text.Contains("초과") || e.Text.ToLowerInvariant().Contains("timeout"));
+                    pet.ChatSayInstant(ChatMood.Sleepy, timeout
+                        ? "으음... 답변이 너무 늦어졌어. 모델을 불러오는 중일 수 있으니 잠시 뒤에 다시 말해 줄래?"
+                        : "으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?");
                     break;
                 case Kind.Silent:
                     streaming = false; End(); nextProactive = now + 600;
