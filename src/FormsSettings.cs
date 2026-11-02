@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -62,7 +63,7 @@ namespace Bugi
         private CheckBox cLunch, cLeave, cNap, cHourly, cPopup, cAlertPet, cGlow, cQuiet;
         private TextBox tLunch, tLunchMsg, tLeave, tLeaveMsg;
         private NumericUpDown nNap, nStart, nEnd;
-        private ComboBox glowTheme, glowWidth, glowStrength;
+        private ChoiceStrip glowTheme, glowWidth, glowStrength;
         // 화면·시스템
         private NumericUpDown nOpacity; private CheckBox cStartup;
         // 메모
@@ -333,38 +334,123 @@ namespace Bugi
             FlowLayoutPanel f; var page = NewPage("알림", "정각 · 점심 · 퇴근 알림과 낮잠", out f);
             Settings s = app.Settings;
             var g1 = Group(f, "정각 알림"); var a = In(g1);
-            cHourly = Check(a, "정각 알림 (매시간 현재 시각 알려주기)", s.HourlyOn);
-            cPopup = Check(a, "별도 정각 알림창 사용 (직접 닫을 때까지 유지)", s.HourlyWindow, "끄면 친구의 말풍선으로 알려줘요.");
-            cAlertPet = Check(a, "알림을 화면 가운데 큰 부기로 보여주기 (정각 · 점심 · 퇴근 · 메모)", s.AlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요. 끄면 예전 알림창 · 말풍선을 써요. 메모 알림은 늘 큰 부기로 나와요.");
-            cGlow = Check(a, "알림창을 닫을 때까지 화면 가장자리 빛 유지", s.EdgeGlow);
-            var rc = Row(a); rc.Controls.Add(Cap("빛 색상", 70)); glowTheme = Combo(new[] { "피치 · 핑크 · 보라 · 하늘", "노을", "오로라", "무지개" }, s.EdgeGlowTheme, 190); rc.Controls.Add(glowTheme);
-            var rw = Row(a); rw.Controls.Add(Cap("퍼지는 폭", 70)); glowWidth = Combo(new[] { "보통", "넓게", "아주 넓게" }, s.EdgeGlowWidth, 90); rw.Controls.Add(glowWidth);
-            rw.Controls.Add(Cap("진하기")); glowStrength = Combo(new[] { "은은하게", "선명하게", "강하게" }, s.EdgeGlowStrength, 90); rw.Controls.Add(glowStrength);
-            cQuiet = Check(a, "평일(월~금) 아래 시간에는 정각 알림 끄기", s.QuietWeekdays);
-            var rq = Row(a); nStart = Num(0, 23, s.QuietStart, 0, 1, 58); nEnd = Num(0, 23, s.QuietEnd, 0, 1, 58);
-            rq.Controls.Add(nStart); rq.Controls.Add(Cap("시 ~")); rq.Controls.Add(nEnd); rq.Controls.Add(Cap("시 (양 끝 정각 포함)"));
-            cQuiet.CheckedChanged += delegate { nStart.Enabled = nEnd.Enabled = cQuiet.Checked; }; nStart.Enabled = nEnd.Enabled = cQuiet.Checked;
-            a.Controls.Add(FriendUI.Button("정각창 미리보기", delegate
+
+            // ① 맨 위: 켜기 + 미리보기
+            var top = Row(a);
+            cHourly = new CheckBox { Text = "정각 알림 (매시간 현재 시각 알려주기)", Checked = s.HourlyOn, AutoSize = false, Width = 310, Height = 24, Margin = new Padding(3, 8, 3, 3) };
+            top.Controls.Add(cHourly);
+            var bPreview = IconButton('', "정각창 미리보기", "지금 고른 빛 · 폭 · 진하기로 정각 알림창을 미리 봐요", delegate
             {
                 var n = new HourlyNotice(app.TrayIconImage); n.SetMessage(App.HourlyText(DateTime.Now) + "\n(미리보기)");
                 n.EnableEdgeGlow(cGlow.Checked, glowTheme.SelectedIndex, glowWidth.SelectedIndex, glowStrength.SelectedIndex); n.Show();
-            }));
+            });
+            bPreview.Margin = new Padding(6, 3, 3, 3); top.Controls.Add(bPreview);
 
+            // ② 알림 방식: 두 가지를 나란히
+            SubHead(a, "알림 방식");
+            var mode = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 232)); mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 238));
+            var m1 = HalfCell(); cPopup = Check(m1, "별도 알림창으로 보기", s.HourlyWindow, "직접 닫을 때까지 유지돼요. 끄면 친구의 말풍선으로 알려줘요."); WrapHint(m1, 200);
+            var m2 = HalfCell(); cAlertPet = Check(m2, "큰 부기로 보여주기", s.AlertPet, "정각 · 점심 · 퇴근 · 메모 알림이 화면 가운데에 2배 크기로 나와요."); WrapHint(m2, 205);
+            tips.SetToolTip(cAlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요.\n끄면 예전 알림창 · 말풍선을 써요. (메모 알림은 늘 큰 부기로 나와요)");
+            mode.Controls.Add(m1, 0, 0); mode.Controls.Add(m2, 1, 0); a.Controls.Add(mode);
+
+            // ③ 화면 가장자리 빛
+            SubHead(a, "화면 가장자리 빛");
+            cGlow = Check(a, "알림창을 닫을 때까지 화면 가장자리 빛 유지", s.EdgeGlow);
+            var glowBox = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
+            a.Controls.Add(glowBox);
+            glowBox.Controls.Add(Tiny("빛 색상"));
+            glowTheme = new ChoiceStrip(new[] { "파스텔", "노을", "오로라", "무지개" }, s.EdgeGlowTheme, 111, new Size(66, 38), delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(i), 7, 255); });
+            tips.SetToolTip(glowTheme, "파스텔: 피치 · 핑크 · 보라 · 하늘");
+            glowBox.Controls.Add(glowTheme);
+            var size = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
+            size.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 232)); size.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 238));
+            glowWidth = new ChoiceStrip(new[] { "보통", "넓게", "아주 넓게" }, s.EdgeGlowWidth, 70, new Size(46, 30), delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), (i == 0 ? 3 : i == 1 ? 6 : 10) * r.Width / 46.0, 255); });
+            glowStrength = new ChoiceStrip(new[] { "은은하게", "선명하게", "강하게" }, s.EdgeGlowStrength, 70, new Size(46, 30), delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), 6 * r.Width / 46.0, i == 0 ? 85 : i == 1 ? 170 : 255); });
+            glowTheme.SelectedIndexChanged += delegate { glowWidth.Invalidate(); glowStrength.Invalidate(); };
+            size.Controls.Add(Tiny("퍼지는 폭"), 0, 0); size.Controls.Add(Tiny("진하기"), 1, 0);
+            size.Controls.Add(glowWidth, 0, 1); size.Controls.Add(glowStrength, 1, 1);
+            glowBox.Controls.Add(size);
+            cGlow.CheckedChanged += delegate { glowBox.Enabled = cGlow.Checked; }; glowBox.Enabled = cGlow.Checked;
+
+            // ④ 조용한 시간 — 한 줄
+            SubHead(a, "조용한 시간");
+            var rq = Row(a);
+            cQuiet = new CheckBox { Text = "평일(월~금) 정각 알림 끄기", Checked = s.QuietWeekdays, AutoSize = false, Width = 186, Height = 24, Margin = new Padding(3, 6, 3, 3) };
+            nStart = Num(0, 23, s.QuietStart, 0, 1, 54); nEnd = Num(0, 23, s.QuietEnd, 0, 1, 54);
+            rq.Controls.Add(cQuiet); rq.Controls.Add(nStart); rq.Controls.Add(Cap("시 ~")); rq.Controls.Add(nEnd); rq.Controls.Add(Cap("시 (양 끝 정각 포함)"));
+            cQuiet.CheckedChanged += delegate { nStart.Enabled = nEnd.Enabled = cQuiet.Checked; }; nStart.Enabled = nEnd.Enabled = cQuiet.Checked;
+
+            // 점심 · 퇴근: 한 줄에 켜기 · 시각 · 문구 · 미리보기
             var g2 = Group(f, "점심 · 퇴근 알림"); var b = In(g2);
-            cLunch = Check(b, "점심 알림", s.LunchOn);
-            var rl = Row(b); rl.Controls.Add(Cap("시간", 40)); tLunch = new TextBox { Text = s.LunchTime, Width = 60, Margin = new Padding(3) }; rl.Controls.Add(tLunch);
-            rl.Controls.Add(Cap("문구")); tLunchMsg = new TextBox { Text = s.LunchMsg, Width = 240, Margin = new Padding(3) }; rl.Controls.Add(tLunchMsg);
+            var head = Row(b); head.Controls.Add(Tiny("", 95)); head.Controls.Add(Tiny("시각", 56)); head.Controls.Add(Tiny("알림 문구"));
+            var rl = Row(b);
+            cLunch = new CheckBox { Text = "점심 알림", Checked = s.LunchOn, AutoSize = false, Width = 92, Height = 24, Margin = new Padding(3, 6, 3, 3) }; rl.Controls.Add(cLunch);
+            tLunch = new TextBox { Text = s.LunchTime, Width = 56, Margin = new Padding(3, 4, 3, 3) }; rl.Controls.Add(tLunch);
+            tLunchMsg = new TextBox { Text = s.LunchMsg, Width = 220, Margin = new Padding(3, 4, 3, 3) }; rl.Controls.Add(tLunchMsg);
             rl.Controls.Add(FriendUI.Button("미리보기", delegate { app.PreviewLunch(tLunchMsg.Text); }));
-            cLeave = Check(b, "퇴근 알림", s.LeaveOn);
-            var rv = Row(b); rv.Controls.Add(Cap("시간", 40)); tLeave = new TextBox { Text = s.LeaveTime, Width = 60, Margin = new Padding(3) }; rv.Controls.Add(tLeave);
-            rv.Controls.Add(Cap("문구")); tLeaveMsg = new TextBox { Text = s.LeaveMsg, Width = 240, Margin = new Padding(3) }; rv.Controls.Add(tLeaveMsg);
+            var rv = Row(b);
+            cLeave = new CheckBox { Text = "퇴근 알림", Checked = s.LeaveOn, AutoSize = false, Width = 92, Height = 24, Margin = new Padding(3, 6, 3, 3) }; rv.Controls.Add(cLeave);
+            tLeave = new TextBox { Text = s.LeaveTime, Width = 56, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeave);
+            tLeaveMsg = new TextBox { Text = s.LeaveMsg, Width = 220, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeaveMsg);
             rv.Controls.Add(FriendUI.Button("미리보기", delegate { app.PreviewLeave(tLeaveMsg.Text); }));
             Note(b, "시간은 12:00처럼 시:분으로 적어 주세요. 퇴근 10초 전에는 친구들이 화면 가운데로 모여요.");
 
             var g3 = Group(f, "낮잠"); var c = In(g3);
-            cNap = Check(c, "자리를 오래 비우면 낮잠 자기", s.NapOn);
-            var rn = Row(c); nNap = Num(1, 600, s.NapMinutes, 0, 1, 70); rn.Controls.Add(nNap); rn.Controls.Add(Cap("분 동안 입력이 없으면 잠들어요"));
+            var rn = Row(c);
+            cNap = new CheckBox { Text = "자리를 오래 비우면 낮잠 자기", Checked = s.NapOn, AutoSize = false, Width = 196, Height = 24, Margin = new Padding(3, 6, 3, 3) };
+            nNap = Num(1, 600, s.NapMinutes, 0, 1, 62);
+            rn.Controls.Add(cNap); rn.Controls.Add(nNap); rn.Controls.Add(Cap("분 동안 입력이 없을 때"));
+            cNap.CheckedChanged += delegate { nNap.Enabled = cNap.Checked; }; nNap.Enabled = cNap.Checked;
             return page;
+        }
+
+        // 작은 제목 + 오른쪽으로 이어지는 가는 선
+        private static void SubHead(FlowLayoutPanel f, string text)
+        {
+            var p = new Panel { Width = 468, Height = 24, Margin = new Padding(0, 10, 0, 0) };
+            p.Paint += (o, e) =>
+            {
+                using (var font = new Font("Malgun Gothic", 9f, FontStyle.Bold))
+                {
+                    Size sz = TextRenderer.MeasureText(e.Graphics, text, font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                    TextRenderer.DrawText(e.Graphics, text, font, new Point(3, (p.Height - sz.Height) / 2 + 2), FriendUI.Blue, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                    using (var pen = new Pen(Color.FromArgb(206, 218, 240))) e.Graphics.DrawLine(pen, sz.Width + 12, p.Height / 2 + 2, p.Width - 3, p.Height / 2 + 2);
+                }
+            };
+            f.Controls.Add(p);
+        }
+        private static FlowLayoutPanel HalfCell()
+        { return new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty }; }
+        private static void WrapHint(FlowLayoutPanel cell, int maxW)
+        { var l = cell.Controls[cell.Controls.Count - 1] as Label; if (l != null) l.MaximumSize = new Size(maxW, 0); }
+        private static Label Tiny(string text, int width = 0)
+        { var l = new Label { Text = text, AutoSize = width == 0, ForeColor = Color.DimGray, Margin = new Padding(3, 5, 3, 1), Font = new Font("Malgun Gothic", 8.5f) }; if (width > 0) { l.AutoSize = false; l.Width = width; l.Height = 16; } return l; }
+
+        // 화면 모양 그림: 가장자리에서 안쪽으로 번지는 빛 띠(thick px 폭, alpha 진하기)
+        private static void GlowThumb(Graphics g, Rectangle r, Color[] pal, double thick, int alpha)
+        {
+            r = new Rectangle(r.X, r.Y, r.Width - 1, r.Height - 1);
+            using (var path = ChoiceStrip.RoundRect(r, Math.Max(3, r.Height / 8)))
+            {
+                using (var fill = new SolidBrush(Color.FromArgb(250, 251, 255))) g.FillPath(fill, path);
+                g.SetClip(path, CombineMode.Intersect);
+                int steps = Math.Max(2, (int)Math.Round(thick));
+                var blend = new ColorBlend(pal.Length) { Positions = pal.Select((c, i) => i / (float)(pal.Length - 1)).ToArray() };
+                for (int k = 0; k < steps; k++)
+                {
+                    int al = (int)Math.Round(alpha * Math.Pow(1 - k / (double)steps, 1.35));
+                    blend.Colors = pal.Select(c => Color.FromArgb(al, c)).ToArray();
+                    using (var br = new LinearGradientBrush(new Rectangle(r.X, r.Y, Math.Max(2, r.Width), r.Height), Color.White, Color.White, LinearGradientMode.Horizontal) { InterpolationColors = blend })
+                    using (var pen = new Pen(br, 1.5f)) g.DrawRectangle(pen, r.X + k, r.Y + k, r.Width - 2 * k, r.Height - 2 * k);
+                }
+                g.ResetClip();
+                using (var pen = new Pen(Color.FromArgb(150, 165, 195), 1f)) g.DrawPath(pen, path);
+            }
         }
 
         // ───────── 6. 화면 · 시스템 ─────────
