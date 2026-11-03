@@ -67,7 +67,7 @@ namespace Bugi
         // 화면·시스템
         private NumericUpDown nOpacity; private CheckBox cStartup;
         // 메모
-        private ComboBox noteColor, noteSize; private Label noteInfo;
+        private ChoiceStrip noteColor, noteSize; private Label noteInfo;
         // AI 대화
         private ComboBox cMode; private Label modeDesc; private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
         private Button bChatSetup, bChatSetupCancel; private ProgressBar chatSetupBar; private Label chatSetupText; private ChatRequest setupHandle;
@@ -469,27 +469,89 @@ namespace Bugi
         }
 
         // ───────── 7. 메모 ─────────
+        // 글 대신 그림으로: 색 · 크기는 그림 카드로 고르고, 단축키는 아이콘 + 키캡 카드로 보여 준다. 자세한 설명은 마우스를 올리면 말풍선으로.
         private Panel BuildMemoPage()
         {
             FlowLayoutPanel f; var page = NewPage("메모", "바탕화면 메모의 기본 모습 · 단축키 · 저장 위치", out f);
             var mgr = app.Notes;
-            var g1 = Group(f, "새 메모의 기본값"); var a = In(g1);
-            var rc = Row(a); rc.Controls.Add(Cap("기본 색", 70));
-            noteColor = Combo(NoteColors.All.Select(k => NoteColors.Label(k)).ToArray(), mgr == null ? 0 : Array.IndexOf(NoteColors.All, mgr.DefaultColor), 120); rc.Controls.Add(noteColor);
-            var rs = Row(a); rs.Controls.Add(Cap("기본 크기", 70));
-            noteSize = Combo(new[] { "작게  240×180", "보통  320×260", "크게  420×360" }, mgr == null ? 1 : (int)mgr.DefaultSize, 150); rs.Controls.Add(noteSize);
-            Note(a, "저장한 다음에 만드는 메모부터 적용돼요. 이미 있는 메모의 색과 크기는 그대로예요.");
-            var g2 = Group(f, "어디서나 쓰는 단축키"); var b = In(g2);
-            Note(b, "Ctrl+Alt+N   새 메모\nCtrl+Shift+F   메모 라이브러리\nCtrl+Shift+P   마지막으로 쓴 메모를 항상 위에 두기\nCtrl+Shift+R   마지막으로 쓴 메모에 1시간 뒤 알림");
-            Note(b, "다른 프로그램이 이미 쓰는 조합이면 등록되지 않아요. 트레이·우클릭 메뉴의 새 메모와, 메모 위젯 ⋯ 메뉴의 메모 라이브러리는 늘 쓸 수 있어요.");
-            var g3 = Group(f, "메모를 쓰는 중"); var c = In(g3);
-            Note(c, "Ctrl+B / I / U   굵게 · 기울임 · 밑줄       Ctrl+Shift+X   취소선\nCtrl+K   링크       Ctrl+Shift+K   코드       Ctrl+1 / 2 / 3   제목\nCtrl+Shift+L   글머리 목록       Ctrl+Shift+C   체크리스트\nCtrl+Enter   커서 줄의 체크박스 토글       Enter   목록 이어쓰기(빈 항목에서 목록 끝)");
-            var g4 = Group(f, "내 메모는 어디에"); var d = In(g4);
-            noteInfo = Note(d, ""); noteInfo.Text = mgr == null ? "" : mgr.Store.Root + "\n메모 " + mgr.Store.Count.ToString("N0") + "개";
-            d.Controls.Add(FriendUI.Button("폴더 열기", delegate { try { if (mgr != null) System.Diagnostics.Process.Start("explorer.exe", "\"" + mgr.Store.Root + "\""); } catch { } }));
-            Note(d, "백업은 부기를 끈 뒤 이 폴더를 통째로 복사하면 돼요. 삭제는 되돌릴 수 없어요(휴지통이 없어요).");
+
+            var g1 = Group(f, "새 메모의 기본값", 520); var a = In(g1);
+            var rc = Row(a); rc.Controls.Add(Badge(FlatIcon.Palette, "기본 색"));
+            noteColor = new ChoiceStrip(NoteColors.All.Select(k => NoteColors.Label(k)).ToArray(), mgr == null ? 0 : Math.Max(0, Array.IndexOf(NoteColors.All, mgr.DefaultColor)), 50, new Size(28, 24),
+                delegate(Graphics g, Rectangle r, int i) { FlatIcon.NoteShape(g, r, NoteColors.All[i]); });
+            rc.Controls.Add(noteColor);
+            var rs = Row(a); rs.Controls.Add(Badge(FlatIcon.Resize, "기본 크기"));
+            // 크기 카드는 실제 메모 비율로 그리고, 위에서 고른 색으로 칠한다.
+            Size[] dims = { new Size(NoteGeometry.SmallW, NoteGeometry.SmallH), new Size(NoteGeometry.MediumW, NoteGeometry.MediumH), new Size(NoteGeometry.LargeW, NoteGeometry.LargeH) };
+            noteSize = new ChoiceStrip(new[] { "작게  240×180", "보통  320×260", "크게  420×360" }, mgr == null ? 1 : Math.Max(0, Math.Min(2, (int)mgr.DefaultSize)), 112, new Size(48, 40),
+                delegate(Graphics g, Rectangle r, int i)
+                {
+                    float w = r.Width * dims[i].Width / (float)NoteGeometry.LargeW, h = r.Height * dims[i].Height / (float)NoteGeometry.LargeH;
+                    FlatIcon.NoteShape(g, new RectangleF(r.X + (r.Width - w) / 2f, r.Y + (r.Height - h) / 2f, w, h), NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]);
+                });
+            noteColor.SelectedIndexChanged += delegate { noteSize.Invalidate(); };
+            rs.Controls.Add(noteSize);
+            IconText(Row(a), FlatIcon.Info, "저장한 다음에 만드는 메모부터 적용돼요.", "이미 있는 메모의 색과 크기는 그대로예요.", Color.DimGray);
+
+            var g2 = Group(f, "어디서나 쓰는 단축키", 520); var b = In(g2);
+            var hot = TileGrid(b, 2, 246);
+            AddTile(hot, FlatIcon.NewNote, "새 메모", new[] { "Ctrl", "Alt", "N" }, "어디서나 새 메모를 만들어요.", true);
+            AddTile(hot, FlatIcon.Library, "메모 라이브러리", new[] { "Ctrl", "Shift", "F" }, "모든 메모를 한눈에 보고 찾아요.", true);
+            AddTile(hot, FlatIcon.Pin, "항상 위에 두기", new[] { "Ctrl", "Shift", "P" }, "마지막으로 쓴 메모를 항상 위에 두었다가 풀어요.", true);
+            AddTile(hot, FlatIcon.BellClock, "1시간 뒤 알림", new[] { "Ctrl", "Shift", "R" }, "마지막으로 쓴 메모에 1시간 뒤 알림을 걸어요.", true);
+            IconText(Row(b), FlatIcon.Warning, "다른 프로그램이 쓰는 조합이면 등록되지 않아요.", "그래도 트레이·우클릭 메뉴의 새 메모와, 메모 위젯 ⋯ 메뉴의 메모 라이브러리는 늘 쓸 수 있어요.", Color.DimGray);
+
+            var g3 = Group(f, "메모를 쓰는 중", 520); var c = In(g3);
+            var edit = TileGrid(c, 4, 122);
+            AddTile(edit, FlatIcon.Bold, "굵게", new[] { "Ctrl", "B" }, "굵게", false);
+            AddTile(edit, FlatIcon.Italic, "기울임", new[] { "Ctrl", "I" }, "기울임", false);
+            AddTile(edit, FlatIcon.Underline, "밑줄", new[] { "Ctrl", "U" }, "밑줄", false);
+            AddTile(edit, FlatIcon.Strike, "취소선", new[] { "Ctrl", "Shift", "X" }, "취소선", false);
+            AddTile(edit, FlatIcon.Link, "링크", new[] { "Ctrl", "K" }, "링크", false);
+            AddTile(edit, FlatIcon.Code, "코드", new[] { "Ctrl", "Shift", "K" }, "코드", false);
+            AddTile(edit, FlatIcon.Heading, "제목", new[] { "Ctrl", "1–3" }, "Ctrl+1 / 2 / 3  제목 1 · 2 · 3", false);
+            AddTile(edit, FlatIcon.Bullets, "글머리", new[] { "Ctrl", "Shift", "L" }, "글머리 목록", false);
+            AddTile(edit, FlatIcon.Checklist, "할 일", new[] { "Ctrl", "Shift", "C" }, "체크리스트 (할 일 목록)", false);
+            AddTile(edit, FlatIcon.ToggleCheck, "체크", new[] { "Ctrl", "Enter" }, "커서가 있는 줄의 체크박스를 켜고 꺼요.", false);
+            AddTile(edit, FlatIcon.EnterKey, "이어쓰기", new[] { "Enter" }, "목록 이어쓰기. 빈 항목에서 Enter 를 누르면 목록이 끝나요.", false);
+
+            var g4 = Group(f, "내 메모는 어디에", 520); var d = In(g4);
+            var rp = Row(d); rp.Controls.Add(new IconBox(FlatIcon.Folder, 28) { Margin = new Padding(3, 3, 6, 3) });
+            var path = new Label { AutoSize = true, ForeColor = FriendUI.Ink, Margin = new Padding(0, 6, 3, 3), MaximumSize = new Size(410, 0), Text = mgr == null ? "" : mgr.Store.Root };
+            tips.SetToolTip(path, "메모가 저장되는 폴더"); rp.Controls.Add(path);
+            var rn = Row(d);
+            rn.Controls.Add(new IconBox(FlatIcon.NoteGlyph, 22) { Margin = new Padding(3, 6, 4, 3) });
+            noteInfo = new Label { AutoSize = true, ForeColor = FriendUI.Ink, Font = new Font("Malgun Gothic", 10f, FontStyle.Bold), Margin = new Padding(0, 6, 14, 3), Text = mgr == null ? "" : mgr.Store.Count.ToString("N0") + "개" };
+            tips.SetToolTip(noteInfo, "저장된 메모 수"); rn.Controls.Add(noteInfo);
+            var bOpen = FriendUI.Button("폴더 열기", delegate { try { if (mgr != null) System.Diagnostics.Process.Start("explorer.exe", "\"" + mgr.Store.Root + "\""); } catch { } });
+            int px = Math.Max(16, (int)Math.Round(16 * DeviceDpi / 96.0));
+            bOpen.Image = FlatIcon.Bitmap(FlatIcon.Folder, px, FriendUI.BlueDark); bOpen.TextImageRelation = TextImageRelation.ImageBeforeText; bOpen.ImageAlign = ContentAlignment.MiddleLeft;
+            rn.Controls.Add(bOpen);
+            var rt = Row(d);
+            IconText(rt, FlatIcon.Copy, "폴더째 복사 = 백업", "백업은 부기를 끈 뒤 이 폴더를 통째로 복사하면 돼요.", Color.DimGray);
+            IconText(rt, FlatIcon.Trash, "삭제는 되돌릴 수 없어요", "휴지통이 없어서, 지운 메모는 돌아오지 않아요.", Color.FromArgb(180, 60, 60));
             return page;
         }
+
+        // 설정 값 옆에 붙이는 그림 표지
+        private IconBox Badge(FlatIcon.Painter p, string tip)
+        { var b = new IconBox(p, 26) { Margin = new Padding(3, 14, 6, 3) }; tips.SetToolTip(b, tip); return b; }
+        // 그림 + 한 줄 글(자세한 설명은 말풍선)
+        private void IconText(FlowLayoutPanel row, FlatIcon.Painter p, string text, string tip, Color color)
+        {
+            var ib = new IconBox(p, 18) { Margin = new Padding(3, 4, 4, 3) };
+            var l = new Label { Text = text, AutoSize = true, ForeColor = color, Margin = new Padding(0, 4, 14, 3), MaximumSize = new Size(440, 0) };
+            row.Controls.Add(ib); row.Controls.Add(l);
+            if (tip != null) { tips.SetToolTip(ib, tip); tips.SetToolTip(l, tip); }
+        }
+        private static TableLayoutPanel TileGrid(FlowLayoutPanel parent, int cols, int cellW)
+        {
+            var t = new TableLayoutPanel { AutoSize = true, ColumnCount = cols, Margin = new Padding(0, 2, 0, 0) };
+            for (int i = 0; i < cols; i++) t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, cellW));
+            parent.Controls.Add(t); return t;
+        }
+        private void AddTile(TableLayoutPanel t, FlatIcon.Painter p, string caption, string[] keys, string tip, bool wide)
+        { var tile = new HintTile(p, caption, keys, wide); tips.SetToolTip(tile, tip); t.Controls.Add(tile); }
 
         // ───────── 8. AI 대화 ─────────
         private Panel BuildChatPage()
