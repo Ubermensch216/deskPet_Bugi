@@ -69,8 +69,8 @@ namespace Bugi
         // 메모
         private ChoiceStrip noteColor, noteSize; private Label noteInfo;
         // AI 대화
-        private ComboBox cMode; private Label modeDesc; private HotkeyBox hkBox; private Label hkHint; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
-        private Button bChatSetup, bChatSetupCancel; private ProgressBar chatSetupBar; private Label chatSetupText; private ChatRequest setupHandle;
+        private ChoiceStrip cMode; private HotkeyBox hkBox; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private FlatButton bChatSetup, bChatSetupCancel; private ProgressBar chatSetupBar; private ChatRequest setupHandle;
 
         public SettingsForm(App app, int page = -1)
         {
@@ -199,13 +199,6 @@ namespace Bugi
             if (img != null && text.Length == 0) { b.AutoSize = false; b.Size = new Size(36, b.Height > 0 ? Math.Max(b.Height, 27) : 27); b.ImageAlign = ContentAlignment.MiddleCenter; b.Padding = Padding.Empty; }
             tips.SetToolTip(b, tip); return b;
         }
-        private Label IconCap(char glyph, string tip)
-        {
-            var l = new Label { Width = 24, Height = 22, Margin = new Padding(3, 6, 0, 0), Image = Glyph(glyph, FriendUI.BlueDark), ImageAlign = ContentAlignment.MiddleCenter };
-            if (l.Image == null) l.Text = "?";
-            tips.SetToolTip(l, tip); return l;
-        }
-
         private static Label Cap(string text, int width = 0)
         { var l = new Label { Text = text, AutoSize = width == 0, Margin = new Padding(3, 6, 3, 0), ForeColor = FriendUI.Ink }; if (width > 0) { l.Width = width; l.Height = 22; } return l; }
         private static NumericUpDown Num(decimal min, decimal max, decimal value, int dec = 0, decimal inc = 1, int width = 70)
@@ -554,61 +547,103 @@ namespace Bugi
         { var tile = new HintTile(p, caption, keys, wide); tips.SetToolTip(tile, tip); t.Controls.Add(tile); }
 
         // ───────── 8. AI 대화 ─────────
+        // 글 대신 그림으로: 단추는 그림 단추, 설정마다 작은 아이콘을 붙이고 설명은 마우스를 올리면 말풍선으로. 스크롤 없이 한 화면에 들어간다.
+        private static readonly FlatIcon.Painter[] ModeArt = { FlatIcon.Smile, FlatIcon.Heart, FlatIcon.Bulb, FlatIcon.Laugh, FlatIcon.Bolt };
+
+        private IconBox Mark(FlatIcon.Painter p, string tip, int size = 22)
+        { var b = new IconBox(p, size) { Margin = new Padding(3, 4, 2, 3) }; tips.SetToolTip(b, tip); return b; }
+
+        private FlatButton IconBtn(FlatIcon.Painter p, string tip, EventHandler click)
+        { var b = new FlatButton(p, tip); b.Click += click; tips.SetToolTip(b, tip); return b; }
+
+        // 아이콘 + 켜고 끄는 칸. 아이콘을 눌러도 켜지고 꺼진다.
+        private CheckBox IconCheck(FlowLayoutPanel row, FlatIcon.Painter p, string text, bool value, string tip)
+        {
+            var ib = Mark(p, tip); ib.Cursor = Cursors.Hand;
+            var c = new CheckBox { Text = text, Checked = value, AutoSize = true, Margin = new Padding(2, 5, 8, 3) };
+            ib.Click += delegate { c.Checked = !c.Checked; };
+            tips.SetToolTip(c, tip); row.Controls.Add(ib); row.Controls.Add(c);
+            return c;
+        }
+
         private Panel BuildChatPage()
         {
-            FlowLayoutPanel f; var page = NewPage("AI 대화", "이 PC 의 Ollama 와 이야기해요", out f);
+            FlowLayoutPanel f; var page = NewPage("AI 대화", "내 PC의 Ollama와 이야기해요", out f);
             var o = ChatOptions.Current;
-            // 연결: 글자 대신 아이콘(설정창 전용 글리프)으로 줄여 높이를 절반 가까이로 맞췄다. 자세한 설명은 마우스를 올리면 말풍선으로.
-            var g1 = Group(f, "연결"); var a = In(g1);
-            var rc = Row(a);
-            cChat = Check(rc, "AI 대화 사용", o.Enabled); tips.SetToolTip(cChat, "켜면 부기를 더블클릭하거나 우클릭 → 말 걸기로 이야기할 수 있어요.");
-            rc.Controls.Add(new Label { Text = "더블클릭 · 우클릭 → 말 걸기", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(0, 6, 3, 0) });
-            var rm = Row(a);
-            rm.Controls.Add(IconCap('', "모델 (Ollama 모델 이름)"));
-            tChatModel = new TextBox { Text = o.Model, Width = 130, Margin = new Padding(3) }; rm.Controls.Add(tChatModel);
-            rm.Controls.Add(IconCap('', "서버 주소\n대화 내용은 이 서버로만 보내져요.\n기본값(localhost)이면 이 PC 밖으로 나가지 않아요."));
-            tChatUrl = new TextBox { Text = o.Endpoint, Width = 215, Margin = new Padding(3) }; rm.Controls.Add(tChatUrl);
-            var rp = Row(a);
-            var bProbe = IconButton('', "연결 확인", "서버와 모델이 준비됐는지 확인해요.", delegate { ProbeChat(); });
-            bChatSetup = IconButton('', "자동 설치", "Ollama 나 모델이 없는 PC 에서 공식 사이트에서 내려받아 설치하고 모델까지 받아요.\n서버 주소가 이 PC 일 때만 되고, 내려받기 전에 한 번 물어봐요.", delegate { StartChatSetup(); });
-            bChatSetupCancel = IconButton('', "", "설치 취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
-            chatProbe = new Label { AutoSize = true, Margin = new Padding(6, 8, 3, 3), ForeColor = Color.DimGray };
-            rp.Controls.Add(bProbe); rp.Controls.Add(bChatSetup); rp.Controls.Add(bChatSetupCancel); rp.Controls.Add(chatProbe);
-            chatSetupBar = new ProgressBar { Width = 440, Height = 8, Margin = new Padding(6, 0, 3, 3), Visible = false };
-            a.Controls.Add(chatSetupBar);
-            chatSetupText = new Label { Text = "", AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 0, 3, 3), Visible = false };
-            a.Controls.Add(chatSetupText);
-            var gm = Group(f, "대화 모드"); var m = In(gm);
-            var rmo = Row(m); rmo.Controls.Add(Cap("모드", 60)); cMode = Combo(ChatMode.All.Select(x => x.Name).ToArray(), o.Mode, 120); rmo.Controls.Add(cMode);
-            modeDesc = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.DimGray, Margin = new Padding(6, 4, 3, 3), Text = ChatMode.At(o.Mode).Desc };
-            cMode.SelectedIndexChanged += delegate { modeDesc.Text = ChatMode.At(cMode.SelectedIndex).Desc; };
-            m.Controls.Add(modeDesc);
-            Note(m, "부기의 성격은 그대로이고 말하는 방식과 길이만 달라져요. 우클릭 메뉴의 대화 모드에서도 바꿀 수 있고, 바꾼 다음 말부터 적용돼요.");
-            var g2 = Group(f, "말 걸기"); var b = In(g2);
-            cChatKey = Check(b, "단축키로 말 걸기", o.Hotkey);
-            var rk = Row(b); rk.Controls.Add(Cap("단축키", 70)); hkBox = new HotkeyBox(o.HotkeyMods, o.HotkeyKey); rk.Controls.Add(hkBox);
-            rk.Controls.Add(FriendUI.Button("기본값", delegate { hkBox.SetValue(ChatHotkey.DefaultMods, ChatHotkey.DefaultKey); hkHint.Text = ""; }));
-            hkHint = new Label { AutoSize = true, MaximumSize = new Size(440, 0), ForeColor = Color.Firebrick, Margin = new Padding(6, 4, 3, 3) };
-            hkBox.Hint += t => { hkHint.ForeColor = t != null && t.StartsWith("키를 하나씩") ? Color.DimGray : Color.Firebrick; hkHint.Text = t ?? ""; };
-            Note(b, "입력란을 클릭한 뒤 키를 하나씩 누르세요. 누른 키가 \"Ctrl + \" 처럼 보이고 다음 키를 기다려요. 보조키(Ctrl · Alt · Shift) 2개 이상 + 글쇠 1개, 모두 3개 이상이어야 해요. Esc 는 취소, Backspace 는 방금 누른 키 취소예요.");
-            b.Controls.Add(hkHint);
-            cChatChips = Check(b, "부기의 말 끝에 답장 추천 칩 보여주기", o.Chips, "눌러서 바로 보낼 수 있는 짧은 말이에요(Ctrl+1~3). 글자를 치기 시작하면 사라져요.");
-            cChatSound = Check(b, "말할 때 글자마다 뽁뽁 소리 내기", o.Sound, "기본은 꺼져 있어요.");
-            cChatProactive = Check(b, "부기가 먼저 말 걸기 (선톡)", o.Proactive, "컴퓨터를 쓰는 중일 때 가끔 한마디 건네요. 켜면 모델이 메모리에 올라가 있어요.");
-            var rq = Row(b); rq.Controls.Add(Cap("평균 간격", 70)); nProactive = Num(5, 480, o.ProactiveMinutes, 0, 5, 70); rq.Controls.Add(nProactive); rq.Controls.Add(Cap("분"));
-            var g3 = Group(f, "기억"); var c = In(g3);
-            cChatMemory = Check(c, "대화에서 알게 된 이야기를 기억하기", o.Memory, "대화가 끝날 때 사실만 한두 줄로 적어 둬요. 이 PC 의 파일에만 저장돼요.");
-            c.Controls.Add(FriendUI.Button("기억 보기 · 지우기...", delegate { new ChatMemoryForm(app.TrayIconImage).ShowDialog(this); }));
-            var g4 = Group(f, "부기의 일기장"); var d = In(g4);
-            cChatDiary = Check(d, "대화가 끝나면 부기가 일기 한 줄 쓰기", o.Diary, "오늘 나눈 이야기를 부기의 시점에서 한두 문장으로 적어 둬요. 이 PC 의 파일(부기_일기.txt)에만 저장돼요.");
-            d.Controls.Add(FriendUI.Button("일기장 열기...", delegate { new ChatDiaryForm(app.TrayIconImage).ShowDialog(this); }));
+
+            // 연결: 켜기 · 단추 세 개 / 모델 · 서버 / 상태 한 줄
+            var g1 = Group(f, "연결", 520); var a = In(g1);
+            var ra = Row(a);
+            ra.Controls.Add(new IconBox(FlatIcon.Chat, 24) { Margin = new Padding(3, 5, 0, 3) });
+            cChat = new CheckBox { Text = "AI 대화 사용", Checked = o.Enabled, AutoSize = false, Width = 309, Height = 24, Margin = new Padding(5, 8, 3, 3) };
+            tips.SetToolTip(cChat, "켜면 부기를 더블클릭하거나 우클릭 → 말 걸기로 이야기할 수 있어요.");
+            ra.Controls.Add(cChat);
+            ra.Controls.Add(IconBtn(FlatIcon.PlugCheck, "연결 확인\n서버와 모델이 준비됐는지 봐요.", delegate { ProbeChat(); }));
+            bChatSetup = IconBtn(FlatIcon.Download, "자동 설치\nOllama 와 모델이 없을 때 공식 사이트에서 받아 설치해요.\n서버가 이 PC(localhost)일 때만 되고, 받기 전에 한 번 물어봐요.", delegate { StartChatSetup(); });
+            bChatSetupCancel = IconBtn(FlatIcon.Stop, "설치 취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
+            ra.Controls.Add(bChatSetup); ra.Controls.Add(bChatSetupCancel);
+
+            var rb = Row(a);
+            rb.Controls.Add(Mark(FlatIcon.Chip, "모델  (Ollama 모델 이름)"));
+            tChatModel = new TextBox { Text = o.Model, Width = 150, Margin = new Padding(3, 3, 12, 3) }; rb.Controls.Add(tChatModel);
+            rb.Controls.Add(Mark(FlatIcon.Globe, "서버 주소\n대화는 이 서버로만 보내져요.\n기본값(localhost)이면 이 PC 밖으로 나가지 않아요."));
+            tChatUrl = new TextBox { Text = o.Endpoint, Width = 250, Margin = new Padding(3) }; rb.Controls.Add(tChatUrl);
+
+            var rs = Row(a);
+            chatProbe = new Label { Text = "○ 아직 확인 안 함", AutoSize = false, AutoEllipsis = true, Width = 330, Height = 20, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(6, 3, 3, 3), ForeColor = Color.DimGray };
+            chatSetupBar = new ProgressBar { Width = 140, Height = 8, Margin = new Padding(6, 9, 3, 3), Visible = false };
+            rs.Controls.Add(chatProbe); rs.Controls.Add(chatSetupBar);
+
+            // 대화 방식: 그림 카드 다섯 장 + 단축키 한 줄
+            var g2 = Group(f, "대화 방식", 520); var b = In(g2);
+            cMode = new ChoiceStrip(ChatMode.All.Select(x => x.Name).ToArray(), o.Mode, 90, new Size(24, 24),
+                delegate(Graphics g, Rectangle r, int i) { ModeArt[Math.Min(i, ModeArt.Length - 1)](g, new RectangleF(r.X, r.Y, r.Width, r.Height), FriendUI.BlueDark); });
+            cMode.HotChanged += i =>
+            {
+                if (i < 0 || i >= ChatMode.All.Length) tips.Hide(cMode);
+                else tips.Show(ChatMode.All[i].Desc, cMode, Math.Max(0, Math.Min(cMode.Width - 150, cMode.PointToClient(Cursor.Position).X - 20)), cMode.Height + 2, 6000);
+            };
+            b.Controls.Add(cMode);
+
+            var rk = Row(b);
+            rk.Controls.Add(Mark(FlatIcon.Keyboard, "단축키로 말 걸기\n입력란을 클릭한 뒤 키를 하나씩 누르세요.\nCtrl · Alt · Shift 중 2개 이상 + 글쇠 1개.\nEsc 는 취소, Backspace 는 방금 누른 키 취소예요."));
+            cChatKey = new CheckBox { Text = "단축키", Checked = o.Hotkey, AutoSize = false, Width = 76, Height = 24, Margin = new Padding(2, 5, 3, 3) }; rk.Controls.Add(cChatKey);
+            hkBox = new HotkeyBox(o.HotkeyMods, o.HotkeyKey) { Width = 190, Margin = new Padding(3, 3, 6, 3) }; rk.Controls.Add(hkBox);
+            var bKeyReset = IconBtn(FlatIcon.Reset, "기본 단축키로 되돌리기", delegate { hkBox.SetValue(ChatHotkey.DefaultMods, ChatHotkey.DefaultKey); tips.Hide(hkBox); });
+            rk.Controls.Add(bKeyReset);
+            hkBox.Hint += t => { if (string.IsNullOrEmpty(t)) tips.Hide(hkBox); else tips.Show(t, hkBox, 0, hkBox.Height + 3, 30000); };
+            cChatKey.CheckedChanged += delegate { hkBox.Enabled = bKeyReset.Enabled = cChatKey.Checked; };
+            hkBox.Enabled = bKeyReset.Enabled = cChatKey.Checked;
+
+            // 부가 기능: 두 칸 표
+            var g3 = Group(f, "부가 기능", 520); var c = In(g3);
+            var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Margin = Padding.Empty };
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
+            Func<FlowLayoutPanel> cell = () => { var r = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty, FlowDirection = FlowDirection.LeftToRight }; return r; };
+            var c00 = cell(); cChatChips = IconCheck(c00, FlatIcon.ReplyChips, "답장 추천", o.Chips, "부기의 말 끝에 짧은 답장 칩을 보여 줘요.\n눌러서 바로 보내요 (Ctrl+1~3). 글자를 치면 사라져요.");
+            var c10 = cell(); cChatSound = IconCheck(c10, FlatIcon.Sound, "글자 소리", o.Sound, "말할 때 글자마다 뽁뽁 소리가 나요.");
+            var c01 = cell(); cChatProactive = IconCheck(c01, FlatIcon.Spark, "먼저 말 걸기", o.Proactive, "컴퓨터를 쓰는 중에 부기가 가끔 먼저 한마디 건네요.\n켜면 모델이 메모리에 올라가 있어요.");
+            var c11 = cell(); c11.Controls.Add(Mark(FlatIcon.Clock, "평균 간격 (분)"));
+            nProactive = Num(5, 480, o.ProactiveMinutes, 0, 5, 64); c11.Controls.Add(nProactive); c11.Controls.Add(Cap("분마다"));
+            cChatProactive.CheckedChanged += delegate { nProactive.Enabled = cChatProactive.Checked; }; nProactive.Enabled = cChatProactive.Checked;
+            var c02 = cell(); cChatMemory = IconCheck(c02, FlatIcon.Memory, "기억하기", o.Memory, "대화에서 알게 된 사실을 한두 줄로 적어 둬요.\n이 PC 의 파일에만 저장돼요.");
+            c02.Controls.Add(IconBtn(FlatIcon.OpenOut, "기억 보기 · 지우기", delegate { new ChatMemoryForm(app.TrayIconImage).ShowDialog(this); }));
+            var c12 = cell(); cChatDiary = IconCheck(c12, FlatIcon.Diary, "일기 쓰기", o.Diary, "대화가 끝나면 부기가 오늘 이야기를 일기 한두 줄로 적어요.\n이 PC 의 파일(부기_일기.txt)에만 저장돼요.");
+            c12.Controls.Add(IconBtn(FlatIcon.OpenOut, "일기장 열기", delegate { new ChatDiaryForm(app.TrayIconImage).ShowDialog(this); }));
+            grid.Controls.Add(c00, 0, 0); grid.Controls.Add(c10, 1, 0);
+            grid.Controls.Add(c01, 0, 1); grid.Controls.Add(c11, 1, 1);
+            grid.Controls.Add(c02, 0, 2); grid.Controls.Add(c12, 1, 2);
+            c.Controls.Add(grid);
             return page;
         }
+
+        private void SetChatStatus(string text, Color color)
+        { chatProbe.ForeColor = color; chatProbe.Text = text; tips.SetToolTip(chatProbe, text); }
 
         private void ProbeChat()
         {
             var probe = new ChatOptions { Endpoint = tChatUrl.Text.Trim().TrimEnd('/'), Model = tChatModel.Text.Trim() };
-            chatProbe.ForeColor = Color.DimGray; chatProbe.Text = "확인하는 중...";
+            SetChatStatus("확인하는 중...", Color.DimGray);
             new System.Threading.Thread(delegate ()
             {
                 ProbeResult r = OllamaClient.Probe(probe);
@@ -616,8 +651,7 @@ namespace Bugi
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        chatProbe.ForeColor = r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick;
-                        chatProbe.Text = r == ProbeResult.Ok ? "● 연결됐어요" : r == ProbeResult.ModelMissing ? "● 모델이 없어요 → 자동 설치" : "● 연결 안 됨 → Ollama 확인·자동 설치";
+                        SetChatStatus(r == ProbeResult.Ok ? "● 연결됐어요" : r == ProbeResult.ModelMissing ? "● 모델이 없어요 — 설치(↓) 단추를 눌러요" : "● 연결 안 됨 — Ollama 가 켜져 있나요?", r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick);
                     }));
                 }
                 catch { }
@@ -634,7 +668,6 @@ namespace Bugi
             if (!OllamaSetup.IsLocalEndpoint(url)) { Warn("자동 설치는 서버 주소가 이 PC(localhost)일 때만 쓸 수 있어요.\n다른 PC 의 서버를 쓰는 중이라면 그 PC 에서 직접 설치해 주세요."); return; }
             var opts = new ChatOptions { Endpoint = url, Model = model };
             var handle = setupHandle = new ChatRequest();
-            chatProbe.Text = "";
             ShowSetup("시작하는 중...", -1, true); bChatSetup.Enabled = false; chatSetupBar.Visible = true;
             new System.Threading.Thread(delegate ()
             {
@@ -659,7 +692,7 @@ namespace Bugi
 
         private void ShowSetup(string text, int pct, bool cancellable)
         {
-            chatSetupText.Visible = true; chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = text;
+            SetChatStatus(text, Color.DimGray);
             if (pct < 0) chatSetupBar.Style = ProgressBarStyle.Marquee;
             else { chatSetupBar.Style = ProgressBarStyle.Continuous; chatSetupBar.Value = Math.Min(100, pct); }
             bChatSetupCancel.Enabled = cancellable;
@@ -669,10 +702,9 @@ namespace Bugi
         {
             if (setupHandle == handle) setupHandle = null;
             chatSetupBar.Visible = false; bChatSetup.Enabled = true; bChatSetupCancel.Enabled = false;
-            chatSetupText.Visible = true;
-            if (err == null) { chatSetupText.ForeColor = Color.FromArgb(30, 130, 70); chatSetupText.Text = "준비 끝! 'AI 대화 사용'을 켜고 저장하세요."; }
-            else if (err == OllamaSetup.Cancelled) { chatSetupText.ForeColor = Color.DimGray; chatSetupText.Text = "취소했어요. 다시 누르면 이어서 받아요."; }
-            else { chatSetupText.ForeColor = Color.Firebrick; chatSetupText.Text = err; }
+            if (err == null) SetChatStatus("● 준비 끝 — 'AI 대화 사용'을 켜고 저장하세요", Color.FromArgb(30, 130, 70));
+            else if (err == OllamaSetup.Cancelled) SetChatStatus("취소했어요 — 다시 누르면 이어서 받아요", Color.DimGray);
+            else SetChatStatus(err, Color.Firebrick);
         }
 
         // ───────── 실시간 표시 ─────────
