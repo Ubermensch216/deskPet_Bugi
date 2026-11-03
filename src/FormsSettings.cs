@@ -337,7 +337,7 @@ namespace Bugi
 
             // ① 맨 위: 켜기 + 미리보기
             var top = Row(a);
-            cHourly = new CheckBox { Text = "정각 알림 (매시간 현재 시각 알려주기)", Checked = s.HourlyOn, AutoSize = false, Width = 310, Height = 24, Margin = new Padding(3, 8, 3, 3) };
+            cHourly = new CheckBox { Text = "정각 알림", Checked = s.HourlyOn, AutoSize = false, Width = 310, Height = 24, Margin = new Padding(3, 8, 3, 3) };
             top.Controls.Add(cHourly);
             var bPreview = IconButton('', "정각창 미리보기", "지금 고른 빛 · 폭 · 진하기로 정각 알림창을 미리 봐요", delegate
             {
@@ -350,8 +350,8 @@ namespace Bugi
             SubHead(a, "알림 방식");
             var mode = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
             mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 232)); mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 238));
-            var m1 = HalfCell(); cPopup = Check(m1, "별도 알림창으로 보기", s.HourlyWindow, "직접 닫을 때까지 유지돼요. 끄면 친구의 말풍선으로 알려줘요."); WrapHint(m1, 200);
-            var m2 = HalfCell(); cAlertPet = Check(m2, "큰 부기로 보여주기", s.AlertPet, "정각 · 점심 · 퇴근 · 메모 알림이 화면 가운데에 2배 크기로 나와요."); WrapHint(m2, 205);
+            var m1 = HalfCell(); cPopup = Check(m1, "별도 알림창으로 보기", s.HourlyWindow);
+            var m2 = HalfCell(); cAlertPet = Check(m2, "큰 부기로 보여주기", s.AlertPet);
             tips.SetToolTip(cAlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요.\n끄면 예전 알림창 · 말풍선을 써요. (메모 알림은 늘 큰 부기로 나와요)");
             mode.Controls.Add(m1, 0, 0); mode.Controls.Add(m2, 1, 0); a.Controls.Add(mode);
 
@@ -398,7 +398,6 @@ namespace Bugi
             tLeave = new TextBox { Text = s.LeaveTime, Width = 56, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeave);
             tLeaveMsg = new TextBox { Text = s.LeaveMsg, Width = 220, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeaveMsg);
             rv.Controls.Add(FriendUI.Button("미리보기", delegate { app.PreviewLeave(tLeaveMsg.Text); }));
-            Note(b, "시간은 12:00처럼 시:분으로 적어 주세요. 퇴근 10초 전에는 친구들이 화면 가운데로 모여요.");
 
             var g3 = Group(f, "낮잠"); var c = In(g3);
             var rn = Row(c);
@@ -426,8 +425,6 @@ namespace Bugi
         }
         private static FlowLayoutPanel HalfCell()
         { return new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty }; }
-        private static void WrapHint(FlowLayoutPanel cell, int maxW)
-        { var l = cell.Controls[cell.Controls.Count - 1] as Label; if (l != null) l.MaximumSize = new Size(maxW, 0); }
         private static Label Tiny(string text, int width = 0)
         { var l = new Label { Text = text, AutoSize = width == 0, ForeColor = Color.DimGray, Margin = new Padding(3, 5, 3, 1), Font = new Font("Malgun Gothic", 8.5f) }; if (width > 0) { l.AutoSize = false; l.Width = width; l.Height = 16; } return l; }
 
