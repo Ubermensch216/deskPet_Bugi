@@ -122,6 +122,8 @@ namespace Bugi
         internal int HungerMinutes = 60;
         internal int PetOpacityPercent = 100;
         internal ClickReaction ClickMode = ClickReaction.Cycle;
+        internal int SigFreq = 2;            // 시그니처(★) 자동 재생 빈도: 0 끔 · 1 드물게 · 2 보통 · 3 자주
+        internal static double SigChance(int freq) { return freq <= 0 ? 0 : freq == 1 ? .08 : freq == 2 ? .20 : .38; }
         internal double FixedX = double.NaN, FixedY = double.NaN;
 
         internal static PlayOptions Current = new PlayOptions();
@@ -164,6 +166,7 @@ namespace Bugi
                 if (d.TryGetValue("EscapeDelay", out v)) o.EscapeDelay = ReadNumber(v, o.EscapeDelay, .05, 1);
                 if (d.TryGetValue("HungerMinutes", out v) && int.TryParse(v, out n)) o.HungerMinutes = Math.Max(0, Math.Min(360, n));
                 if (d.TryGetValue("PetOpacityPercent", out v) && int.TryParse(v, out n)) o.PetOpacityPercent = Math.Max(20, Math.Min(100, n));
+                if (d.TryGetValue("SigFreq", out v) && int.TryParse(v, out n)) o.SigFreq = Math.Max(0, Math.Min(3, n));
                 ClickReaction mode;
                 if (d.TryGetValue("ClickMode", out v) && Enum.TryParse(v, true, out mode) && Enum.IsDefined(typeof(ClickReaction), mode)) o.ClickMode = mode;
                 double x;
@@ -186,6 +189,7 @@ namespace Bugi
             t.Append("Speed=" + f(Speed) + "\r\nFallSpeed=" + f(FallSpeed) + "\r\nSlideSpeed=" + f(SlideSpeed) + "\r\nClickMode=" + ClickMode + "\r\n");
             t.Append("EscapeDelay=" + f(EscapeDelay) + "\r\nHungerMinutes=" + HungerMinutes + "\r\n");
             t.Append("PetOpacityPercent=" + PetOpacityPercent + "\r\n");
+            t.Append("SigFreq=" + SigFreq + "\r\n");
             t.Append("FixedX=" + FixedX.ToString("R", CultureInfo.InvariantCulture) + "\r\nFixedY=" + FixedY.ToString("R", CultureInfo.InvariantCulture) + "\r\n");
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, t.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }

@@ -8,8 +8,9 @@ namespace Bugi
 {
     internal sealed class CharInfo
     {
-        public string Key, Name;
+        public string Key, Name, Title;       // 키, 이름, 칭호
         public Color Accent;                  // 말풍선·꽃 장식 등에 어울리는 색
+        public string[] Traits;               // 특징 설명(도감)
     }
 
     /// <summary>
@@ -20,7 +21,20 @@ namespace Bugi
     {
         internal static readonly CharInfo[] Infos =
         {
-            new CharInfo { Key = "bugi", Name = "부기", Accent = Color.FromArgb(232, 60, 52) },
+            new CharInfo
+            {
+                Key = "bugi",
+                Name = "부기",
+                Title = "부산 소통 캐릭터 · 부산갈매기",
+                Accent = Color.FromArgb(232, 60, 52),
+                Traits = new[]
+                {
+                    "부산의 시조(市鳥) 갈매기를 모티프로 한 씩씩한 소통 캐릭터",
+                    "트레이드마크 붉은 뿔테 안경과 통통한 날개",
+                    "가이드북 응용동작: 두두 등장 · Busan is good · 하트 안기 등",
+                    "다양한 옷차림: 하늘색 조끼 근무복 · 크로스백 · 바이저 · 선글라스"
+                }
+            },
         };
         internal static int Count { get { return Infos.Length; } }
         internal static float Scale = 1f;
@@ -90,13 +104,18 @@ namespace Bugi
             try
             {
                 int n = Math.Max(16, (int)Math.Round(16 * Scale));
-                using (Bitmap bmp = IconBitmap(n))
+                using (Bitmap bmp = IconBitmap(id, n))
                 {
                     IntPtr hicon = bmp.GetHicon();
                     Icon icon = (Icon)Icon.FromHandle(hicon).Clone(); Native.DestroyIcon(hicon); return icon;
                 }
             }
             catch { return SystemIcons.Application; }
+        }
+
+        internal static Bitmap IconBitmap(int id, int n)
+        {
+            return IconBitmap(n);
         }
 
         /// <summary>얼굴(머리카락·빨간 안경·부리)이 잘 보이도록 머리를 확대한 아이콘 그림.</summary>

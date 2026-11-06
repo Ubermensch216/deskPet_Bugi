@@ -235,6 +235,7 @@ namespace Bugi
             menu.Items.Add(new ToolStripMenuItem("♥ 친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)) { Enabled = false });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
+            menu.Items.Add(SignatureMenu(pet));
             menu.Items.Add(DemoMenu(pet));
             menu.Items.Add(OutfitItem()); menu.Items.Add(OutfitStyleMenu()); menu.Items.Add(AccessoryMenu());
             menu.Items.Add(new ToolStripSeparator());
@@ -246,6 +247,31 @@ namespace Bugi
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("종료", null, delegate { Quit(); });
             return menu;
+        }
+
+        /// <summary>★ 표시가 붙은 시그니처 기술. 우클릭한 친구의 기술 3가지.</summary>
+        private ToolStripMenuItem SignatureMenu(Pet pet)
+        {
+            var root = new ToolStripMenuItem("★ 시그니처 기술");
+            if (pet != null)
+            {
+                var sigs = Signatures.All[pet.Art.Id];
+                root.DropDownItems.Add(new ToolStripMenuItem(pet.Art.Info.Name + "의 대표 동작") { Enabled = false });
+                for (int i = 0; i < sigs.Length; i++)
+                {
+                    int idx = i;
+                    root.DropDownItems.Add(sigs[i].Label, null, delegate { pet.RequestSignature(this, sigs[idx].Skit); });
+                }
+            }
+            else
+            {
+                for (int i = 0; i < Signatures.All[0].Length; i++)
+                {
+                    int idx = i;
+                    root.DropDownItems.Add(Signatures.All[0][i].Label, null, delegate { PreviewSignature(0, idx); });
+                }
+            }
+            return root;
         }
 
         private ToolStripMenuItem DemoMenu(Pet pet)
@@ -330,6 +356,7 @@ namespace Bugi
             };
             quick.DropDownItems.Add(toggle("친구 위치 고정 (자동 이동 멈추기)", () => o.PositionFixed, v => SetPositionFixed(v)));
             quick.DropDownItems.Add(toggle("얌전 모드 (바닥에서만)", () => o.Focus, v => { o.Focus = v; o.Save(); }));
+            quick.DropDownItems.Add(toggle("★ 시그니처 자동 재생", () => o.SigFreq > 0, v => { o.SigFreq = v ? 2 : 0; o.Save(); }));
             quick.DropDownItems.Add(toggle("친밀도 숫자 표시", () => o.ShowAffinity, v => { o.ShowAffinity = v; o.Save(); ApplyCharacterSettings(); }));
             return quick;
         }
@@ -414,6 +441,20 @@ namespace Bugi
 
         // ───────── 설정창에서 쓰는 동작 ─────────
         internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); Spawn(character); }
+
+        internal void PreviewSignature(int character, int idx)
+        {
+            if (hidden) ToggleHidden();
+            Pet p = windows.Select(a => a.Pet).FirstOrDefault(a => a.Art.Id == character && !a.Hidden);
+            if (p == null) { Spawn(character); p = windows.Select(a => a.Pet).LastOrDefault(a => a.Art.Id == character); }
+            if (p != null)
+            {
+                int c = Math.Max(0, Math.Min(CharacterArt.Count - 1, character));
+                var sigs = Signatures.All[c];
+                int sIdx = Math.Max(0, Math.Min(sigs.Length - 1, idx));
+                p.RequestSignature(this, sigs[sIdx].Skit);
+            }
+        }
         internal void RemoveByIndex(int index) { if (index >= 0 && index < windows.Count) Remove(windows[index]); }
         internal void FeedFirst(Pet pet = null) { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Feed(this); }
         /// <summary>메뉴에는 "새 메모" 한 줄만 둔다(깊이를 줄이려고). 라이브러리는 메모 위젯의 ⋯ 메뉴와 Ctrl+Shift+F 로 연다.</summary>

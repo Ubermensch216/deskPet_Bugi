@@ -213,6 +213,16 @@ namespace Bugi
             DelayIdle(w);
         }
 
+        internal void RequestSignature(IWorld w, Skit s)
+        {
+            if (State == PetState.Drag) return;
+            ClearAttachments();
+            SnapToFloor(w);
+            mouseGrace = w.Now + 8; hoverSince = -1;
+            BeginSkit(w, s);
+            DelayIdle(w);
+        }
+
         /// <summary>특수 동작 처리. true 를 돌려주면 기본 Update 는 건너뛴다.</summary>
         internal bool AdvanceFeatures(IWorld w, double dt)
         {
@@ -434,18 +444,23 @@ namespace Bugi
         /// <summary>자세는 무작위로 뽑되, 직전과 같으면 한 번 다시 뽑는다(같은 동작이 반복되면 멈춘 것처럼 보인다).</summary>
         private RestPose ChooseRestPose(IWorld w)
         {
+            bool focus = PlayOptions.IsFocus(DateTime.Now);
+            double sigP = focus ? 0 : PlayOptions.SigChance(PlayOptions.Current.SigFreq);
+            if (w.Rng.NextDouble() < sigP)
+            {
+                skit = lastSkit = ChooseSkit(w);
+                return RestPose.Skit;
+            }
             Func<RestPose> roll = () =>
             {
                 // 근무복을 입고 있으면 안내 · 배꼽인사도 가끔 한다
                 if (PlayOptions.Current.Outfit && w.Rng.NextDouble() < .3) return w.Rng.NextDouble() < .55 ? RestPose.Guide : RestPose.Bow;
-                // 가이드북 응용동작(p27~36)은 쉬는 시간의 4분의 1쯤
                 double r = w.Rng.NextDouble();
-                return r < .15 ? RestPose.Sit : r < .24 ? RestPose.Daydream : r < .33 ? RestPose.Stretch : r < .44 ? RestPose.Sleep
-                    : r < .53 ? RestPose.Lie : r < .60 ? RestPose.Mine : r < .67 ? RestPose.Search : RestPose.Skit;
+                return r < .18 ? RestPose.Sit : r < .30 ? RestPose.Daydream : r < .42 ? RestPose.Stretch : r < .56 ? RestPose.Sleep
+                    : r < .68 ? RestPose.Lie : r < .78 ? RestPose.Mine : RestPose.Search;
             };
             RestPose pose = roll();
             if (pose == lastRestPose && pose != RestPose.Skit) pose = roll();
-            if (pose == RestPose.Skit) skit = lastSkit = ChooseSkit(w);
             return pose;
         }
 
