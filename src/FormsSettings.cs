@@ -238,6 +238,7 @@ namespace Bugi
         private ComboBox dexChar, sigFreq, outfitStyle; private PictureBox dexPic; private Label dexTitle, dexTraits, rosterTitle, dexStatus;
         private readonly Label[] sigName = new Label[3]; private readonly Label[] sigDesc = new Label[3];
         private CheckBox cOutfit, cAccBag, cAccVisor, cAccShades;
+        private Button bLess, bMore; private Label countLabel;   // 선택한 캐릭터의 마릿수 −/+
         // 행동 (움직임 · 반응 · 생활)
         private ToggleTile cWalls, cCeiling, cWindows, cFull, cIdle, cShortRest, cFocus, cWork, cPinned, cSecrets, cHungerCry, cAffinity;
         private NumericUpDown nSpeed, nFall, nSlide, nDelay, nHunger;
@@ -397,78 +398,117 @@ namespace Bugi
         { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = width, Margin = new Padding(3) }; c.Items.AddRange(items); c.SelectedIndex = Math.Max(0, Math.Min(items.Length - 1, selected)); return c; }
 
         // ───────── 1. 캐릭터 ─────────
+        // 스크롤 없이 한 화면에: 위에서 아래로 ① 화면의 친구(카드) + 도감 ② ★ 시그니처 기술 세 장을 가로로 ③ 옷차림.
+        // 칸막이(그룹 상자) 대신 가는 선 제목으로 나눠 여백을 아낀다. 자세한 설명은 마우스를 올리면 말풍선으로.
+        private const int CharW = 520;
+
+        // 제목(왼쪽) + 이어지는 가는 선 + 오른쪽 여백(reserveRight: 그 자리에 단추 · 선택칸을 올린다)
+        private Panel SectionHead(FlowLayoutPanel f, Label title, int reserveRight, Color? color = null)
+        {
+            var p = new Panel { Width = CharW, Height = 32, Margin = new Padding(0, 6, 0, 2) };
+            title.AutoSize = true; title.Left = 3; title.Top = 8; title.BackColor = Color.Transparent;
+            title.Font = new Font("Malgun Gothic", 9f, FontStyle.Bold); title.ForeColor = color ?? FriendUI.Blue;
+            p.Controls.Add(title);
+            p.Paint += (o, e) =>
+            {
+                int x0 = title.Right + 8, x1 = p.Width - reserveRight - 3;
+                if (x1 > x0) using (var pen = new Pen(Color.FromArgb(206, 218, 240))) e.Graphics.DrawLine(pen, x0, 16, x1, 16);
+            };
+            title.TextChanged += delegate { p.Invalidate(); };
+            f.Controls.Add(p); return p;
+        }
+
         private Panel BuildCharacterPage()
         {
             FlowLayoutPanel f; var page = NewPage("캐릭터", "함께할 친구를 부르고, 캐릭터별 ★ 시그니처 기술을 구경해요", out f);
+            f.Padding = new Padding(16, 0, 8, 8);
 
-            // 하나의 통합 섹션: 화면의 친구 · 캐릭터 도감
-            var gHero = Group(f, "화면의 친구 · 캐릭터 도감"); var m = In(gHero);
-
-            // 1) 상단 바: 제목 + [ 👁 모두 숨기기/보이기 ] [ 🎯 화면 가운데로 ] 플랫 아이콘 단추
-            var headRow = new Panel { Width = 470, Height = 32, Margin = new Padding(2, 2, 2, 4) };
-            rosterTitle = new Label { Text = "지금 화면에 있는 친구들", AutoSize = true, Left = 2, Top = 6, Font = new Font("Malgun Gothic", 9.2f, FontStyle.Bold), ForeColor = FriendUI.BlueDark };
-            headRow.Controls.Add(rosterTitle);
-
-            var bCenter = new FlatButton(FlatIcon.CenterScreen, "화면 가운데로", 34, 28) { Left = 470 - 34, Top = 2 };
+            // ① 화면의 친구: 제목줄(+ 모두 숨기기 · 화면 가운데로) / 왼쪽 카드 · 오른쪽 도감
+            rosterTitle = new Label { Text = "지금 화면에 있는 친구들" };
+            var head1 = SectionHead(f, rosterTitle, 80);
+            var bCenter = new FlatButton(FlatIcon.CenterScreen, "화면 가운데로", 34, 28) { Left = CharW - 34, Top = 2 };
             tips.SetToolTip(bCenter, "화면 가운데로 모으기\n화면 밖으로 나갔거나 가려진 친구들을 화면 한가운데로 다시 모아요.");
             bCenter.Click += delegate { app.RecoverVisible(); };
-            headRow.Controls.Add(bCenter);
-
-            var bHide = new FlatButton(FlatIcon.Eye, "모두 숨기기 / 보이기", 34, 28) { Left = 470 - 34 - 38, Top = 2 };
+            var bHide = new FlatButton(FlatIcon.Eye, "모두 숨기기 / 보이기", 34, 28) { Left = CharW - 34 - 38, Top = 2 };
             tips.SetToolTip(bHide, "모두 숨기기 / 보이기\n화면의 모든 친구를 한 번에 숨기거나 다시 보여줘요.");
             bHide.Click += delegate { app.ToggleHidden(); RefreshRoster(); };
-            headRow.Controls.Add(bHide);
-            m.Controls.Add(headRow);
+            head1.Controls.Add(bCenter); head1.Controls.Add(bHide);
 
-            // 2) 캐릭터 토글 카드 행 (화면에 있으면 컬러, 없으면 흑백)
-            var cardsRow = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 4) };
+            var top = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196)); top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, CharW - 196));
+            var left = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
+            var cardsRow = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, WrapContents = true, AutoSize = true, Margin = new Padding(3, 0, 0, 0), MaximumSize = new Size(190, 0) };
             for (int i = 0; i < CharacterArt.Count; i++)
             {
                 int charId = i;
-                var card = new HeroToggleCard(charId, tips);
+                var card = new HeroToggleCard(charId, tips) { Margin = new Padding(0, 0, 6, 6) };
                 heroCards[i] = card;
                 card.ToggleClicked += delegate { ToggleHero(charId); };
                 cardsRow.Controls.Add(card);
             }
-            m.Controls.Add(cardsRow);
+            left.Controls.Add(cardsRow);
+            // 마릿수: 오른쪽 도감에서 고른 캐릭터를 하나 더 부르거나(+) 한 마리 줄인다(−). 전체 최대 App.MaxPets.
+            var rc = Row(left); rc.Margin = new Padding(0, 2, 0, 2);
+            rc.Controls.Add(new Label { Text = "마릿수", AutoSize = false, Width = 46, Height = 26, TextAlign = ContentAlignment.MiddleLeft, ForeColor = FriendUI.BlueDark, Font = new Font("Malgun Gothic", 9f, FontStyle.Bold), Margin = new Padding(3, 2, 0, 2) });
+            bLess = new Button { Text = "−", Width = 28, Height = 26, Margin = new Padding(2, 2, 0, 2), Font = new Font("Malgun Gothic", 10f, FontStyle.Bold) };
+            countLabel = new Label { Text = "0", AutoSize = false, Width = 42, Height = 26, TextAlign = ContentAlignment.MiddleCenter, ForeColor = FriendUI.Ink, Font = new Font("Malgun Gothic", 10f, FontStyle.Bold), Margin = new Padding(0, 2, 0, 2) };
+            bMore = new Button { Text = "+", Width = 28, Height = 26, Margin = new Padding(0, 2, 0, 2), Font = new Font("Malgun Gothic", 10f, FontStyle.Bold) };
+            string countTip = "도감에서 고른 캐릭터를 하나 더 부르거나(+) 한 마리 줄여요(−).\n전체 최대 " + App.MaxPets + "마리까지예요.";
+            tips.SetToolTip(bLess, countTip); tips.SetToolTip(bMore, countTip); tips.SetToolTip(countLabel, countTip);
+            bMore.Click += delegate { if (dexChar.SelectedIndex >= 0 && app.LiveWindows.Count < App.MaxPets) { app.SpawnFromUi(dexChar.SelectedIndex); RefreshRoster(); } };
+            bLess.Click += delegate
+            {
+                var w = app.LiveWindows.LastOrDefault(x => x.Pet.Art.Id == dexChar.SelectedIndex);
+                if (w != null) { app.Remove(w); RefreshRoster(); }
+            };
+            rc.Controls.Add(bLess); rc.Controls.Add(countLabel); rc.Controls.Add(bMore);
+            Note(left, "카드를 누르면 바로 켜고 꺼요.", 190);
+            top.Controls.Add(left, 0, 0);
 
-            Note(m, "캐릭터 카드를 클릭하면 바탕화면에서 바로 켜고 끌 수 있어요.");
-
-            // 3) 구분선 (은은한 분리)
-            var div = new Panel { Height = 1, Width = 470, BackColor = Color.FromArgb(222, 230, 242), Margin = new Padding(3, 8, 3, 8) };
-            m.Controls.Add(div);
-
-            // 4) 캐릭터 도감 & ★ 시그니처 기술
             int initChar = app.LiveWindows.Count > 0 ? app.LiveWindows[0].Pet.Art.Id : 0;
-            var pick = Row(m);
-            pick.Controls.Add(new Label { Text = "캐릭터 도감", AutoSize = true, Font = new Font("Malgun Gothic", 9.2f, FontStyle.Bold), ForeColor = FriendUI.BlueDark, Margin = new Padding(3, 6, 6, 2) });
-            dexChar = Combo(CharacterArt.Infos.Select(i => i.Name).ToArray(), initChar, 120);
+            var dex = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
+            var pick = Row(dex);
+            pick.Controls.Add(new Label { Text = "캐릭터 도감", AutoSize = true, Font = new Font("Malgun Gothic", 9f, FontStyle.Bold), ForeColor = FriendUI.BlueDark, Margin = new Padding(3, 6, 6, 2) });
+            dexChar = Combo(CharacterArt.Infos.Select(i => i.Name).ToArray(), initChar, 110);
             pick.Controls.Add(dexChar);
             dexStatus = new Label { AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(6, 7, 3, 2) };
             pick.Controls.Add(dexStatus);
-
-            var head = Row(m);
-            dexPic = new PictureBox { Width = 72, Height = 72, SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(4) };
-            head.Controls.Add(dexPic);
+            var info = Row(dex);
+            dexPic = new PictureBox { Width = 64, Height = 64, SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(4, 6, 4, 4) };
+            info.Controls.Add(dexPic);
             var txt = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
-            head.Controls.Add(txt);
-            dexTitle = new Label { AutoSize = true, Font = new Font("Malgun Gothic", 11f, FontStyle.Bold), ForeColor = FriendUI.Ink, Margin = new Padding(3, 3, 3, 2) };
+            info.Controls.Add(txt);
+            dexTitle = new Label { AutoSize = true, Font = new Font("Malgun Gothic", 10f, FontStyle.Bold), ForeColor = FriendUI.Ink, Margin = new Padding(3, 5, 3, 2) };
             txt.Controls.Add(dexTitle);
-            dexTraits = new Label { AutoSize = true, ForeColor = Color.DimGray, MaximumSize = new Size(380, 0), Margin = new Padding(3, 0, 3, 3) };
+            dexTraits = new Label { AutoSize = true, ForeColor = Color.DimGray, Font = new Font("Malgun Gothic", 8.5f), MaximumSize = new Size(240, 0), Margin = new Padding(3, 0, 3, 3) };
             txt.Controls.Add(dexTraits);
+            top.Controls.Add(dex, 1, 0);
+            f.Controls.Add(top);
 
-            m.Controls.Add(new Label { Text = "★ 시그니처 기술 (미리보기 단추를 누르면 바로 보여줘요)", AutoSize = true, ForeColor = Color.FromArgb(176, 108, 14), Font = new Font("Malgun Gothic", 9f, FontStyle.Bold), Margin = new Padding(3, 8, 3, 2) });
+            // ② ★ 시그니처 기술: 세 장을 가로로. 오른쪽 위에 자동 재생 빈도.
+            var sigTitle = new Label { Text = "★ 시그니처 기술" };
+            var head2 = SectionHead(f, sigTitle, 232, Color.FromArgb(176, 108, 14));
+            var freqLabel = new Label { Text = "가만히 쉴 때 자동 재생", AutoSize = true, ForeColor = FriendUI.Ink, Left = CharW - 226, Top = 8 };
+            sigFreq = Combo(new[] { "끄기", "드물게", "보통", "자주" }, PlayOptions.Current.SigFreq, 80); sigFreq.Left = CharW - 83; sigFreq.Top = 4; sigFreq.Margin = Padding.Empty;
+            tips.SetToolTip(sigFreq, "가만히 쉴 때 저절로 보여주는 빈도\n얌전 모드에서는 자동으로 나오지 않아요. 손으로 보려면 우클릭 → ★ 시그니처 기술.");
+            tips.SetToolTip(freqLabel, tips.GetToolTip(sigFreq));
+            head2.Controls.Add(freqLabel); head2.Controls.Add(sigFreq);
+
+            var sigRow = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
             for (int i = 0; i < 3; i++)
             {
-                int idx = i; var row = Row(m);
-                var star = new Label { Text = "★", AutoSize = true, ForeColor = FriendUI.Gold, Font = new Font("Malgun Gothic", 14f, FontStyle.Bold), Margin = new Padding(3, 0, 0, 0) };
-                var box = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Width = 330 };
-                sigName[i] = new Label { AutoSize = true, Font = new Font("Malgun Gothic", 9.5f, FontStyle.Bold), ForeColor = FriendUI.Ink, Margin = new Padding(3, 2, 3, 0) };
-                sigDesc[i] = new Label { AutoSize = true, ForeColor = Color.DimGray, MaximumSize = new Size(320, 0), Margin = new Padding(3, 0, 3, 4) };
-                box.Controls.Add(sigName[i]); box.Controls.Add(sigDesc[i]);
-                var play = FriendUI.Button("▶ 미리보기", delegate { app.PreviewSignature(dexChar.SelectedIndex, idx); });
-                row.Controls.Add(star); row.Controls.Add(box); row.Controls.Add(play);
+                int idx = i;
+                var card = new RoundCard(166, 132) { Margin = new Padding(0, 0, i < 2 ? 11 : 0, 0) };
+                card.Controls.Add(new Label { Text = "★", AutoSize = true, Left = 8, Top = 5, ForeColor = FriendUI.Gold, Font = new Font("Malgun Gothic", 12f, FontStyle.Bold), BackColor = Color.Transparent });
+                sigName[i] = new Label { AutoSize = false, Left = 30, Top = 8, Width = 130, Height = 20, Font = new Font("Malgun Gothic", 9.5f, FontStyle.Bold), ForeColor = FriendUI.Ink, BackColor = Color.Transparent };
+                sigDesc[i] = new Label { AutoSize = false, Left = 10, Top = 32, Width = 148, Height = 62, Font = new Font("Malgun Gothic", 8.5f), ForeColor = Color.DimGray, BackColor = Color.Transparent };
+                var play = new Button { Text = "▶ 미리보기", Left = 10, Top = 98, Width = 146, Height = 26 };
+                play.Click += delegate { app.PreviewSignature(dexChar.SelectedIndex, idx); };
+                tips.SetToolTip(play, "눌러서 바로 보여줘요");
+                card.Controls.Add(sigName[i]); card.Controls.Add(sigDesc[i]); card.Controls.Add(play);
+                sigRow.Controls.Add(card);
             }
+            f.Controls.Add(sigRow);
 
             dexChar.SelectedIndexChanged += delegate
             {
@@ -477,18 +517,19 @@ namespace Bugi
             };
             UpdateDex();
 
-            var gSig = Group(f, "★ 시그니처 자동 재생"); var s = In(gSig);
-            var rowS = Row(s); rowS.Controls.Add(Cap("가만히 쉴 때 저절로 보여주기"));
-            sigFreq = Combo(new[] { "끄기", "드물게", "보통", "자주" }, PlayOptions.Current.SigFreq, 90); rowS.Controls.Add(sigFreq);
-            Note(s, "얌전 모드에서는 자동으로 나오지 않아요. 손으로 보려면 우클릭 → ★ 시그니처 기술.");
-
+            // ③ 옷차림: 근무복 + 종류를 한 줄, 아이템 세 개를 한 줄
             var o = PlayOptions.Current;
-            var gOutfit = Group(f, "부기 옷차림"); var d = In(gOutfit);
-            cOutfit = Check(d, "근무복 입기", o.Outfit, "근무복을 입으면 가끔 안내하기 · 배꼽인사를 해요.");
-            var ro = Row(d); ro.Controls.Add(Cap("근무복 종류", 80)); outfitStyle = Combo(PlayOptions.OutfitNames, (int)o.OutfitStyle, 300); ro.Controls.Add(outfitStyle);
-            cAccBag = Check(d, "크로스백 메기 (노랑 · 동백꽃)", o.AccBag, "가이드북 p20 아이템이에요.");
-            cAccVisor = Check(d, "바이저 쓰기 (노랑)", o.AccVisor, null);
-            cAccShades = Check(d, "선글라스 끼기 (노랑 테 · 검은 렌즈)", o.AccSunglasses, null);
+            SectionHead(f, new Label { Text = "부기 옷차림" }, 0);
+            var ro = Row(f);
+            cOutfit = new CheckBox { Text = "근무복 입기", Checked = o.Outfit, AutoSize = true, Margin = new Padding(3, 6, 12, 3) };
+            tips.SetToolTip(cOutfit, "근무복을 입으면 가끔 안내하기 · 배꼽인사를 해요.");
+            ro.Controls.Add(cOutfit); ro.Controls.Add(Cap("종류", 34)); outfitStyle = Combo(PlayOptions.OutfitNames, (int)o.OutfitStyle, 270); ro.Controls.Add(outfitStyle);
+            var ra = Row(f);
+            cAccBag = new CheckBox { Text = "크로스백 (노랑 · 동백꽃)", Checked = o.AccBag, AutoSize = true, Margin = new Padding(3, 3, 14, 3) };
+            cAccVisor = new CheckBox { Text = "바이저 (노랑)", Checked = o.AccVisor, AutoSize = true, Margin = new Padding(3, 3, 14, 3) };
+            cAccShades = new CheckBox { Text = "선글라스 (노랑 테)", Checked = o.AccSunglasses, AutoSize = true, Margin = new Padding(3, 3, 3, 3) };
+            tips.SetToolTip(cAccBag, "아이템 · 가이드북 p20"); tips.SetToolTip(cAccVisor, "아이템 · 가이드북 p20"); tips.SetToolTip(cAccShades, "아이템 · 가이드북 p20");
+            ra.Controls.Add(cAccBag); ra.Controls.Add(cAccVisor); ra.Controls.Add(cAccShades);
 
             RefreshRoster();
             return page;
@@ -523,7 +564,7 @@ namespace Bugi
             var sigs = Signatures.All[c];
             for (int i = 0; i < 3; i++)
             {
-                sigName[i].Text = sigs[i].Label;
+                sigName[i].Text = sigs[i].Label.TrimStart('★', ' ');   // 카드에 금색 ★ 가 따로 있다
                 sigDesc[i].Text = sigs[i].Desc;
             }
             UpdateDexStatus();
@@ -555,6 +596,12 @@ namespace Bugi
                 }
             }
             UpdateDexStatus();
+            if (countLabel != null && dexChar != null && dexChar.SelectedIndex >= 0)
+            {
+                int mine = liveIds.Count(id => id == dexChar.SelectedIndex);
+                countLabel.Text = mine.ToString();
+                bLess.Enabled = mine > 0; bMore.Enabled = liveIds.Count < App.MaxPets;
+            }
         }
 
         // ───────── 2. 행동 (움직임 · 반응 · 생활) ─────────
