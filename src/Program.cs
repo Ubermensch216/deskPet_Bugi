@@ -371,7 +371,7 @@ namespace Bugi
             // 설정 페이지와 기억 창 모양
             try
             {
-                var sf = new SettingsForm(app, 7); sf.Show(); pump(.4);
+                var sf = new SettingsForm(app, 5); sf.Show(); pump(.4);
                 using (var b = new Bitmap(sf.Width, sf.Height)) { sf.DrawToBitmap(b, new Rectangle(0, 0, sf.Width, sf.Height)); b.Save(Path.Combine(dir, "live_7_settings.png"), ImageFormat.Png); }
                 sf.Close();
                 ChatMemory.Add(new[] { "- 이름은 민수", "- 고양이 두부를 키운다" });

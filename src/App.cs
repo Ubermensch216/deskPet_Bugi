@@ -514,6 +514,19 @@ namespace Bugi
             TimeSpan? leave = Settings.ParseTime(Settings.LeaveTime);
             if (leave.HasValue && now.TimeOfDay > leave.Value.Add(TimeSpan.FromSeconds(60))) { leaveDone = now.Date; leaveGatherDone = now.Date; }
             else if (leaveDone == now.Date) { leaveDone = DateTime.MinValue; leaveGatherDone = DateTime.MinValue; }
+            // 내 알람: 이미 지난 시각은 오늘 울린 것으로 친다(저장 직후 다시 울리지 않게)
+            foreach (var al in Settings.Alarms)
+            {
+                TimeSpan? t = Settings.ParseTime(al.Time);
+                if (t.HasValue && now.TimeOfDay > t.Value.Add(TimeSpan.FromSeconds(60))) al.Done = now.Date;
+            }
+        }
+
+        public void PreviewAlarm(string msg)
+        {
+            if (hidden) ToggleHidden();
+            if (windows.Count == 0) Spawn();
+            NoticeAll(string.IsNullOrWhiteSpace(msg) ? "알람 시간이야!" : msg);
         }
 
         public void PreviewLunch(string msg)
@@ -569,6 +582,12 @@ namespace Bugi
                     if (leaveDone != date && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60))
                     { leaveDone = date; leaveGatherDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LeaveMsg) ? "퇴근 시간이야!" : Settings.LeaveMsg); }
                 }
+            }
+            foreach (var al in Settings.Alarms)   // 내 알람 (시각 + 내용, 매일)
+            {
+                if (!al.On || al.Done == date) continue;
+                TimeSpan? t = Settings.ParseTime(al.Time);
+                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { al.Done = date; napping = false; NoticeAll(al.Text); }
             }
             if (OptionsHourlyDue(dt))
             {
