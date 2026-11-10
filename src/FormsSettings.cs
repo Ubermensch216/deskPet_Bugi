@@ -254,7 +254,7 @@ namespace Bugi
         // 내 알람 (시각 + 내용)
         private sealed class AlarmRow { internal FlowLayoutPanel Host; internal CheckBox On; internal DateTimePicker Time; internal TextBox Msg; internal CheckBox Repeat; internal UserAlarm Source; }
         private readonly List<AlarmRow> alarmRows = new List<AlarmRow>();
-        private FlowLayoutPanel alarmList; private Label alarmEmpty; private Button bAlarmAdd;
+        private FlowLayoutPanel alarmList; private Panel alarmHost; private Button bAlarmAdd;
         // 화면·시스템
         private NumericUpDown nOpacity; private CheckBox cStartup;
         // 메모
@@ -737,92 +737,101 @@ namespace Bugi
         }
 
         // ───────── 5. 알림 ─────────
+        // 스크롤 없이 한 화면에: 위에서 아래로 ① 정각 알림(켜기 · 방식 · 미리보기 한 줄, 조용한 시간 한 줄)
+        // ② 화면 가장자리 빛(드롭다운 세 개 한 줄) ③ 점심 · 퇴근 · 낮잠(한 줄씩) ④ 내 알람 — 남는 높이를 알람 목록이 쓰고, 많아지면 목록 안에서만 스크롤된다.
         private Panel BuildAlarmPage()
         {
             FlowLayoutPanel f; var page = NewPage("알림", "정각 · 점심 · 퇴근 알림과 낮잠", out f);
+            f.Padding = new Padding(16, 0, 8, 8);
             Settings s = app.Settings;
-            var g1 = Group(f, "정각 알림"); var a = In(g1);
 
-            // ① 맨 위: 켜기 + 미리보기
-            var top = Row(a);
-            cHourly = new CheckBox { Text = "정각 알림", Checked = s.HourlyOn, AutoSize = false, Width = 310, Height = 24, Margin = new Padding(3, 8, 3, 3) };
-            top.Controls.Add(cHourly);
-            var bPreview = IconButton('', "정각창 미리보기", "지금 고른 빛 · 폭 · 진하기로 정각 알림창을 미리 봐요", delegate
+            // ① 정각 알림: 켜기 · 알림 방식 · 미리보기를 한 줄에
+            SectionHead(f, new Label { Text = "정각 알림" }, 0);
+            var top = Row(f);
+            cHourly = new CheckBox { Text = "정각 알림", Checked = s.HourlyOn, AutoSize = true, Margin = new Padding(3, 7, 14, 3) };
+            cPopup = new CheckBox { Text = "별도 알림창으로 보기", Checked = s.HourlyWindow, AutoSize = true, Margin = new Padding(3, 7, 14, 3) };
+            cAlertPet = new CheckBox { Text = "큰 부기로 보여주기", Checked = s.AlertPet, AutoSize = true, Margin = new Padding(3, 7, 14, 3) };
+            tips.SetToolTip(cAlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요.\n끄면 예전 알림창 · 말풍선을 써요. (메모 알림은 늘 큰 부기로 나와요)");
+            var bPreview = IconButton('', "미리보기", "정각창 미리보기\n지금 고른 빛 · 폭 · 진하기로 정각 알림창을 미리 봐요", delegate
             {
                 var n = new HourlyNotice(app.TrayIconImage); n.SetMessage(App.HourlyText(DateTime.Now) + "\n(미리보기)");
                 n.EnableEdgeGlow(cGlow.Checked, glowTheme.SelectedIndex, glowWidth.SelectedIndex, glowStrength.SelectedIndex); n.Show();
             });
-            bPreview.Margin = new Padding(6, 3, 3, 3); top.Controls.Add(bPreview);
-
-            // ② 알림 방식: 두 가지를 나란히
-            SubHead(a, "알림 방식");
-            var mode = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-            mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 232)); mode.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 238));
-            var m1 = HalfCell(); cPopup = Check(m1, "별도 알림창으로 보기", s.HourlyWindow);
-            var m2 = HalfCell(); cAlertPet = Check(m2, "큰 부기로 보여주기", s.AlertPet);
-            tips.SetToolTip(cAlertPet, "2배 크기 부기가 네온 빛을 두르고 나와요. 눌러서 닫을 때까지 유지돼요.\n끄면 예전 알림창 · 말풍선을 써요. (메모 알림은 늘 큰 부기로 나와요)");
-            mode.Controls.Add(m1, 0, 0); mode.Controls.Add(m2, 1, 0); a.Controls.Add(mode);
-
-            // ③ 화면 가장자리 빛
-            SubHead(a, "화면 가장자리 빛");
-            cGlow = Check(a, "알림창을 닫을 때까지 화면 가장자리 빛 유지", s.EdgeGlow);
-            // 드롭다운 세 개를 한 줄에: 그림 카드 줄(약 230px)을 약 60px로 줄였다. 펼치면 항목마다 작은 그림이 보인다.
-            var glowBox = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
-            for (int col = 0; col < 3; col++) glowBox.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156));
-            a.Controls.Add(glowBox);
-            var thumb = new Size(40, 24);
-            glowTheme = new ChoiceDrop(new[] { "파스텔", "노을", "오로라", "무지개" }, s.EdgeGlowTheme, 148, thumb, delegate(Graphics g, Rectangle r, int i)
-            { GlowThumb(g, r, EdgeGlowWindow.Palette(i), 6 * r.Width / 46.0, 255); });
-            tips.SetToolTip(glowTheme, "빛 색상\n파스텔: 피치 · 핑크 · 보라 · 하늘");
-            glowWidth = new ChoiceDrop(new[] { "보통", "넓게", "아주 넓게" }, s.EdgeGlowWidth, 148, thumb, delegate(Graphics g, Rectangle r, int i)
-            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), (i == 0 ? 3 : i == 1 ? 6 : 10) * r.Width / 46.0, 255); });
-            tips.SetToolTip(glowWidth, "빛이 화면 안쪽으로 퍼지는 폭");
-            glowStrength = new ChoiceDrop(new[] { "은은하게", "선명하게", "강하게" }, s.EdgeGlowStrength, 148, thumb, delegate(Graphics g, Rectangle r, int i)
-            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), 6 * r.Width / 46.0, i == 0 ? 85 : i == 1 ? 170 : 255); });
-            tips.SetToolTip(glowStrength, "빛의 진하기");
-            glowTheme.SelectedIndexChanged += delegate { glowWidth.Invalidate(); glowStrength.Invalidate(); };
-            glowBox.Controls.Add(Tiny("빛 색상"), 0, 0); glowBox.Controls.Add(Tiny("퍼지는 폭"), 1, 0); glowBox.Controls.Add(Tiny("진하기"), 2, 0);
-            glowBox.Controls.Add(glowTheme, 0, 1); glowBox.Controls.Add(glowWidth, 1, 1); glowBox.Controls.Add(glowStrength, 2, 1);
-            cGlow.CheckedChanged += delegate { glowBox.Enabled = cGlow.Checked; }; glowBox.Enabled = cGlow.Checked;
-
-            // ④ 조용한 시간 — 한 줄
-            SubHead(a, "조용한 시간");
-            var rq = Row(a);
-            cQuiet = new CheckBox { Text = "평일(월~금) 정각 알림 끄기", Checked = s.QuietWeekdays, AutoSize = false, Width = 186, Height = 24, Margin = new Padding(3, 6, 3, 3) };
+            bPreview.Margin = new Padding(0, 3, 3, 3);
+            top.Controls.Add(cHourly); top.Controls.Add(cPopup); top.Controls.Add(cAlertPet); top.Controls.Add(bPreview);
+            var rq = Row(f);
+            cQuiet = new CheckBox { Text = "평일(월~금) 정각 알림 끄기", Checked = s.QuietWeekdays, AutoSize = true, Margin = new Padding(3, 6, 8, 3) };
             nStart = Num(0, 23, s.QuietStart, 0, 1, 54); nEnd = Num(0, 23, s.QuietEnd, 0, 1, 54);
             rq.Controls.Add(cQuiet); rq.Controls.Add(nStart); rq.Controls.Add(Cap("시 ~")); rq.Controls.Add(nEnd); rq.Controls.Add(Cap("시 (양 끝 정각 포함)"));
             cQuiet.CheckedChanged += delegate { nStart.Enabled = nEnd.Enabled = cQuiet.Checked; }; nStart.Enabled = nEnd.Enabled = cQuiet.Checked;
 
-            // 점심 · 퇴근: 한 줄에 켜기 · 시각 · 문구 · 미리보기
-            var g2 = Group(f, "점심 · 퇴근 알림"); var b = In(g2);
-            var head = Row(b); head.Controls.Add(Tiny("", 95)); head.Controls.Add(Tiny("시각", 56)); head.Controls.Add(Tiny("알림 문구"));
-            var rl = Row(b);
+            // ② 화면 가장자리 빛: 제목줄 오른쪽에 켜기, 아래에 드롭다운 세 개
+            var glowHead = SectionHead(f, new Label { Text = "화면 가장자리 빛" }, 196);
+            cGlow = new CheckBox { Text = "알림창을 닫을 때까지 유지", Checked = s.EdgeGlow, AutoSize = true, Left = CharW - 192, Top = 6 };
+            tips.SetToolTip(cGlow, "알림창을 닫을 때까지 화면 가장자리 빛을 유지해요.");
+            glowHead.Controls.Add(cGlow);
+            var glowBox = Row(f);
+            var thumb = new Size(34, 22);
+            glowTheme = new ChoiceDrop(new[] { "파스텔", "노을", "오로라", "무지개" }, s.EdgeGlowTheme, 132, thumb, delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(i), 6 * r.Width / 46.0, 255); });
+            tips.SetToolTip(glowTheme, "빛 색상\n파스텔: 피치 · 핑크 · 보라 · 하늘");
+            glowWidth = new ChoiceDrop(new[] { "보통", "넓게", "아주 넓게" }, s.EdgeGlowWidth, 132, thumb, delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), (i == 0 ? 3 : i == 1 ? 6 : 10) * r.Width / 46.0, 255); });
+            tips.SetToolTip(glowWidth, "빛이 화면 안쪽으로 퍼지는 폭");
+            glowStrength = new ChoiceDrop(new[] { "은은하게", "선명하게", "강하게" }, s.EdgeGlowStrength, 132, thumb, delegate(Graphics g, Rectangle r, int i)
+            { GlowThumb(g, r, EdgeGlowWindow.Palette(glowTheme.SelectedIndex), 6 * r.Width / 46.0, i == 0 ? 85 : i == 1 ? 170 : 255); });
+            tips.SetToolTip(glowStrength, "빛의 진하기");
+            glowTheme.SelectedIndexChanged += delegate { glowWidth.Invalidate(); glowStrength.Invalidate(); };
+            glowBox.Controls.Add(Cap("색상")); glowBox.Controls.Add(glowTheme);
+            glowBox.Controls.Add(Cap("폭")); glowBox.Controls.Add(glowWidth);
+            glowBox.Controls.Add(Cap("진하기")); glowBox.Controls.Add(glowStrength);
+            cGlow.CheckedChanged += delegate { glowBox.Enabled = cGlow.Checked; }; glowBox.Enabled = cGlow.Checked;
+
+            // ③ 점심 · 퇴근 · 낮잠: 한 줄에 켜기 · 시각 · 문구 · 미리보기
+            SectionHead(f, new Label { Text = "점심 · 퇴근 · 낮잠" }, 0);
+            var rl = Row(f);
             cLunch = new CheckBox { Text = "점심 알림", Checked = s.LunchOn, AutoSize = false, Width = 92, Height = 24, Margin = new Padding(3, 6, 3, 3) }; rl.Controls.Add(cLunch);
             tLunch = new TextBox { Text = s.LunchTime, Width = 56, Margin = new Padding(3, 4, 3, 3) }; rl.Controls.Add(tLunch);
-            tLunchMsg = new TextBox { Text = s.LunchMsg, Width = 220, Margin = new Padding(3, 4, 3, 3) }; rl.Controls.Add(tLunchMsg);
+            tLunchMsg = new TextBox { Text = s.LunchMsg, Width = 250, Margin = new Padding(3, 4, 3, 3) }; rl.Controls.Add(tLunchMsg);
             rl.Controls.Add(FriendUI.Button("미리보기", delegate { app.PreviewLunch(tLunchMsg.Text); }));
-            var rv = Row(b);
+            tips.SetToolTip(tLunch, "시각 (12:00처럼)"); tips.SetToolTip(tLunchMsg, "알림 문구");
+            var rv = Row(f);
             cLeave = new CheckBox { Text = "퇴근 알림", Checked = s.LeaveOn, AutoSize = false, Width = 92, Height = 24, Margin = new Padding(3, 6, 3, 3) }; rv.Controls.Add(cLeave);
             tLeave = new TextBox { Text = s.LeaveTime, Width = 56, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeave);
-            tLeaveMsg = new TextBox { Text = s.LeaveMsg, Width = 220, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeaveMsg);
+            tLeaveMsg = new TextBox { Text = s.LeaveMsg, Width = 250, Margin = new Padding(3, 4, 3, 3) }; rv.Controls.Add(tLeaveMsg);
             rv.Controls.Add(FriendUI.Button("미리보기", delegate { app.PreviewLeave(tLeaveMsg.Text); }));
-
-            // 내 알람: 시각 + 내용을 직접 정하는 알람 (매일 반복)
-            var gA = Group(f, "내 알람"); var al = In(gA);
-            Note(al, "정한 시각에 부기가 내용을 알려 줘요. 반복 단추를 눌러 둔 알람만 매일 울리고, 아니면 한 번만 울려요.");
-            alarmList = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
-            al.Controls.Add(alarmList);
-            alarmEmpty = new Label { Text = "아직 알람이 없어요. 아래 단추로 추가해 보세요.", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(3, 4, 3, 4) };
-            al.Controls.Add(alarmEmpty);
-            bAlarmAdd = FriendUI.Button("+ 알람 추가", delegate { AddAlarmRow(null); });
-            al.Controls.Add(bAlarmAdd);
-            alarmRows.Clear();
-            foreach (var u in s.Alarms) AddAlarmRow(u);            var g3 = Group(f, "낮잠"); var c = In(g3);
-            var rn = Row(c);
+            tips.SetToolTip(tLeave, "시각 (18:00처럼)"); tips.SetToolTip(tLeaveMsg, "알림 문구");
+            var rn = Row(f);
             cNap = new CheckBox { Text = "자리를 오래 비우면 낮잠 자기", Checked = s.NapOn, AutoSize = false, Width = 196, Height = 24, Margin = new Padding(3, 6, 3, 3) };
             nNap = Num(1, 600, s.NapMinutes, 0, 1, 62);
             rn.Controls.Add(cNap); rn.Controls.Add(nNap); rn.Controls.Add(Cap("분 동안 입력이 없을 때"));
             cNap.CheckedChanged += delegate { nNap.Enabled = cNap.Checked; }; nNap.Enabled = cNap.Checked;
+
+            // ④ 내 알람: 제목줄 오른쪽에 추가 단추, 남는 높이는 목록이 쓴다(많아지면 목록 안에서만 스크롤)
+            var alarmHead = SectionHead(f, new Label { Text = "내 알람" }, 110);
+            bAlarmAdd = FriendUI.Button("+ 알람 추가", delegate { AddAlarmRow(null); });
+            bAlarmAdd.Margin = Padding.Empty; bAlarmAdd.Location = new Point(CharW - bAlarmAdd.PreferredSize.Width - 2, 2);
+            tips.SetToolTip(bAlarmAdd, "새 알람 한 줄을 만들어요. (최대 " + Settings.MaxAlarms + "개)\n반복 단추를 켠 알람만 매일 울리고, 아니면 한 번만 울리고 꺼져요.");
+            alarmHead.Controls.Add(bAlarmAdd);
+            alarmHost = new Panel { Width = CharW - 4, Height = 150, AutoScroll = true, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(2, 0, 0, 0) };
+            alarmList = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Location = new Point(0, 2), Margin = Padding.Empty };
+            alarmHost.HorizontalScroll.Enabled = false; alarmHost.HorizontalScroll.Visible = false;   // 세로로만 스크롤
+            alarmHost.Paint += (o, e) => { if (alarmRows.Count == 0) TextRenderer.DrawText(e.Graphics, "아직 알람이 없어요. 오른쪽 위 '+ 알람 추가'로 만들어 보세요.", Font, new Point(10, 12), Color.DimGray, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix); };   // 컨트롤 대신 직접 그린다
+            alarmList.BackColor = Color.White;   // 기본 배경색이면 아래에 깔린 안내 글자를 가린다
+            alarmHost.Controls.Add(alarmList);
+            f.Controls.Add(alarmHost);
+            alarmRows.Clear();
+            foreach (var u in s.Alarms) AddAlarmRow(u);
+            UpdateAlarmEmpty();
+            // 알람 목록 높이 = 페이지의 남는 높이(너무 작아지면 페이지가 스크롤된다)
+            EventHandler fit = delegate
+            {
+                if (!f.IsHandleCreated || alarmHost.Top <= 0) return;
+                int h = Math.Max(96, f.ClientSize.Height - alarmHost.Top - 10);
+                if (h != alarmHost.Height) alarmHost.Height = h;
+            };
+            f.SizeChanged += fit; page.VisibleChanged += fit;
+            f.HandleCreated += delegate { f.BeginInvoke(fit, f, EventArgs.Empty); };
             return page;
         }
 
@@ -837,7 +846,7 @@ namespace Bugi
             row.Host = new FlowLayoutPanel { AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 1, 0, 1) };
             row.On = new CheckBox { Checked = src == null || src.On, AutoSize = false, Width = 22, Height = 24, Margin = new Padding(3, 5, 0, 3) };
             row.Time = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Value = when, Width = 64, Margin = new Padding(3, 4, 3, 3) };
-            row.Msg = new TextBox { Text = src != null ? src.Msg : "", MaxLength = 60, Width = 184, Margin = new Padding(3, 4, 3, 3) };
+            row.Msg = new TextBox { Text = src != null ? src.Msg : "", MaxLength = 60, Width = 224, Margin = new Padding(3, 4, 3, 3) };
             if (src == null) row.Msg.Text = "알람 시간이야!";
             // 매일 반복: 글자 없이 반복 아이콘만 있는 켜짐/꺼짐 단추. 꺼 두면 다음 그 시각에 한 번만 울리고 알람이 스스로 꺼진다.
             row.Repeat = new CheckBox { Appearance = Appearance.Button, Checked = src != null && src.Repeat, AutoSize = false, Size = new Size(34, 27), Margin = new Padding(3, 2, 0, 2), FlatStyle = FlatStyle.Standard };   // System 스타일은 이미지를 그리지 않는다
@@ -857,7 +866,7 @@ namespace Bugi
             row.Time.Enabled = row.Msg.Enabled = row.Repeat.Enabled = row.On.Checked;
             row.Host.Controls.AddRange(new Control[] { row.On, row.Time, row.Msg, row.Repeat, bTry, bDel });
             alarmRows.Add(row); alarmList.Controls.Add(row.Host); UpdateAlarmEmpty();
-            if (src == null) row.Msg.Focus();
+            if (src == null) { alarmHost.ScrollControlIntoView(row.Host); row.Msg.Focus(); }
         }
 
         /// <summary>우클릭 메뉴에서 새로 만든 알람을 열려 있는 설정창에도 한 줄로 보여 준다(이미 저장된 알람).</summary>
@@ -865,7 +874,7 @@ namespace Bugi
 
         private void UpdateAlarmEmpty()
         {
-            alarmEmpty.Visible = alarmRows.Count == 0;
+            alarmList.Visible = alarmRows.Count > 0; alarmHost.Invalidate();   // 비어 있을 땐 목록 상자가 안내 글자를 가리지 않게 숨긴다
             bAlarmAdd.Enabled = alarmRows.Count < Settings.MaxAlarms;
         }
 
