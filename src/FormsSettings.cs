@@ -251,7 +251,7 @@ namespace Bugi
         private NumericUpDown nNap, nStart, nEnd;
         private ChoiceDrop glowTheme, glowWidth, glowStrength;
         // 내 알람 (시각 + 내용)
-        private sealed class AlarmRow { internal FlowLayoutPanel Host; internal CheckBox On; internal DateTimePicker Time; internal TextBox Msg; internal UserAlarm Source; }
+        private sealed class AlarmRow { internal FlowLayoutPanel Host; internal CheckBox On; internal DateTimePicker Time; internal TextBox Msg; internal CheckBox Repeat; internal UserAlarm Source; }
         private readonly List<AlarmRow> alarmRows = new List<AlarmRow>();
         private FlowLayoutPanel alarmList; private Label alarmEmpty; private Button bAlarmAdd;
         // 화면·시스템
@@ -762,7 +762,7 @@ namespace Bugi
 
             // 내 알람: 시각 + 내용을 직접 정하는 알람 (매일 반복)
             var gA = Group(f, "내 알람"); var al = In(gA);
-            Note(al, "정한 시각에 큰 부기(또는 말풍선)가 내용을 알려 줘요. 매일 반복돼요.");
+            Note(al, "정한 시각에 부기가 내용을 알려 줘요. 반복 단추를 눌러 둔 알람만 매일 울리고, 아니면 한 번만 울려요.");
             alarmList = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
             al.Controls.Add(alarmList);
             alarmEmpty = new Label { Text = "아직 알람이 없어요. 아래 단추로 추가해 보세요.", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(3, 4, 3, 4) };
@@ -770,8 +770,7 @@ namespace Bugi
             bAlarmAdd = FriendUI.Button("+ 알람 추가", delegate { AddAlarmRow(null); });
             al.Controls.Add(bAlarmAdd);
             alarmRows.Clear();
-            foreach (var u in s.Alarms) AddAlarmRow(u);
-            var g3 = Group(f, "낮잠"); var c = In(g3);
+            foreach (var u in s.Alarms) AddAlarmRow(u);            var g3 = Group(f, "낮잠"); var c = In(g3);
             var rn = Row(c);
             cNap = new CheckBox { Text = "자리를 오래 비우면 낮잠 자기", Checked = s.NapOn, AutoSize = false, Width = 196, Height = 24, Margin = new Padding(3, 6, 3, 3) };
             nNap = Num(1, 600, s.NapMinutes, 0, 1, 62);
@@ -793,6 +792,11 @@ namespace Bugi
             row.Time = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Value = when, Width = 64, Margin = new Padding(3, 4, 3, 3) };
             row.Msg = new TextBox { Text = src != null ? src.Msg : "", MaxLength = 60, Width = 184, Margin = new Padding(3, 4, 3, 3) };
             if (src == null) row.Msg.Text = "알람 시간이야!";
+            // 매일 반복: 글자 없이 반복 아이콘만 있는 켜짐/꺼짐 단추. 꺼 두면 다음 그 시각에 한 번만 울리고 알람이 스스로 꺼진다.
+            row.Repeat = new CheckBox { Appearance = Appearance.Button, Checked = src != null && src.Repeat, AutoSize = false, Size = new Size(34, 27), Margin = new Padding(3, 2, 0, 2), FlatStyle = FlatStyle.Standard };   // System 스타일은 이미지를 그리지 않는다
+            var repImg = Glyph('', FriendUI.BlueDark);
+            if (repImg != null) { row.Repeat.Image = repImg; row.Repeat.ImageAlign = ContentAlignment.MiddleCenter; } else { row.Repeat.Text = "↻"; row.Repeat.TextAlign = ContentAlignment.MiddleCenter; }
+            tips.SetToolTip(row.Repeat, "매일 반복\n누르면 매일 이 시각에 울려요.\n꺼 두면 다음 그 시각에 한 번만 울리고 알람이 꺼져요.");
             var bTry = IconButton('', "", "이 알람을 지금 미리 보기", delegate { app.PreviewAlarm(row.Msg.Text.Trim()); });
             var bDel = IconButton('', "", "이 알람 지우기", delegate
             {
@@ -802,12 +806,15 @@ namespace Bugi
             if (bDel.Image == null) { bDel.AutoSize = true; bDel.Text = "삭제"; }
             bTry.Margin = new Padding(6, 2, 0, 2); bDel.Margin = new Padding(2, 2, 0, 2);
             tips.SetToolTip(row.On, "켜기 / 끄기"); tips.SetToolTip(row.Time, "알람 시각 (위·아래 화살표로 바꿔요)");
-            row.On.CheckedChanged += delegate { row.Time.Enabled = row.Msg.Enabled = row.On.Checked; };
-            row.Time.Enabled = row.Msg.Enabled = row.On.Checked;
-            row.Host.Controls.AddRange(new Control[] { row.On, row.Time, row.Msg, bTry, bDel });
+            row.On.CheckedChanged += delegate { row.Time.Enabled = row.Msg.Enabled = row.Repeat.Enabled = row.On.Checked; };
+            row.Time.Enabled = row.Msg.Enabled = row.Repeat.Enabled = row.On.Checked;
+            row.Host.Controls.AddRange(new Control[] { row.On, row.Time, row.Msg, row.Repeat, bTry, bDel });
             alarmRows.Add(row); alarmList.Controls.Add(row.Host); UpdateAlarmEmpty();
             if (src == null) row.Msg.Focus();
         }
+
+        /// <summary>우클릭 메뉴에서 새로 만든 알람을 열려 있는 설정창에도 한 줄로 보여 준다(이미 저장된 알람).</summary>
+        internal void AddAlarmFromOutside(UserAlarm a) { if (alarmList != null) AddAlarmRow(a); }
 
         private void UpdateAlarmEmpty()
         {
@@ -1125,6 +1132,8 @@ namespace Bugi
         private void RefreshLive()
         {
             if (lifeSummary == null) return;
+            foreach (var r in alarmRows)   // 한 번만 울리고 스스로 꺼진 알람은 켜기 칸도 함께 끈다
+                if (r.Source != null && r.Source.FiredOff) { r.Source.FiredOff = false; r.On.Checked = false; }
             var d = FriendData.Current;
             int sat = Math.Max(0, Math.Min(100, (int)Math.Floor(d.Satiety)));
             lifeSummary.Text = d.Affinity.ToString("N0"); lifeDetail.Text = FriendData.FormatTogether(d.TogetherSeconds);
@@ -1177,7 +1186,7 @@ namespace Bugi
             foreach (var r in alarmRows)
             {
                 string t = r.Time.Value.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
-                var u = new UserAlarm { On = r.On.Checked, Time = t, Msg = r.Msg.Text.Trim() };
+                var u = new UserAlarm { On = r.On.Checked, Repeat = r.Repeat.Checked, Time = t, Msg = r.Msg.Text.Trim() };
                 if (r.Source != null && r.Source.Time == t) u.Done = r.Source.Done;
                 r.Source = u; made.Add(u);   // 다음 저장 때 이어받을 수 있게
             }

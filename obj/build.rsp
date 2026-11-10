@@ -16,6 +16,7 @@
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Windows.Forms.dll"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Xml.dll"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Xml.Linq.dll"
+"D:\Dev\deskPet_Bugi\src\AlarmComposer.cs"
 "D:\Dev\deskPet_Bugi\src\AlertPet.cs"
 "D:\Dev\deskPet_Bugi\src\App.cs"
 "D:\Dev\deskPet_Bugi\src\Art.cs"

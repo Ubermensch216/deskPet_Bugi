@@ -13,7 +13,9 @@ namespace Bugi
     internal sealed class UserAlarm
     {
         public bool On = true; public string Time = "09:00"; public string Msg = "";
+        public bool Repeat = true;                    // true: 매일 반복 · false: 다음 그 시각에 한 번만 울리고 스스로 꺼진다
         internal DateTime Done = DateTime.MinValue;   // 오늘 이미 울렸는지(저장하지 않음)
+        internal bool FiredOff;                       // 한 번만 울리고 꺼졌음을 설정창에 알리는 표시(저장하지 않음)
         internal string Text { get { return string.IsNullOrWhiteSpace(Msg) ? "알람 시간이야!" : Msg; } }
     }
 
@@ -75,9 +77,16 @@ namespace Bugi
                 for (int i = 1; i <= MaxAlarms; i++)   // Alarm1=켜짐(1/0)|HH:mm|내용
                 {
                     if (!d.TryGetValue("Alarm" + i, out v)) continue;
-                    string[] p = v.Split(new[] { '|' }, 3);
-                    if (p.Length < 2 || !ParseTime(p[1]).HasValue) continue;
-                    s.Alarms.Add(new UserAlarm { On = p[0].Trim() != "0", Time = p[1].Trim(), Msg = p.Length > 2 ? p[2].Trim() : "" });
+                    // 새 형식 켜짐|반복|HH:mm|내용, 이전 형식 켜짐|HH:mm|내용(이전엔 모두 매일 반복)
+                    string[] p = v.Split(new[] { '|' }, 4);
+                    if (p.Length >= 3 && (p[1].Trim() == "0" || p[1].Trim() == "1") && ParseTime(p[2]).HasValue)
+                        s.Alarms.Add(new UserAlarm { On = p[0].Trim() != "0", Repeat = p[1].Trim() == "1", Time = p[2].Trim(), Msg = p.Length > 3 ? p[3].Trim() : "" });
+                    else
+                    {
+                        p = v.Split(new[] { '|' }, 3);
+                        if (p.Length < 2 || !ParseTime(p[1]).HasValue) continue;
+                        s.Alarms.Add(new UserAlarm { On = p[0].Trim() != "0", Time = p[1].Trim(), Msg = p.Length > 2 ? p[2].Trim() : "" });
+                    }
                 }
             }
             catch { }
@@ -97,7 +106,7 @@ namespace Bugi
             b.AppendLine("EdgeGlowWidth=" + EdgeGlowWidth); b.AppendLine("EdgeGlowStrength=" + EdgeGlowStrength);
             b.AppendLine("QuietWeekdays=" + (QuietWeekdays ? "1" : "0")); b.AppendLine("QuietStart=" + QuietStart); b.AppendLine("QuietEnd=" + QuietEnd);
             b.AppendLine("[내 알람]");
-            for (int i = 0; i < Alarms.Count && i < MaxAlarms; i++) b.AppendLine("Alarm" + (i + 1) + "=" + (Alarms[i].On ? "1" : "0") + "|" + Alarms[i].Time + "|" + OneLine(Alarms[i].Msg));
+            for (int i = 0; i < Alarms.Count && i < MaxAlarms; i++) b.AppendLine("Alarm" + (i + 1) + "=" + (Alarms[i].On ? "1" : "0") + "|" + (Alarms[i].Repeat ? "1" : "0") + "|" + Alarms[i].Time + "|" + OneLine(Alarms[i].Msg));
             b.AppendLine("[친구]"); b.AppendLine("Roster=" + Roster);
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, b.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }

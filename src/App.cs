@@ -222,7 +222,7 @@ namespace Bugi
         //   ♥ 친밀도 (표시)
         //   ─ 간식 주기 / 동작 보기 ▶ / 근무복 입기 ✓
         //   ─ 친구 ▶ / 빠른 설정 ▶
-        //   ─ 새 메모 / 설정
+        //   ─ 새 메모 / 알람 ▶ / 설정
         //   ─ 종료
         private ContextMenuStrip BuildMenu(PetWindow w)
         {
@@ -243,6 +243,7 @@ namespace Bugi
             menu.Items.Add(QuickMenu());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(NewNoteItem());
+            menu.Items.Add(AlarmMenu());
             menu.Items.Add("설정...", null, delegate { OpenSettings(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("종료", null, delegate { Quit(); });
@@ -431,6 +432,63 @@ namespace Bugi
             if (p != null) { p.Bubble = ChatMode.At(index).Name + " 모드로 얘기할게!"; p.BubbleUntil = Now + 3.5; }
         }
 
+        // ───────── 알람 (우클릭 메뉴에서 등록) ─────────
+        private AlarmComposer alarmForm;
+
+        /// <summary>알람 ▶ 10분 뒤 · 30분 뒤 · 1시간 뒤 · 직접 정하기… · (다음 알람) · 알람 목록(설정)</summary>
+        private ToolStripMenuItem AlarmMenu()
+        {
+            var root = new ToolStripMenuItem("알람");
+            foreach (int minutes in new[] { 10, 30, 60 })
+            {
+                int m = minutes;
+                root.DropDownItems.Add(m < 60 ? m + "분 뒤" : "1시간 뒤", null, delegate
+                {
+                    DateTime at = DateTime.Now.AddMinutes(m).AddSeconds(30);   // 분 단위로 반올림
+                    RegisterAlarm(new UserAlarm { On = true, Repeat = false, Time = at.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), Msg = (m < 60 ? m + "분" : "1시간") + "이 지났어!" });
+                });
+            }
+            root.DropDownItems.Add("직접 정하기…", null, delegate { BeginInvokeSafe(ShowAlarmComposer); });
+            root.DropDownItems.Add(new ToolStripSeparator());
+            string next = NextAlarmLabel(DateTime.Now);
+            root.DropDownItems.Add(new ToolStripMenuItem(next ?? "켜 둔 알람이 없어요") { Enabled = false });
+            root.DropDownItems.Add("알람 목록 · 설정…", null, delegate { OpenSettingsPage(2); });
+            return root;
+        }
+
+        private string NextAlarmLabel(DateTime now)
+        {
+            UserAlarm best = null; DateTime bestAt = DateTime.MaxValue;
+            foreach (var al in Settings.Alarms)
+            {
+                TimeSpan? t = Settings.ParseTime(al.Time); if (!al.On || !t.HasValue) continue;
+                DateTime at = now.Date + t.Value;
+                if (al.Done == now.Date || at.AddSeconds(60) <= now) at = at.AddDays(1);   // 오늘 울렸거나 지났으면 내일
+                if (at < bestAt) { best = al; bestAt = at; }
+            }
+            if (best == null) return null;
+            string text = best.Text; if (text.Length > 14) text = text.Substring(0, 14) + "…";
+            return "다음 알람: " + (bestAt.Date > now.Date ? "내일 " : "") + best.Time + "  " + text;
+        }
+
+        internal void ShowAlarmComposer()
+        {
+            if (alarmForm != null && !alarmForm.IsDisposed) { alarmForm.Activate(); return; }
+            alarmForm = new AlarmComposer(TrayIconImage, RegisterAlarm); alarmForm.FormClosed += delegate { alarmForm = null; }; alarmForm.Show(); alarmForm.Activate();
+        }
+
+        /// <summary>메뉴·창에서 만든 알람을 목록에 더하고 바로 저장한다. 열려 있는 설정창에도 한 줄 더한다.</summary>
+        internal bool RegisterAlarm(UserAlarm alarm)
+        {
+            if (Settings.Alarms.Count >= Settings.MaxAlarms) { Announce("알람은 " + Settings.MaxAlarms + "개까지 만들 수 있어. 설정에서 지워 줘!"); return false; }
+            Settings.Alarms.Add(alarm);
+            OnSettingsChanged();   // 이미 지난 시각은 오늘 울린 것으로 쳐서 내일부터 울리게
+            Settings.Save();
+            if (settingsForm != null && !settingsForm.IsDisposed) settingsForm.AddAlarmFromOutside(alarm);
+            Announce("알람을 맞췄어: " + alarm.Time + "  " + alarm.Text);
+            return true;
+        }
+
         private ChatDiaryForm diaryForm;
         /// <summary>부기가 대화 끝에 한 줄씩 적어 둔 일기장 창(하나만 연다).</summary>
         internal void ShowDiary()
@@ -587,7 +645,7 @@ namespace Bugi
             {
                 if (!al.On || al.Done == date) continue;
                 TimeSpan? t = Settings.ParseTime(al.Time);
-                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { al.Done = date; napping = false; NoticeAll(al.Text); }
+                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { al.Done = date; napping = false; NoticeAll(al.Text); if (!al.Repeat) { al.On = false; al.FiredOff = true; Settings.Save(); } }   // 반복이 아니면 한 번 울리고 스스로 꺼진다
             }
             if (OptionsHourlyDue(dt))
             {
