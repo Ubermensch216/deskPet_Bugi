@@ -221,7 +221,7 @@ namespace Bugi
     {
         // 움직임 · 반응 · 생활은 "행동" 한 쪽으로 합쳤다.
         internal static readonly string[] PageNames = { "캐릭터", "행동", "알림", "화면 · 시스템", "메모", "AI 대화" };
-        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 낮잠", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
+        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 초과근무", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
         private const int AlarmPage = 2, DisplayPage = 3;
         private static int lastPage;
 
@@ -235,7 +235,7 @@ namespace Bugi
 
         // 캐릭터
         private readonly HeroToggleCard[] heroCards = new HeroToggleCard[CharacterArt.Count];
-        private ComboBox dexChar, sigFreq, outfitStyle; private PictureBox dexPic; private Label dexTitle, dexTraits, rosterTitle, dexStatus;
+        private ComboBox dexChar, sigFreq, outfitStyle; private PictureBox dexPic; private Label dexTitle, dexTraits, rosterTitle, dexStatus; private FlatButton bPower;
         private readonly Label[] sigName = new Label[3]; private readonly Label[] sigDesc = new Label[3];
         private CheckBox cOutfit, cAccBag, cAccVisor, cAccShades;
         private Button bLess, bMore; private Label countLabel;   // 선택한 캐릭터의 마릿수 −/+
@@ -255,6 +255,8 @@ namespace Bugi
         private sealed class AlarmRow { internal FlowLayoutPanel Host; internal CheckBox On; internal DateTimePicker Time; internal TextBox Msg; internal CheckBox Repeat; internal UserAlarm Source; }
         private readonly List<AlarmRow> alarmRows = new List<AlarmRow>();
         private FlowLayoutPanel alarmList; private Panel alarmHost; private Button bAlarmAdd;
+        // 알림 쪽 위의 탭: 정각 · 점심 · 퇴근 · 알람 / 초과근무 알림
+        private SubTabs alarmTabs; private FlowLayoutPanel alarmFlow; private OvertimePanel overtimePanel;
         // 화면·시스템
         private NumericUpDown nOpacity; private CheckBox cStartup;
         // 메모
@@ -305,6 +307,7 @@ namespace Bugi
         }
 
         internal void SelectPage(int i) { if (i >= 0 && i < pages.Length) nav.SelectedIndex = i; }
+        internal void SelectAlarmTab(int i) { if (alarmTabs != null) alarmTabs.SelectedIndex = i; }
 
         // ───────── 분류 목록 그리기 ─────────
         private void DrawNav(object sender, DrawItemEventArgs e)
@@ -432,7 +435,11 @@ namespace Bugi
             var bHide = new FlatButton(FlatIcon.Eye, "모두 숨기기 / 보이기", 34, 28) { Left = CharW - 34 - 38, Top = 2 };
             tips.SetToolTip(bHide, "모두 숨기기 / 보이기\n화면의 모든 친구를 한 번에 숨기거나 다시 보여줘요.");
             bHide.Click += delegate { app.ToggleHidden(); RefreshRoster(); };
-            head1.Controls.Add(bCenter); head1.Controls.Add(bHide);
+            // 펫 전원(그림만): 꺼 두면 펫이 화면에서 사라지고 움직이지 않지만 알람 · 알림은 그대로 온다. 껐다 켜도 기억한다.
+            bPower = new FlatButton(FlatIcon.Power, "펫 전원", 34, 28) { Left = CharW - 34 - 38 - 38, Top = 2, Lit = !app.PetOff };
+            tips.SetToolTip(bPower, "펫 전원 켜기 / 끄기\n켜져 있을 때만 펫이 화면에 나와 움직여요.\n꺼 두면 펫은 안 보이지만 정각 · 점심 · 퇴근 · 초과근무 알림과 내 알람은 계속 와요.");
+            bPower.Click += delegate { app.SetPetPower(app.PetOff); RefreshRoster(); };
+            head1.Controls.Add(bCenter); head1.Controls.Add(bHide); head1.Controls.Add(bPower);
 
             var top = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196)); top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, CharW - 196));
@@ -582,9 +589,11 @@ namespace Bugi
         private void RefreshRoster()
         {
             var liveIds = app.LiveWindows.Select(w => w.Pet.Art.Id).ToList();
+            if (bPower != null) bPower.Lit = !app.PetOff;
             if (rosterTitle != null)
             {
-                rosterTitle.Text = liveIds.Count > 0 ? string.Format("지금 화면에 있는 친구들 ({0}명)", liveIds.Count) : "지금 화면에 있는 친구들 (비어 있음)";
+                rosterTitle.Text = app.PetOff ? string.Format("지금 화면에 있는 친구들 ({0}명 · 전원 꺼짐)", liveIds.Count)
+                    : liveIds.Count > 0 ? string.Format("지금 화면에 있는 친구들 ({0}명)", liveIds.Count) : "지금 화면에 있는 친구들 (비어 있음)";
             }
             int curSel = dexChar != null ? dexChar.SelectedIndex : -1;
             for (int i = 0; i < heroCards.Length; i++)
@@ -741,7 +750,7 @@ namespace Bugi
         // ② 화면 가장자리 빛(드롭다운 세 개 한 줄) ③ 점심 · 퇴근 · 낮잠(한 줄씩) ④ 내 알람 — 남는 높이를 알람 목록이 쓰고, 많아지면 목록 안에서만 스크롤된다.
         private Panel BuildAlarmPage()
         {
-            FlowLayoutPanel f; var page = NewPage("알림", "정각 · 점심 · 퇴근 알림과 낮잠", out f);
+            FlowLayoutPanel f; var page = NewPage("알림", "정각 · 점심 · 퇴근 알림, 내 알람, 초과근무 알림", out f);
             f.Padding = new Padding(16, 0, 8, 8);
             Settings s = app.Settings;
 
@@ -832,6 +841,19 @@ namespace Bugi
             };
             f.SizeChanged += fit; page.VisibleChanged += fit;
             f.HandleCreated += delegate { f.BeginInvoke(fit, f, EventArgs.Empty); };
+
+            // 위쪽 탭: 이 쪽은 이미 한 화면이 가득 차서, 초과근무 알림은 같은 쪽의 두 번째 탭으로 둔다.
+            alarmFlow = f;
+            overtimePanel = new OvertimePanel(app, tips) { Dock = DockStyle.Fill, Visible = false };
+            alarmTabs = new SubTabs(new[] { "정각 · 점심 · 퇴근 · 알람", "초과근무 알림" }) { Dock = DockStyle.Top };
+            alarmTabs.SelectedIndexChanged += delegate
+            {
+                bool ot = alarmTabs.SelectedIndex == 1;
+                alarmFlow.Visible = !ot; overtimePanel.Visible = ot;
+                if (ot) overtimePanel.Refresh();
+            };
+            page.Controls.Add(alarmTabs); page.Controls.Add(overtimePanel);
+            alarmTabs.BringToFront(); alarmFlow.BringToFront(); overtimePanel.BringToFront();
             return page;
         }
 

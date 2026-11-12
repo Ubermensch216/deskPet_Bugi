@@ -94,12 +94,27 @@ namespace Bugi
         public double Now { get { return clock.Elapsed.TotalSeconds; } }
         internal List<PetWindow> LiveWindows { get { return windows; } }
         internal bool Paused { get { return paused; } }
-        internal bool AllHidden { get { return hidden || autoHidden; } }
+        internal bool AllHidden { get { return hidden || autoHidden || PetOff; } }
+        /// <summary>펫 전원이 꺼진 상태: 펫은 화면에 없고 움직이지 않지만 알람 · 알림은 그대로 온다.</summary>
+        internal bool PetOff { get { return !PlayOptions.Current.PetPower; } }
+
+        /// <summary>펫 전원을 켜고 끈다. 바로 화면에 반영하고 저장한다. 켜면 숨김 상태도 풀고, 친구가 없으면 한 마리 부른다.</summary>
+        internal void SetPetPower(bool on, bool spawnIfEmpty = true)
+        {
+            var o = PlayOptions.Current; if (o.PetPower == on) return;
+            o.PetPower = on; o.Save();
+            if (on && hidden) ToggleHidden();
+            ApplyPetVisibility(Now);
+            if (on && spawnIfEmpty && !hidden && windows.Count == 0) Spawn();
+            lastTick = Now;
+        }
         internal ChatController Chat;
+        internal OvertimeState Overtime;   // 초과근무 알림(부기_초과근무.ini)
 
         public App(bool testMode = false)
         {
             Settings = Settings.Load();
+            Overtime = OvertimeState.Load();
             Chat = new ChatController(this);
             RefreshAreas();
             int[] roster = ParseRoster(Settings.Roster);
@@ -169,10 +184,11 @@ namespace Bugi
             double y = area.Top + art.H * .6;
             var pet = new Pet(this, character, x, y) { Area = area };
             if (PlayOptions.Current.PositionFixed && windows.Count == 0) pet.RestorePinned(this); else pet.SyncPinned(this);
-            pet.Hidden = hidden || autoHidden;
+            bool off = hidden || autoHidden || PetOff;
+            pet.Hidden = off;
             var window = new PetWindow(this, pet);
             windows.Add(window);
-            if (!hidden && !autoHidden) { window.Show(); window.Present(Now); }
+            if (!off) { window.Show(); window.Present(Now); }
             if (!loadingRoster) SaveRoster();
         }
         private bool loadingRoster;
@@ -202,6 +218,7 @@ namespace Bugi
         /// <summary>화면 가운데 위에서 다시 날개를 퍼덕이며 내려오게 한다 (숨은 친구 구조).</summary>
         internal void RecoverVisible()
         {
+            if (PetOff) { PlayOptions.Current.PetPower = true; PlayOptions.Current.Save(); }   // 다시 부르면 전원도 켠다
             hidden = false; autoHidden = false; forceVisibleUntil = Now + 15;
             Rectangle area = Screen.PrimaryScreen.WorkingArea;
             if (windows.Count == 0) Spawn();
@@ -340,6 +357,7 @@ namespace Bugi
             var friends = new ToolStripMenuItem("친구");
             friends.DropDownItems.Add(SpawnMenu("한 마리 더 부르기"));
             if (w != null) friends.DropDownItems.Add("이 친구 보내기", null, delegate { Remove(w); });
+            friends.DropDownItems.Add(PetOff ? "펫 전원 켜기" : "펫 전원 끄기 (알림은 계속)", null, delegate { SetPetPower(PetOff); });
             friends.DropDownItems.Add(hidden ? "모두 보이기" : "모두 숨기기", null, delegate { ToggleHidden(); });
             friends.DropDownItems.Add("화면 가운데로 다시 부르기", null, delegate { RecoverVisible(); });
             return friends;
@@ -453,7 +471,29 @@ namespace Bugi
             string next = NextAlarmLabel(DateTime.Now);
             root.DropDownItems.Add(new ToolStripMenuItem(next ?? "켜 둔 알람이 없어요") { Enabled = false });
             root.DropDownItems.Add("알람 목록 · 설정…", null, delegate { OpenSettingsPage(2); });
+            root.DropDownItems.Add(new ToolStripSeparator());
+            BuildOvertimeMenu(root);
             return root;
+        }
+
+        /// <summary>알람 ▶ 아래 초과근무 항목: 켜기/끄기 · (지금 시간대) 기록했어요 · 설정</summary>
+        private void BuildOvertimeMenu(ToolStripMenuItem root)
+        {
+            DateTime now = DateTime.Now; Overtime.EnsureToday(now);
+            bool on = Overtime.WatchOn(now); int pending = Overtime.PendingHour(now);
+            root.DropDownItems.Add(on ? "오늘 초과근무 알림 끄기" : "오늘 초과근무 알림 켜기", null, delegate
+            {
+                DateTime n = DateTime.Now; Overtime.SetWatch(!Overtime.WatchOn(n), n); Overtime.SaveIfDirty();
+                Announce(Overtime.WatchOn(n) ? "오늘 초과근무 알림을 켰어! " + OvertimeState.HourText(Overtime.StartHour) + " ~ " + OvertimeState.HourText(Overtime.EndHour) + "에 챙겨 줄게" : "오늘 초과근무 알림을 껐어");
+            });
+            var rec = new ToolStripMenuItem(pending >= 0 ? "초과근무 기록했어요 (" + OvertimeState.HourLabel(pending) + ")" : "초과근무 기록했어요") { Enabled = pending >= 0 };
+            rec.Click += delegate
+            {
+                DateTime n = DateTime.Now; int h = Overtime.PendingHour(n); if (h < 0) return;
+                Overtime.MarkRecorded(h, true, n); Overtime.SaveIfDirty(); Announce(OvertimeState.HourLabel(h) + " 기록했구나, 고생했어!");
+            };
+            root.DropDownItems.Add(rec);
+            root.DropDownItems.Add("초과근무 알림 설정…", null, delegate { OpenSettingsPage(2, 1); });
         }
 
         private string NextAlarmLabel(DateTime now)
@@ -498,7 +538,7 @@ namespace Bugi
         }
 
         // ───────── 설정창에서 쓰는 동작 ─────────
-        internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); Spawn(character); }
+        internal void SpawnFromUi(int character) { if (hidden) ToggleHidden(); if (PetOff) SetPetPower(true, false); Spawn(character); }
 
         internal void PreviewSignature(int character, int idx)
         {
@@ -532,10 +572,12 @@ namespace Bugi
 
         // ───────── 창 열기 ─────────
         internal void OpenSettings() { OpenSettingsPage(-1); }
-        internal void OpenSettingsPage(int page)
+        /// <param name="tab">알림 쪽 안의 탭(0 정각 · 점심 … / 1 초과근무 알림). -1 이면 건드리지 않는다.</param>
+        internal void OpenSettingsPage(int page, int tab = -1)
         {
-            if (settingsForm != null && !settingsForm.IsDisposed) { if (page >= 0) settingsForm.SelectPage(page); settingsForm.Activate(); return; }
+            if (settingsForm != null && !settingsForm.IsDisposed) { if (page >= 0) settingsForm.SelectPage(page); if (tab >= 0) settingsForm.SelectAlarmTab(tab); settingsForm.Activate(); return; }
             settingsForm = new SettingsForm(this, page); settingsForm.FormClosed += delegate { settingsForm = null; };
+            if (tab >= 0) settingsForm.SelectAlarmTab(tab);
             settingsForm.Show(); settingsForm.Activate();
         }
         internal void CloseFeatureWindows()
@@ -617,7 +659,7 @@ namespace Bugi
         /// <summary>점심·퇴근 같은 알림: 큰 부기로 보여 주거나(기본) 친구들의 말풍선으로 알린다.</summary>
         private void NoticeAll(string msg)
         {
-            if (Settings.AlertPet && !string.IsNullOrWhiteSpace(msg)) ShowAlert(msg); else CheerAll(msg);
+            if ((Settings.AlertPet || PetOff) && !string.IsNullOrWhiteSpace(msg)) ShowAlert(msg); else CheerAll(msg);   // 펫 전원이 꺼져 있으면 말풍선을 붙일 펫이 없으니 늘 큰 알림으로
         }
 
         private void CheckAlarms(double now)
@@ -647,11 +689,23 @@ namespace Bugi
                 TimeSpan? t = Settings.ParseTime(al.Time);
                 if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { al.Done = date; napping = false; NoticeAll(al.Text); if (!al.Repeat) { al.On = false; al.FiredOff = true; Settings.Save(); } }   // 반복이 아니면 한 번 울리고 스스로 꺼진다
             }
+            OvertimeTick(dt);
             if (OptionsHourlyDue(dt))
             {
                 napping = false;
                 BeginHourly(HourlyMessage(dt, Settings.LunchOn, Settings.LunchTime, Settings.LunchMsg, Settings.LeaveOn, Settings.LeaveTime, Settings.LeaveMsg));
             }
+        }
+
+        /// <summary>초과근무 알림: 시간대 확인(정각 뒤 3~10분 · 45분)을 본다.</summary>
+        private void OvertimeTick(DateTime dt)
+        {
+            foreach (OvertimeEvent ev in Overtime.Tick(dt))
+            {
+                napping = false;
+                NoticeAll(ev.Message);
+            }
+            Overtime.SaveIfDirty();
         }
 
         public static string HourlyText(DateTime now)
@@ -681,7 +735,7 @@ namespace Bugi
         }
 
         internal void BeginHourly(string message)
-        { if (Settings.HourlyWindow) ShowHourWindow(message); else BeginBubbleHourly(message); }
+        { if (Settings.HourlyWindow || PetOff) ShowHourWindow(message); else BeginBubbleHourly(message); }
 
         internal void ShowHourWindow(string message)
         {
@@ -732,7 +786,7 @@ namespace Bugi
             PetWindow back = alertHidden; alertHidden = null;
             if (back == null) return;
             back.Suppressed = false;
-            if (windows.Contains(back) && !hidden && !autoHidden) { back.Show(); back.Invalidate2(); back.Present(Now); back.KeepOnTop(); }
+            if (windows.Contains(back) && !hidden && !autoHidden && !PetOff) { back.Show(); back.Invalidate2(); back.Present(Now); back.KeepOnTop(); }
         }
 
         internal void BeginBubbleHourly(string message)
@@ -813,17 +867,21 @@ namespace Bugi
         {
             if (now - surfaceRefreshAt > .35) { surfaceRefreshAt = now; DesktopSurfaces.Refresh(); }
             if (hidden || paused) return false;
-            bool hide = now >= forceVisibleUntil && PlayOptions.Current.Fullscreen && DesktopSurfaces.FullscreenActive();
-            if (hide != autoHidden)
-            {
-                autoHidden = hide;
-                foreach (var w in windows)
-                {
-                    w.Pet.Hidden = hide;
-                    if (hide) w.Hide(); else { w.Show(); w.Invalidate2(); w.Present(now); w.KeepOnTop(); }
-                }
-            }
+            ApplyPetVisibility(now);
             return !autoHidden;
+        }
+
+        /// <summary>펫 전원이 꺼졌거나 전체화면이면 펫 창을 숨기고, 아니면 다시 보인다.</summary>
+        private void ApplyPetVisibility(double now)
+        {
+            bool hide = PetOff || (now >= forceVisibleUntil && PlayOptions.Current.Fullscreen && DesktopSurfaces.FullscreenActive());
+            if (hide == autoHidden) return;
+            autoHidden = hide;
+            foreach (var w in windows)
+            {
+                w.Pet.Hidden = hide;
+                if (hide) w.Hide(); else { w.Show(); w.Invalidate2(); w.Present(now); w.KeepOnTop(); }
+            }
         }
 
         private void SlowTick(double now)

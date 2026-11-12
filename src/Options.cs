@@ -141,6 +141,7 @@ namespace Bugi
         internal bool Escape = true, Follow = false, Focus = false, WorkFocus = false, Fullscreen = false;
         internal bool HungerCry = true, Secrets = true, ShortRest = false, ShowAffinity = false;
         internal bool PositionFixed = false;
+        internal bool PetPower = true;       // 펫 전원: 꺼지면 펫이 화면에서 사라지고 움직이지 않는다(알람 · 알림은 그대로 온다)
         internal bool Outfit = false;        // 근무복(기본은 하늘색 조끼 + 명찰)을 입고 지내기
         internal OutfitStyle OutfitStyle = OutfitStyle.Vest;           // 근무복 종류(가이드북 p18)
         internal bool AccBag = false, AccVisor = false, AccSunglasses = false;   // 아이템(가이드북 p20)
@@ -184,7 +185,7 @@ namespace Bugi
                 o.Escape = flag("Escape", o.Escape); o.Follow = flag("Follow", o.Follow); o.Focus = flag("Focus", o.Focus); o.WorkFocus = flag("WorkFocus", o.WorkFocus);
                 o.Fullscreen = flag("Fullscreen", o.Fullscreen); o.HungerCry = flag("HungerCry", o.HungerCry); o.Secrets = flag("Secrets", o.Secrets);
                 o.ShortRest = flag("ShortRest", o.ShortRest); o.ShowAffinity = flag("ShowAffinity", o.ShowAffinity);
-                o.PositionFixed = flag("PositionFixed", o.PositionFixed); o.Outfit = flag("Outfit", o.Outfit);
+                o.PositionFixed = flag("PositionFixed", o.PositionFixed); o.PetPower = flag("PetPower", o.PetPower); o.Outfit = flag("Outfit", o.Outfit);
                 o.AccBag = flag("AccBag", o.AccBag); o.AccVisor = flag("AccVisor", o.AccVisor); o.AccSunglasses = flag("AccSunglasses", o.AccSunglasses);
                 OutfitStyle ostyle;
                 if (d.TryGetValue("OutfitStyle", out v) && Enum.TryParse(v, true, out ostyle) && Enum.IsDefined(typeof(OutfitStyle), ostyle)) o.OutfitStyle = ostyle;
@@ -212,7 +213,7 @@ namespace Bugi
             t.Append("Walls=" + b(Walls) + "\r\nCeiling=" + b(Ceiling) + "\r\nWindows=" + b(Windows) + "\r\nIdle=" + b(Idle) + "\r\n");
             t.Append("Escape=" + b(Escape) + "\r\nFollow=" + b(Follow) + "\r\nFocus=" + b(Focus) + "\r\nWorkFocus=" + b(WorkFocus) + "\r\nFullscreen=" + b(Fullscreen) + "\r\n");
             t.Append("HungerCry=" + b(HungerCry) + "\r\nSecrets=" + b(Secrets) + "\r\nShortRest=" + b(ShortRest) + "\r\nShowAffinity=" + b(ShowAffinity) + "\r\n");
-            t.Append("PositionFixed=" + b(PositionFixed) + "\r\nOutfit="+ b(Outfit) + "\r\n");
+            t.Append("PositionFixed=" + b(PositionFixed) + "\r\nPetPower=" + b(PetPower) + "\r\nOutfit="+ b(Outfit) + "\r\n");
             t.Append("OutfitStyle=" + OutfitStyle + "\r\nAccBag=" + b(AccBag) + "\r\nAccVisor=" + b(AccVisor) + "\r\nAccSunglasses=" + b(AccSunglasses) + "\r\n");
             t.Append("Speed=" + f(Speed) + "\r\nFallSpeed=" + f(FallSpeed) + "\r\nSlideSpeed=" + f(SlideSpeed) + "\r\nClickMode=" + ClickMode + "\r\n");
             t.Append("EscapeDelay=" + f(EscapeDelay) + "\r\nHungerMinutes=" + HungerMinutes + "\r\n");

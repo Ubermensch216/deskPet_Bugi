@@ -430,6 +430,44 @@ namespace Bugi
                 int p = page;
                 step("통합 설정창: " + SettingsForm.PageNames[p], () => { var f = new SettingsForm(app, p); shot(f, "ui_settings_" + p); f.Close(); });
             }
+            step("통합 설정창: 알림 · 초과근무 알림 탭", () =>
+            {
+                var now = DateTime.Now; app.Overtime.SetWatch(true, now); app.Overtime.EnsureToday(now); app.Overtime.SetRange(10, 23);
+                var f = new SettingsForm(app, 2); f.SelectAlarmTab(1); shot(f, "ui_settings_overtime");
+                // 기본근무 시간을 고치면 시간표 줄이 곧바로 달라져야 한다(09~18 → 10~16)
+                var pickers = new List<DateTimePicker>(); OvertimeBoard board = null;
+                Action<Control> walk = null; walk = c => { foreach (Control k in c.Controls) { var dp = k as DateTimePicker; if (dp != null && dp.CustomFormat == "HH:mm") pickers.Add(dp); var bd = k as OvertimeBoard; if (bd != null) board = bd; walk(k); } };
+                walk(f);
+                if (pickers.Count != 4 || board == null) throw new Exception("overtime controls not found");
+                int rows0 = board.RowCount; DateTime d0 = DateTime.Today;
+                pickers[1].Value = d0.AddHours(16); pickers[0].Value = d0.AddHours(10);
+                int rows1 = board.RowCount;
+                pickers[0].Value = d0.AddHours(9); pickers[1].Value = d0.AddHours(18);
+                int rows2 = board.RowCount; f.Close();
+                if (rows0 != 15 || rows1 != 18 || rows2 != 15) throw new Exception("rows " + rows0 + "/" + rows1 + "/" + rows2);
+                // 미사용 시간대(00:00 ~ 06:00)를 정하면 그 줄이 곧바로 빠지고, 같게 되돌리면 다시 나타난다
+                var f2 = new SettingsForm(app, 2); f2.SelectAlarmTab(1);
+                pickers.Clear(); board = null; walk(f2);
+                if (pickers.Count != 4 || board == null) throw new Exception("overtime unused controls not found " + pickers.Count);
+                pickers[3].Value = d0.AddHours(6);   // 미사용 끝 (표시 순서: 기본 시작·끝, 미사용 시작·끝)
+                int rows3 = board.RowCount;
+                pickers[3].Value = d0; int rows4 = board.RowCount; f2.Close();
+                if (rows3 != 9 || rows4 != 15) throw new Exception("unused rows " + rows3 + "/" + rows4);
+            });
+            step("펫 전원: 끄면 펫 창이 숨고 켜면 돌아옴", () =>
+            {
+                bool before = PlayOptions.Current.PetPower;
+                try
+                {
+                    app.SetPetPower(true); pump(.2);
+                    if (app.PetOff || app.LiveWindows.Count == 0 || app.LiveWindows.Any(w => !w.Visible)) throw new Exception("power on: pets not visible");
+                    app.SetPetPower(false); pump(.2);
+                    if (!app.PetOff || !app.AllHidden || app.LiveWindows.Any(w => w.Visible)) throw new Exception("power off: pets still visible");
+                    app.SetPetPower(true); pump(.2);
+                    if (app.PetOff || app.LiveWindows.Any(w => !w.Visible)) throw new Exception("power back on: pets hidden");
+                }
+                finally { if (PlayOptions.Current.PetPower != before) app.SetPetPower(before); }
+            });
             step("트레이 메뉴", () => { var m = typeof(App).GetMethod("BuildMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance); using (var menu = (ContextMenuStrip)m.Invoke(app, new object[] { null })) if (menu.Items.Count < 8) throw new Exception("menu items " + menu.Items.Count); });
             step("정각 카드 + 가장자리 빛", () =>
             {
@@ -505,10 +543,11 @@ namespace Bugi
                 check(App.HourlyMessage(new DateTime(2026, 10, 21, 12, 0, 0), true, "12:00", "점심!", true, "18:00", "퇴근!") == "지금은 오후 12시야!\n점심!", "정각 문구+점심 병합");
                 check(App.HourlyText(new DateTime(2026, 10, 21, 0, 0, 0)) == "지금은 오전 12시야!", "정각 문구 0시");
 
-                var o = new PlayOptions { Walls = false, Speed = 1.5, ClickMode = ClickReaction.Cry, HungerMinutes = 30, PetOpacityPercent = 70, FixedX = 123.5, FixedY = 456.25 };
+                var o = new PlayOptions { Walls = false, Speed = 1.5, ClickMode = ClickReaction.Cry, HungerMinutes = 30, PetOpacityPercent = 70, FixedX = 123.5, FixedY = 456.25, PetPower = false };
                 PlayOptions.Current = o; check(o.Save(), "움직임 설정 저장");
                 PlayOptions.Load(); var l = PlayOptions.Current;
                 check(!l.Walls && l.Speed == 1.5 && l.ClickMode == ClickReaction.Cry && l.HungerMinutes == 30 && l.PetOpacityPercent == 70 && l.FixedX == 123.5 && l.FixedY == 456.25, "움직임 설정 불러오기 일치");
+                check(!l.PetPower && new PlayOptions().PetPower, "펫 전원: 기본은 켜짐, 꺼 둔 상태는 저장·불러오기로 유지");
 
                 // 친구 기록
                 PlayOptions.Current = new PlayOptions { HungerMinutes = 60 };
@@ -749,6 +788,8 @@ namespace Bugi
                 check(!fp.BeginChat(cw, 1), "낙하 중에는 대화 시작 안 함");
 
                 NoteSelfTests(check, dir);
+                OvertimeState.SelfTests(check);
+                OvertimeUiTests.Run(check);
             }
             catch (Exception e) { log.AppendLine("EXCEPTION " + e); failures++; }
             log.AppendLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");

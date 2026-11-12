@@ -161,6 +161,14 @@ namespace Bugi
         }
 
         /// <summary>창을 띄우고 그 창만 PNG 로 저장한다(바탕화면은 찍히지 않음). 메모 창은 투명 영역 때문에 PrintWindow 로 찍는다.</summary>
+        /// <summary>설정 → 알림 → 초과근무 알림 탭(README 용).</summary>
+        private static void ShotOvertime(App app, string path)
+        {
+            DateTime now = DateTime.Now; var st = app.Overtime;
+            st.SetWatch(true, now); st.EnsureToday(now); st.SetRange(10, 23); st.SetUnused("00:00", "06:00");
+            using (var f = new SettingsForm(app, 2)) { f.SelectAlarmTab(1); CaptureForm(f, path); }
+        }
+
         private static void CaptureForm(Form f, string path)
         {
             f.Show(); Pump(.4);
@@ -294,6 +302,7 @@ namespace Bugi
             ShotAlert(app, Path.Combine(dir, "alert.png"));
             ShotNotes(app, dir);
             using (var f = new SettingsForm(app, 1)) CaptureForm(f, Path.Combine(dir, "settings.png"));
+            ShotOvertime(app, Path.Combine(dir, "overtime.png"));
             ShotMenu(app, Path.Combine(dir, "menu.png"));
             app.Quit();
             return 0;
