@@ -235,32 +235,39 @@ namespace Bugi
         }
 
         // ───────── 메뉴 ─────────
-        // 우클릭 메뉴와 트레이 메뉴는 같은 구조 (자주 쓰는 순서, 구분선으로 묶음):
-        //   ♥ 친밀도 (표시)
-        //   ─ 간식 주기 / 동작 보기 ▶ / 근무복 입기 ✓
-        //   ─ 친구 ▶ / 빠른 설정 ▶
-        //   ─ 새 메모 / 알람 ▶ / 설정
-        //   ─ 종료
+        // 우클릭 메뉴와 트레이 메뉴는 같은 구조. 섹션마다 머리글(MenuSection)과 왼쪽 바 아이콘이 붙는다 (모양은 MenuStyle.cs):
+        //   (하트) 친밀도 표시                                  ← 맨 위
+        //   (말풍선) 교류: 말 걸기 / 대화 모드 / 일기장 / 간식 주기 / 친구
+        //   (가방) 일: 근무복 입기·종류 / 아이템 / 시그니처 기술 / 동작 보기 / 새 메모 / 알람
+        //   (톱니) 설정: 빠른 설정 / 설정 / ─ 종료
         private ContextMenuStrip BuildMenu(PetWindow w)
         {
             Pet pet = w != null ? w.Pet : null;
             var menu = new ContextMenuStrip();
+            BugiMenuRenderer.Apply(menu);
+
+            // 친밀도 (맨 위)
+            menu.Items.Add(new MenuSection(MenuKind.Status, "친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)));
+
+            // 교류: 사용자와 주고받는 것
+            menu.Items.Add(new MenuSection(MenuKind.Social, "교류"));
             menu.Items.Add(new ToolStripMenuItem("말 걸기  (AI 대화)", null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? ChatOptions.Current.HotkeyText : null });
             menu.Items.Add(ModeMenu());
             menu.Items.Add("부기의 일기장...", null, delegate { BeginInvokeSafe(ShowDiary); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem("♥ 친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)) { Enabled = false });
-            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
+            menu.Items.Add(FriendsMenu(w));
+
+            // 일: 근무복 · 기술 · 메모 · 알람
+            menu.Items.Add(new MenuSection(MenuKind.Work, "일"));
+            menu.Items.Add(OutfitItem()); menu.Items.Add(OutfitStyleMenu()); menu.Items.Add(AccessoryMenu());
             menu.Items.Add(SignatureMenu(pet));
             menu.Items.Add(DemoMenu(pet));
-            menu.Items.Add(OutfitItem()); menu.Items.Add(OutfitStyleMenu()); menu.Items.Add(AccessoryMenu());
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(FriendsMenu(w));
-            menu.Items.Add(QuickMenu());
-            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(NewNoteItem());
             menu.Items.Add(AlarmMenu());
+
+            // 설정
+            menu.Items.Add(new MenuSection(MenuKind.Settings, "설정"));
+            menu.Items.Add(QuickMenu());
             menu.Items.Add("설정...", null, delegate { OpenSettings(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("종료", null, delegate { Quit(); });
