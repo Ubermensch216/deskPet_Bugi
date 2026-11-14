@@ -312,7 +312,15 @@ namespace Bugi
             return Pet.Render(look, out origin);
         }
 
-        protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); Close(); }
+        /// <summary>왼쪽 단추로 눌러 닫았을 때(확인한 것으로 본다). 닫히기 직전에 불린다.</summary>
+        internal event Action Acknowledged;
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (e.Button == MouseButtons.Left) { var h = Acknowledged; if (h != null) { try { h(); } catch (Exception error) { FeatureLog.Write(error); } } }
+            Close();
+        }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {

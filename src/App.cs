@@ -703,8 +703,28 @@ namespace Bugi
             foreach (OvertimeEvent ev in Overtime.Tick(dt))
             {
                 napping = false;
-                NoticeAll(ev.Message);
+                ShowOvertimeAlert(ev);
             }
+            Overtime.SaveIfDirty();
+        }
+
+        // 초과근무 알림 창이 알린 시간대들. 부기를 눌러 닫으면 이 시간대를 '기록됨'으로 바꾼다.
+        private readonly List<int> alertOvertimeHours = new List<int>();
+
+        /// <summary>초과근무 알림은 눌러서 확인해야 하므로 설정과 상관없이 큰 알림 창으로 띄운다(말풍선이면 누를 곳이 없다).</summary>
+        internal AlertPetWindow ShowOvertimeAlert(OvertimeEvent ev)
+        {
+            AlertPetWindow a = ShowAlert(ev.Message);
+            if (a != null && !alertOvertimeHours.Contains(ev.Hour)) alertOvertimeHours.Add(ev.Hour);
+            return a;
+        }
+
+        private void OnAlertAcknowledged()
+        {
+            if (alertOvertimeHours.Count == 0) return;
+            DateTime n = DateTime.Now;
+            foreach (int h in alertOvertimeHours) Overtime.MarkRecorded(h, true, n);
+            alertOvertimeHours.Clear();
             Overtime.SaveIfDirty();
         }
 
@@ -769,6 +789,7 @@ namespace Bugi
                 alert = new AlertPetWindow(this, windows.Count > 0 ? windows[0].Pet.Art.Id : 0);
                 alertHidden = windows.FirstOrDefault();
                 alert.FormClosed += OnAlertClosed;
+                alert.Acknowledged += OnAlertAcknowledged;
             }
             alert.AddMessage(message);
             if (fresh)
@@ -782,7 +803,7 @@ namespace Bugi
 
         private void OnAlertClosed(object sender, FormClosedEventArgs e)
         {
-            if (ReferenceEquals(sender, alert)) alert = null;
+            if (ReferenceEquals(sender, alert)) { alert = null; alertOvertimeHours.Clear(); }
             PetWindow back = alertHidden; alertHidden = null;
             if (back == null) return;
             back.Suppressed = false;

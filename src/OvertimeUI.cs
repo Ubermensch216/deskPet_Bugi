@@ -178,15 +178,31 @@ namespace Bugi
     /// <summary>
     /// 오늘의 시간대별 기록 현황표. 왼쪽 띠의 `시작` · `끝` 손잡이를 위아래로 끌어 초근 시간을 정하고,
     /// 띠 밖의 줄을 누르면 그 줄까지 넓히며, 상태 알약을 누르면 그 시간대를 기록함/기록 전으로 바꾼다.
+    /// 근무시간·미사용 시간대는 표에서 아예 사라지지 않고 그 자리에 '접힌 요약 줄'로 표시되어,
+    /// 왜 특정 시간대가 빠졌는지 한눈에 알고 바로 해제하거나 고칠 수 있다.
     /// </summary>
     internal sealed class OvertimeBoard : Control
     {
-        private const int HeaderH = 30, RowH = 26, BandW = 52;
+        private const int HeaderH = 30, RowH = 26, FoldH = 24, BandW = 52;
         private enum Edge { None, Start, End }
+        private enum ItemKind { Slot, BasicFold, UnusedFold }
+        private sealed class BoardItem
+        {
+            internal ItemKind Kind;
+            internal OvertimeSlot Slot;
+            internal int StartHour, EndHour;
+            internal int Y, H;
+            internal Rectangle ActionRect;
+        }
         internal OvertimeState St; internal bool Active; internal Func<DateTime> Clock = () => DateTime.Now;
         internal event Action<int, int> RangeChanged; internal event Action<int> SlotClicked;
-        private Edge drag; private int dStart, dEnd; private int hotBand = -1;
-        private readonly List<Rectangle> chips = new List<Rectangle>(); private List<OvertimeSlot> slots = new List<OvertimeSlot>();
+        /// <summary>(isBasic, clearToZero): 접힌 줄의 [해제 ✕]를 누르면 clearToZero=true, 줄 본문을 누르면 clearToZero=false.</summary>
+        internal event Action<bool, bool> FoldClicked;
+        private Edge drag; private int dStart, dEnd; private int hotBand = -1, hotFold = -1; private bool hotFoldBtn;
+        private readonly List<Rectangle> chips = new List<Rectangle>();
+        private readonly List<int> slotY = new List<int>();
+        private readonly List<BoardItem> items = new List<BoardItem>();
+        private List<OvertimeSlot> slots = new List<OvertimeSlot>();
 
         internal OvertimeBoard()
         {
@@ -197,28 +213,54 @@ namespace Bugi
         private float UiScale { get { return DeviceDpi / 96f; } }
         private int Hdr { get { return (int)Math.Round(HeaderH * UiScale); } }
         private int RowPx { get { return (int)Math.Round(RowH * UiScale); } }
+        private int FoldPx { get { return (int)Math.Round(FoldH * UiScale); } }
         private int Band { get { return (int)Math.Round(BandW * UiScale); } }
 
         /// <summary>현황이 바뀌었는지 가려내는 값(바뀔 때만 다시 그린다).</summary>
         internal string Signature(DateTime now)
         {
             if (St == null) return "";
-            return string.Join(",", St.Slots(now).Select(x => x.Hour + ":" + (int)x.Status + ":" + x.RecordedAt).ToArray()) + "|" + St.StartHour + "-" + St.EndHour + "|" + Active;
+            return string.Join(",", St.Slots(now).Select(x => x.Hour + ":" + (int)x.Status + ":" + x.RecordedAt).ToArray())
+                + "|" + St.StartHour + "-" + St.EndHour + "|" + St.BasicStartMin + "-" + St.BasicEndMin + "|" + St.UnusedStartMin + "-" + St.UnusedEndMin + "|" + Active;
         }
 
         internal void Rebind(DateTime now)
         {
             if (St == null) return;
             slots = St.Slots(now);
-            int h = Hdr + RowPx * Math.Max(1, slots.Count) + 2;
-            if (Height != h) Height = h;
+            items.Clear(); slotY.Clear();
+            int y = Hdr, rowPx = RowPx, foldPx = FoldPx;
+            var byHour = new Dictionary<int, OvertimeSlot>();
+            foreach (var s in slots) byHour[s.Hour] = s;
+            for (int h = 0; h < 24; h++)
+            {
+                OvertimeSlot slot;
+                if (byHour.TryGetValue(h, out slot))
+                {
+                    slotY.Add(y);
+                    items.Add(new BoardItem { Kind = ItemKind.Slot, Slot = slot, StartHour = h, EndHour = h + 1, Y = y, H = rowPx });
+                    y += rowPx;
+                }
+                else
+                {
+                    ItemKind kind = St.IsBasicHour(h) ? ItemKind.BasicFold : ItemKind.UnusedFold;
+                    int k = h;
+                    while (k + 1 < 24 && !byHour.ContainsKey(k + 1) && (St.IsBasicHour(k + 1) ? ItemKind.BasicFold : ItemKind.UnusedFold) == kind)
+                        k++;
+                    items.Add(new BoardItem { Kind = kind, StartHour = h, EndHour = k + 1, Y = y, H = foldPx });
+                    y += foldPx;
+                    h = k;
+                }
+            }
+            int totalH = Math.Max(Hdr + rowPx + 2, y + 2);
+            if (Height != totalH) Height = totalH;
             Invalidate();
         }
 
         private int Start { get { return drag != Edge.None ? dStart : St.StartHour; } }
         private int End { get { return drag != Edge.None ? dEnd : St.EndHour; } }
         private bool Shown(OvertimeSlot x) { return x.Hour >= Start && x.Hour < End; }   // 기본근무 시간은 표에 줄이 없다(Slots 에서 빠짐)
-        private int RowTop(int i) { return Hdr + i * RowPx; }
+        private int RowTop(int i) { return (i >= 0 && i < slotY.Count) ? slotY[i] : Hdr + i * RowPx; }
 
         private int FirstShown() { for (int i = 0; i < slots.Count; i++) if (Shown(slots[i])) return i; return -1; }
         private int LastShown() { for (int i = slots.Count - 1; i >= 0; i--) if (Shown(slots[i])) return i; return -1; }
@@ -233,11 +275,37 @@ namespace Bugi
         private int HourAt(int y)
         {
             if (slots.Count == 0) return -1;
-            int i = (y - Hdr) / Math.Max(1, RowPx); if (y < Hdr) i = 0;
-            return slots[Math.Max(0, Math.Min(slots.Count - 1, i))].Hour;
+            int bestIdx = 0, bestDist = int.MaxValue;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                int cy = RowTop(i) + RowPx / 2;
+                int d = Math.Abs(y - cy);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            return slots[bestIdx].Hour;
         }
 
-        private int RowAt(int y) { if (y < Hdr) return -1; int i = (y - Hdr) / Math.Max(1, RowPx); return i < slots.Count ? i : -1; }
+        private int RowAt(int y)
+        {
+            if (y < Hdr) return -1;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                int top = RowTop(i);
+                if (y >= top && y < top + RowPx) return i;
+            }
+            return -1;
+        }
+
+        private int FoldAt(int y)
+        {
+            if (y < Hdr) return -1;
+            for (int i = 0; i < items.Count; i++)
+            {
+                var it = items[i];
+                if (it.Kind != ItemKind.Slot && y >= it.Y && y < it.Y + it.H) return i;
+            }
+            return -1;
+        }
 
         private void MoveEdge(Edge edge, int hour)
         {
@@ -250,6 +318,14 @@ namespace Bugi
             if (e.Button != MouseButtons.Left || St == null || !Active) return;
             foreach (Edge edge in new[] { Edge.Start, Edge.End })
                 if (HandleRect(edge).Contains(e.Location)) { drag = edge; dStart = St.StartHour; dEnd = St.EndHour; Capture = true; Invalidate(); return; }
+            int fi = FoldAt(e.Y);
+            if (fi >= 0)
+            {
+                var fit = items[fi];
+                bool clear = fit.ActionRect.Contains(e.Location);
+                var fh = FoldClicked; if (fh != null) fh(fit.Kind == ItemKind.BasicFold, clear);
+                return;
+            }
             int i = RowAt(e.Y); if (i < 0) return;
             OvertimeSlot slot = slots[i];
             if (e.X < Band)
@@ -274,10 +350,12 @@ namespace Bugi
                 return;
             }
             int row = RowAt(e.Y); int band = row >= 0 && e.X < Band && !Shown(slots[row]) && Active ? row : -1;
-            if (band != hotBand) { hotBand = band; Invalidate(); }
+            int fold = Active ? FoldAt(e.Y) : -1;
+            bool foldBtn = fold >= 0 && items[fold].ActionRect.Contains(e.Location);
+            if (band != hotBand || fold != hotFold || foldBtn != hotFoldBtn) { hotBand = band; hotFold = fold; hotFoldBtn = foldBtn; Invalidate(); }
             bool overHandle = Active && (HandleRect(Edge.Start).Contains(e.Location) || HandleRect(Edge.End).Contains(e.Location));
             bool overChip = Active && row >= 0 && row < chips.Count && chips[row].Contains(e.Location) && slots[row].Status != SlotStatus.Upcoming;
-            Cursor = overHandle ? Cursors.SizeNS : (overChip || band >= 0) ? Cursors.Hand : Cursors.Default;
+            Cursor = overHandle ? Cursors.SizeNS : (overChip || band >= 0 || fold >= 0) ? Cursors.Hand : Cursors.Default;
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
@@ -289,7 +367,11 @@ namespace Bugi
             if (St != null && (a != St.StartHour || b != St.EndHour)) { var h = RangeChanged; if (h != null) h(a, b); }
         }
 
-        protected override void OnMouseLeave(EventArgs e) { if (hotBand != -1) { hotBand = -1; Invalidate(); } base.OnMouseLeave(e); }
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            if (hotBand != -1 || hotFold != -1 || hotFoldBtn) { hotBand = -1; hotFold = -1; hotFoldBtn = false; Invalidate(); }
+            base.OnMouseLeave(e);
+        }
 
         private static readonly Color RecBg = Color.FromArgb(225, 242, 232), RecFg = Color.FromArgb(22, 110, 70), PenBg = Color.FromArgb(251, 240, 221), PenFg = Color.FromArgb(154, 91, 0),
             MisBg = Color.FromArgb(251, 233, 231), MisFg = Color.FromArgb(180, 35, 24), UpBg = Color.FromArgb(232, 238, 247), UpFg = Color.FromArgb(82, 96, 121);
@@ -301,7 +383,8 @@ namespace Bugi
             float s = UiScale; int hdr = Hdr, row = RowPx, band = Band; int xTime = band + (int)(6 * s), xStat = (int)(196 * s), xRec = (int)(296 * s);
             Color grey = Color.FromArgb(82, 96, 121); Color bandOn = Active ? FriendUI.Blue : Color.FromArgb(170, 181, 196);
             var flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-            using (var fb = new Font("Malgun Gothic", 9f, FontStyle.Bold)) using (var fr = new Font("Malgun Gothic", 9f)) using (var fs = new Font("Malgun Gothic", 8.5f, FontStyle.Bold))
+            using (var fb = new Font("Malgun Gothic", 9f, FontStyle.Bold)) using (var fr = new Font("Malgun Gothic", 9f))
+            using (var fs = new Font("Malgun Gothic", 8.5f, FontStyle.Bold)) using (var ff = new Font("Malgun Gothic", 8f))
             {
                 var top = new Rectangle(0, 0, Width, hdr - (int)(4 * s));
                 TextRenderer.DrawText(g, "초근", fb, new Rectangle(0, 0, band, top.Height), grey, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
@@ -311,40 +394,99 @@ namespace Bugi
                 using (var pen = new Pen(Color.FromArgb(206, 218, 240))) g.DrawLine(pen, 0, hdr - 1, Width, hdr - 1);
 
                 chips.Clear();
-                int first = FirstShown(), last = LastShown();
-                for (int i = 0; i < slots.Count; i++)
+                int slotIdx = 0;
+                for (int idx = 0; idx < items.Count; idx++)
                 {
-                    OvertimeSlot x = slots[i]; int y = RowTop(i); bool shown = Shown(x);
-                    if (shown) using (var br = new SolidBrush(Active ? Color.FromArgb(229, 239, 252) : Color.FromArgb(241, 244, 248))) g.FillRectangle(br, 0, y, Width, row);
-                    using (var pen = new Pen(Color.FromArgb(232, 238, 247))) g.DrawLine(pen, 0, y + row - 1, Width, y + row - 1);
-                    // 왼쪽 띠: 초근 시간 밖은 가는 선(눌러서 넓히는 자리는 마우스를 올리면 굵어진다). 안쪽 굵은 띠는 줄을 다 그린 뒤 한 번에 그린다.
-                    float bx = band / 2f;
-                    if (shown) { }
-                    else if (hotBand == i) using (var br = new SolidBrush(Color.FromArgb(167, 200, 235))) g.FillRectangle(br, bx - 4 * s, y, 8 * s, row);
-                    else using (var br = new SolidBrush(Color.FromArgb(220, 227, 238))) g.FillRectangle(br, bx - 1 * s, y, 2 * s, row);
-
-                    TextRenderer.DrawText(g, x.Label, fr, new Rectangle(xTime, y, xStat - xTime, row), Color.FromArgb(15, 27, 45), flags);
-                    Color bg, fg; string text;
-                    switch (x.Status)
+                    BoardItem it = items[idx];
+                    if (it.Kind == ItemKind.Slot)
                     {
-                        case SlotStatus.Recorded: bg = RecBg; fg = RecFg; text = "기록됨"; break;
-                        case SlotStatus.Pending: bg = PenBg; fg = PenFg; text = "기록 전"; break;
-                        case SlotStatus.Missed: bg = MisBg; fg = MisFg; text = "미기록"; break;
-                        default: bg = UpBg; fg = UpFg; text = "미도래"; break;
+                        int i = slotIdx++;
+                        OvertimeSlot x = it.Slot; int y = it.Y; bool shown = Shown(x);
+                        if (shown) using (var br = new SolidBrush(Active ? Color.FromArgb(229, 239, 252) : Color.FromArgb(241, 244, 248))) g.FillRectangle(br, 0, y, Width, row);
+                        using (var pen = new Pen(Color.FromArgb(232, 238, 247))) g.DrawLine(pen, 0, y + row - 1, Width, y + row - 1);
+                        float bx = band / 2f;
+                        if (shown) { }
+                        else if (hotBand == i) using (var br = new SolidBrush(Color.FromArgb(167, 200, 235))) g.FillRectangle(br, bx - 4 * s, y, 8 * s, row);
+                        else using (var br = new SolidBrush(Color.FromArgb(220, 227, 238))) g.FillRectangle(br, bx - 1 * s, y, 2 * s, row);
+
+                        TextRenderer.DrawText(g, x.Label, fr, new Rectangle(xTime, y, xStat - xTime, row), Color.FromArgb(15, 27, 45), flags);
+                        Color bg, fg; string text;
+                        switch (x.Status)
+                        {
+                            case SlotStatus.Recorded: bg = RecBg; fg = RecFg; text = "기록됨"; break;
+                            case SlotStatus.Pending: bg = PenBg; fg = PenFg; text = "기록 전"; break;
+                            case SlotStatus.Missed: bg = MisBg; fg = MisFg; text = "미기록"; break;
+                            default: bg = UpBg; fg = UpFg; text = "미도래"; break;
+                        }
+                        Size ts = TextRenderer.MeasureText(text, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
+                        var chip = new Rectangle(xStat, y + (row - (int)(20 * s)) / 2, ts.Width + (int)(14 * s), (int)(20 * s)); chips.Add(chip);
+                        using (var p = ChoiceStrip.RoundRect(chip, (int)(5 * s))) using (var br = new SolidBrush(bg)) g.FillPath(br, p);
+                        TextRenderer.DrawText(g, text, fs, chip, fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                        TextRenderer.DrawText(g, x.RecordedAt, fr, new Rectangle(xRec, y, Width - xRec, row), Color.FromArgb(15, 27, 45), flags);
                     }
-                    Size ts = TextRenderer.MeasureText(text, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
-                    var chip = new Rectangle(xStat, y + (row - (int)(20 * s)) / 2, ts.Width + (int)(14 * s), (int)(20 * s)); chips.Add(chip);
-                    using (var p = ChoiceStrip.RoundRect(chip, (int)(5 * s))) using (var br = new SolidBrush(bg)) g.FillPath(br, p);
-                    TextRenderer.DrawText(g, text, fs, chip, fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-                    TextRenderer.DrawText(g, x.RecordedAt, fr, new Rectangle(xRec, y, Width - xRec, row), Color.FromArgb(15, 27, 45), flags);
+                    else
+                    {
+                        // 접힌 구간 줄(근무시간 / 미사용): 왜 표에서 빠졌는지 그 자리에 보여 주고 바로 해제할 수 있게 한다
+                        bool isBasic = it.Kind == ItemKind.BasicFold;
+                        bool overlapsOt = it.StartHour < End && it.EndHour > Start;
+                        int y = it.Y, fh = it.H, hours = it.EndHour - it.StartHour;
+                        Color rowBg = isBasic
+                            ? (overlapsOt ? Color.FromArgb(253, 246, 233) : Color.FromArgb(243, 246, 251))
+                            : Color.FromArgb(245, 247, 250);
+                        if (hotFold == idx && !hotFoldBtn) rowBg = Color.FromArgb(235, 242, 252);
+                        using (var br = new SolidBrush(rowBg)) g.FillRectangle(br, 0, y, Width, fh);
+                        using (var pen = new Pen(Color.FromArgb(214, 224, 238)) { DashStyle = DashStyle.Dash })
+                            g.DrawLine(pen, 0, y + fh - 1, Width, y + fh - 1);
+
+                        // 왼쪽 띠 점선 연결
+                        float bx = band / 2f;
+                        using (var pen = new Pen(overlapsOt ? bandOn : Color.FromArgb(195, 206, 222), overlapsOt ? 2.2f * s : 1.5f * s) { DashStyle = DashStyle.Dot })
+                            g.DrawLine(pen, bx, y + 2, bx, y + fh - 2);
+
+                        // 배지: [근무시간] 또는 [미사용]
+                        string tagText = isBasic ? "근무시간" : "미사용";
+                        Size tagSz = TextRenderer.MeasureText(tagText, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
+                        var tagRc = new Rectangle(xTime, y + (fh - (int)(18 * s)) / 2, tagSz.Width + (int)(10 * s), (int)(18 * s));
+                        Color tagBg = isBasic ? (overlapsOt ? Color.FromArgb(245, 222, 188) : Color.FromArgb(219, 228, 240)) : Color.FromArgb(225, 230, 238);
+                        Color tagFg = isBasic && overlapsOt ? Color.FromArgb(145, 82, 0) : Color.FromArgb(68, 84, 106);
+                        using (var p = ChoiceStrip.RoundRect(tagRc, (int)(4 * s))) using (var br = new SolidBrush(tagBg)) g.FillPath(br, p);
+                        TextRenderer.DrawText(g, tagText, fs, tagRc, tagFg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+                        // 시간 범위 · 안내 문구
+                        string rangeLabel = OvertimeState.HourText(it.StartHour) + " ~ " + OvertimeState.HourText(it.EndHour) + " (" + hours + "시간)";
+                        string desc = isBasic
+                            ? (overlapsOt ? " · 초근 범위와 겹침(기록 제외 중)" : " · 정규 근무시간(기록 제외)")
+                            : " · 미사용 숨김(알림 없음)";
+                        int xDesc = tagRc.Right + (int)(8 * s);
+                        string actText = isBasic ? "휴일·해제 ✕" : "숨김 해제 ✕";
+                        Size actSz = TextRenderer.MeasureText(actText, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
+                        int actW = actSz.Width + (int)(14 * s), actH = (int)(18 * s);
+                        it.ActionRect = new Rectangle(Width - actW - (int)(8 * s), y + (fh - actH) / 2, actW, actH);
+
+                        TextRenderer.DrawText(g, rangeLabel + desc, ff, new Rectangle(xDesc, y, it.ActionRect.Left - xDesc - (int)(6 * s), fh),
+                            isBasic && overlapsOt ? Color.FromArgb(145, 82, 0) : Color.FromArgb(92, 106, 128), flags | TextFormatFlags.EndEllipsis);
+
+                        // 오른쪽 [휴일·해제 ✕] / [숨김 해제 ✕] 알약 단추
+                        bool hoverBtn = hotFold == idx && hotFoldBtn;
+                        Color btnBg = hoverBtn ? FriendUI.Blue : Color.White;
+                        Color btnFg = hoverBtn ? Color.White : (isBasic && overlapsOt ? Color.FromArgb(145, 82, 0) : FriendUI.BlueDark);
+                        Color btnBd = hoverBtn ? FriendUI.Blue : (isBasic && overlapsOt ? Color.FromArgb(218, 165, 100) : Color.FromArgb(190, 206, 232));
+                        using (var p = ChoiceStrip.RoundRect(it.ActionRect, (int)(4 * s)))
+                        {
+                            using (var br = new SolidBrush(btnBg)) g.FillPath(br, p);
+                            using (var pen = new Pen(btnBd, 1f)) g.DrawPath(pen, p);
+                        }
+                        TextRenderer.DrawText(g, actText, fs, it.ActionRect, btnFg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                    }
                 }
+                int first = FirstShown(), last = LastShown();
                 if (first >= 0)
-                {   // 초근 시간 띠: 이어진 줄마다 둥근 막대 하나
+                {   // 초근 시간 띠: 이어진 시간대(중간에 접힌 줄이 끼면 끊어서 그림)마다 둥근 막대 하나
                     float bw = 8 * s;
                     for (int i = first; i <= last; i++)
                     {
                         if (!Shown(slots[i])) continue;
-                        int k = i; while (k + 1 <= last && Shown(slots[k + 1])) k++;
+                        int k = i; while (k + 1 <= last && Shown(slots[k + 1]) && slots[k + 1].Hour == slots[k].Hour + 1) k++;
                         var bar = new RectangleF(band / 2f - bw / 2, RowTop(i), bw, RowTop(k) + row - RowTop(i));
                         using (var br = new SolidBrush(bandOn)) using (var p = ChoiceStrip.RoundRect(Rectangle.Round(bar), (int)bw)) g.FillPath(br, p);
                         i = k;
@@ -356,6 +498,13 @@ namespace Bugi
 
         // ───────── 자체 점검용 ─────────
         internal int RowCount { get { return slots.Count; } }
+        internal int FoldCount { get { return items.Count(it => it.Kind != ItemKind.Slot); } }
+        internal Point FoldActionPoint(bool isBasic)
+        {
+            var it = items.FirstOrDefault(x => x.Kind == (isBasic ? ItemKind.BasicFold : ItemKind.UnusedFold));
+            if (it == null || it.ActionRect.IsEmpty) return Point.Empty;
+            return new Point(it.ActionRect.X + it.ActionRect.Width / 2, it.ActionRect.Y + it.ActionRect.Height / 2);
+        }
         internal Point HandleCenter(bool start) { Rectangle r = HandleRect(start ? Edge.Start : Edge.End); return new Point(r.X + r.Width / 2, r.Y + r.Height / 2); }
         internal Point RowPoint(int hour, int x) { int i = slots.FindIndex(t => t.Hour == hour); return new Point(x, RowTop(i) + RowPx / 2); }
         internal Point BandPoint(int hour) { return RowPoint(hour, Band / 2); }
@@ -395,14 +544,17 @@ namespace Bugi
         private readonly Panel banner, card;
         private readonly DateTimePicker basicFrom, basicTo, unusedFrom, unusedTo;
         private readonly Button bRecord;
-        private readonly Label checkLine, bannerText, otText, otHours, basicHint, basicTag, unusedHint, unusedTag, otTag, howTo;
+        private readonly Label checkLine, bannerText, otText, otHours, basicHint, basicTag, basicQuick, unusedHint, unusedTag, unusedQuick, otTag, howTo;
         private readonly System.Windows.Forms.Timer live;
         private string boardSig = ""; private bool syncing;
+        private int lastBasicStart = 9 * 60, lastBasicEnd = 18 * 60, lastUnusedStart = 0, lastUnusedEnd = 8 * 60;
         private static readonly Color Ink = Color.FromArgb(15, 27, 45);
 
         internal OvertimePanel(App app, ToolTip tips)
         {
             this.app = app; this.tips = tips; st = app.Overtime;
+            if (st.BasicStartMin < st.BasicEndMin) { lastBasicStart = st.BasicStartMin; lastBasicEnd = st.BasicEndMin; }
+            if (st.UnusedStartMin != st.UnusedEndMin) { lastUnusedStart = st.UnusedStartMin; lastUnusedEnd = st.UnusedEndMin; }
             FlowDirection = FlowDirection.TopDown; WrapContents = false; AutoScroll = true; Padding = new Padding(16, 0, 8, 8); BackColor = FriendUI.Sheet;
             DateTime now = DateTime.Now;
 
@@ -421,38 +573,48 @@ namespace Bugi
             banner.Controls.AddRange(new Control[] { bannerText, bRecord });
             Controls.Add(banner);
 
-            // ② 기본근무 · 초근 카드
-            card = new Panel { Size = new Size(500, 114),Margin = new Padding(0, 2, 0, 2) };
+            // ② 근무시간 · 미사용 · 초근 카드 (B안: 원클릭 토글 칩 + 빠른 해제/적용 단추)
+            card = new Panel { Size = new Size(500, 114), Margin = new Padding(0, 2, 0, 2) };
             card.Paint += delegate(object o, PaintEventArgs e)
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias; bool active = IsActive(DateTime.Now);
                 using (var p = ChoiceStrip.RoundRect(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 9)) using (var br = new SolidBrush(active ? Color.FromArgb(232, 241, 253) : Color.FromArgb(241, 244, 248))) e.Graphics.FillPath(br, p);
             };
-            basicTag = MakeTag("기본", 10, 8, Color.White, Color.FromArgb(82, 96, 121));
-            basicFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 62, Top = 6, Width = 64 };
-            basicTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 146, Top = 6, Width = 64 };
+            basicTag = MakeTag("근무시간", 10, 8, Color.White, Color.FromArgb(82, 96, 121));
+            basicTag.Cursor = Cursors.Hand; basicTag.Click += delegate { ToggleBasic(); };
+            tips.SetToolTip(basicTag, "누르면 정규 근무시간 제외(평일) ↔ 근무시간 없음(휴일·연차)을 바로 전환해요.");
+            basicFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 80, Top = 6, Width = 62 };
+            basicTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 160, Top = 6, Width = 62 };
             basicFrom.Value = now.Date.AddMinutes(st.BasicStartMin); basicTo.Value = now.Date.AddMinutes(st.BasicEndMin);
             basicFrom.ValueChanged += delegate { BasicChanged(); }; basicTo.ValueChanged += delegate { BasicChanged(); };
-            tips.SetToolTip(basicFrom, "기본근무 시작 시각"); tips.SetToolTip(basicTo, "기본근무 끝 시각\n기본근무 시간대는 기록 대상이 아니라서 시간표에서 빠져요.");
-            card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 130, Top = 10, BackColor = Color.Transparent, ForeColor = Ink });
-            basicHint = new Label { Text = "기록 대상 아님", AutoSize = true, Left = 222, Top = 11, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
-            // 미사용 시간대: 표에서 빠지고 알리지도 않는다. 시작과 끝을 같게 하면 없음, 시작이 끝보다 늦으면 자정을 넘긴다.
+            tips.SetToolTip(basicFrom, "근무시간 시작 시각\n시작과 끝을 모두 00:00으로 두면 근무시간이 없어요(휴일 근무 등)."); tips.SetToolTip(basicTo, "근무시간 끝 시각\n근무시간은 초과근무 기록 대상이 아니라서 시간표에서 접혀요.");
+            card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 145, Top = 10, BackColor = Color.Transparent, ForeColor = Ink });
+            basicQuick = MakeQuickPill(228, 8, delegate { ToggleBasic(); });
+            tips.SetToolTip(basicQuick, "휴일·연차일 때 근무시간을 없애거나(00:00~00:00), 평일 근무시간(09:00~18:00)을 한 번에 복원해요.");
+            basicHint = new Label { Text = "기록 대상 아님", AutoSize = true, Left = 316, Top = 11, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
+
+            // 미사용 시간대: 표에서 접히고 알리지도 않는다. 시작과 끝을 같게 하면 없음, 시작이 끝보다 늦으면 자정을 넘긴다.
             unusedTag = MakeTag("미사용", 10, 44, Color.White, Color.FromArgb(82, 96, 121));
-            unusedFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 62, Top = 42, Width = 64 };
-            unusedTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 146, Top = 42, Width = 64 };
+            unusedTag.Cursor = Cursors.Hand; unusedTag.Click += delegate { ToggleUnused(); };
+            tips.SetToolTip(unusedTag, "누르면 심야·미사용 시간대 숨김 ↔ 전체 시간대 표시를 바로 전환해요.");
+            unusedFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 80, Top = 42, Width = 62 };
+            unusedTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 160, Top = 42, Width = 62 };
             unusedFrom.Value = now.Date.AddMinutes(st.UnusedStartMin); unusedTo.Value = now.Date.AddMinutes(st.UnusedEndMin);
             unusedFrom.ValueChanged += delegate { UnusedChanged(); }; unusedTo.ValueChanged += delegate { UnusedChanged(); };
             tips.SetToolTip(unusedFrom, "미사용 시간대 시작 시각\n시작과 끝을 같게 두면 미사용 시간이 없어요.\n시작이 끝보다 늦으면 자정을 넘겨요(예: 23:00 ~ 07:00).");
-            tips.SetToolTip(unusedTo, "미사용 시간대 끝 시각\n이 시간대는 시간표에 나오지 않고 알리지도 않아요.");
-            card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 130, Top = 46, BackColor = Color.Transparent, ForeColor = Ink });
-            unusedHint = new Label { Text = "", AutoSize = true, Left = 222, Top = 47, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
+            tips.SetToolTip(unusedTo, "미사용 시간대 끝 시각\n이 시간대는 시간표에서 접혀 있고 알리지도 않아요.");
+            card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 145, Top = 46, BackColor = Color.Transparent, ForeColor = Ink });
+            unusedQuick = MakeQuickPill(228, 44, delegate { ToggleUnused(); });
+            tips.SetToolTip(unusedQuick, "자주 쓰지 않는 새벽 시간대(00:00~08:00)를 한 번에 숨기거나 다시 펼쳐요.");
+            unusedHint = new Label { Text = "", AutoSize = true, Left = 316, Top = 47, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
+
             otTag = MakeTag("초근", 10, 80, FriendUI.Blue, Color.White);
-            otText = new Label { AutoSize = true, Left = 62, Top = 82, Font = new Font("Malgun Gothic", 9.5f, FontStyle.Bold), ForeColor = Ink, BackColor = Color.Transparent };
-            otHours = new Label { AutoSize = true, Left = 200, Top = 84, ForeColor = Color.FromArgb(82, 96, 121), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
-            card.Controls.AddRange(new Control[] { basicTag, basicFrom, basicHint, basicTo, unusedTag, unusedFrom, unusedHint, unusedTo, otTag, otText, otHours });
+            otText = new Label { AutoSize = true, Left = 80, Top = 82, Font = new Font("Malgun Gothic", 9.5f, FontStyle.Bold), ForeColor = Ink, BackColor = Color.Transparent };
+            otHours = new Label { AutoSize = true, Left = 196, Top = 84, ForeColor = Color.FromArgb(82, 96, 121), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
+            card.Controls.AddRange(new Control[] { basicTag, basicFrom, basicTo, basicQuick, basicHint, unusedTag, unusedFrom, unusedTo, unusedQuick, unusedHint, otTag, otText, otHours });
             Controls.Add(card);
 
-            // ③ 시간대 현황표
+            // ③ 시간대 현황표 (A안: 접힌 근무시간·미사용 줄 표시 및 원클릭 해제 연동)
             board = new OvertimeBoard { St = st };
             board.RangeChanged += delegate(int a, int b) { st.SetRange(a, b); Persist(); Refresh(); };
             board.SlotClicked += delegate(int hour)
@@ -460,11 +622,25 @@ namespace Bugi
                 DateTime n = DateTime.Now; var slot = st.Slots(n).FirstOrDefault(x => x.Hour == hour); if (slot == null) return;
                 st.MarkRecorded(hour, slot.Status != SlotStatus.Recorded, n); Persist(); Refresh();
             };
-            tips.SetToolTip(board, "왼쪽 띠의 시작 · 끝 손잡이를 위아래로 끌면 초근 시간이 바뀌어요.\n띠 밖의 줄을 누르면 그 줄까지 넓어져요.\n상태 알약을 누르면 그 시간대를 기록함 ↔ 기록 전으로 바꿔요.");
+            board.FoldClicked += delegate(bool isBasic, bool clear)
+            {
+                if (clear)
+                {
+                    if (isBasic) { st.SetBasic("00:00", "00:00"); SyncBasic(); }
+                    else { st.SetUnused("00:00", "00:00"); SyncUnused(); }
+                    Persist(); Refresh();
+                }
+                else
+                {
+                    DateTimePicker target = isBasic ? basicFrom : unusedFrom;
+                    if (target.Enabled) target.Focus();
+                }
+            };
+            tips.SetToolTip(board, "왼쪽 띠의 시작 · 끝 손잡이를 위아래로 끌면 초근 시간이 바뀌어요.\n띠 밖의 줄을 누르면 그 줄까지 넓어져요.\n접힌 [근무시간] · [미사용] 줄의 오른쪽 단추를 누르면 즉시 펼쳐져요.\n상태 알약을 누르면 그 시간대를 기록함 ↔ 기록 전으로 바꿔요.");
             Controls.Add(board);
 
             howTo = new Label { AutoSize = true, MaximumSize = new Size(488, 0), ForeColor = Color.DimGray, Margin = new Padding(3, 4, 3, 3),
-                Text = "알림이 오면 인사랑에서 직접 기록한 뒤 '기록했어요'를 눌러 표시하면, 그 시간대는 더 알리지 않아요.\n한 시간에 두 번(정각 뒤 3~10분 사이 · 45분) 알려 주고, 초근 시간 밖에는 알리지 않아요." };
+                Text = "알림이 오면 인사랑에서 직접 기록한 뒤 알림 속 부기를 누르거나 '기록했어요'를 눌러 표시하면, 그 시간대는 더 알리지 않아요.\n한 시간에 두 번(정각 뒤 3~10분 사이 · 45분) 알려 주고, 초근 시간 밖에는 알리지 않아요." };
             Controls.Add(howTo);
 
             live = new System.Windows.Forms.Timer { Interval = 1000 }; live.Tick += delegate { if (Visible && IsHandleCreated) Refresh(); };
@@ -473,7 +649,16 @@ namespace Bugi
         }
 
         private Label MakeTag(string text, int x, int y, Color bg, Color fg)
-        { return new Label { Text = text, Left = x, Top = y, Width = 44, Height = 22, TextAlign = ContentAlignment.MiddleCenter, BackColor = bg, ForeColor = fg, Font = new Font("Malgun Gothic", 8.5f, FontStyle.Bold) }; }
+        { return new Label { Text = text, Left = x, Top = y, Width = 64, Height = 22, TextAlign = ContentAlignment.MiddleCenter, BackColor = bg, ForeColor = fg, Font = new Font("Malgun Gothic", 8.5f, FontStyle.Bold) }; }
+
+        private Label MakeQuickPill(int x, int y, EventHandler onClick)
+        {
+            var lb = new Label { Left = x, Top = y, Width = 82, Height = 22, TextAlign = ContentAlignment.MiddleCenter, BackColor = Color.White, ForeColor = FriendUI.BlueDark, Cursor = Cursors.Hand, Font = new Font("Malgun Gothic", 8f, FontStyle.Bold) };
+            lb.Click += onClick;
+            lb.MouseEnter += delegate { if (lb.Enabled) lb.BackColor = Color.FromArgb(219, 232, 250); };
+            lb.MouseLeave += delegate { lb.BackColor = Color.White; };
+            return lb;
+        }
 
         private bool IsActive(DateTime now) { return st.WatchOn(now); }
         private void Persist() { st.SaveIfDirty(); }
@@ -484,11 +669,49 @@ namespace Bugi
             st.MarkRecorded(h, true, now); Persist(); Refresh();
         }
 
+        private void ToggleBasic()
+        {
+            if (!st.WatchOn(DateTime.Now)) return;
+            if (st.BasicStartMin < st.BasicEndMin)
+            {
+                lastBasicStart = st.BasicStartMin; lastBasicEnd = st.BasicEndMin;
+                st.SetBasic("00:00", "00:00");
+            }
+            else
+            {
+                int a = lastBasicStart < lastBasicEnd ? lastBasicStart : 9 * 60;
+                int b = lastBasicStart < lastBasicEnd ? lastBasicEnd : 18 * 60;
+                st.SetBasic(OvertimeState.MinText(a), OvertimeState.MinText(b));
+            }
+            SyncBasic(); Persist(); Refresh();
+        }
+
+        private void ToggleUnused()
+        {
+            if (!st.WatchOn(DateTime.Now)) return;
+            if (st.UnusedStartMin != st.UnusedEndMin)
+            {
+                lastUnusedStart = st.UnusedStartMin; lastUnusedEnd = st.UnusedEndMin;
+                st.SetUnused("00:00", "00:00");
+            }
+            else
+            {
+                int a = lastUnusedStart != lastUnusedEnd ? lastUnusedStart : 0;
+                int b = lastUnusedStart != lastUnusedEnd ? lastUnusedEnd : 8 * 60;
+                st.SetUnused(OvertimeState.MinText(a), OvertimeState.MinText(b));
+            }
+            SyncUnused(); Persist(); Refresh();
+        }
+
         private void BasicChanged()
         {
             if (syncing) return;
             if (!st.SetBasic(basicFrom.Value.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), basicTo.Value.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)))
                 SyncBasic();   // 앞뒤가 뒤집힌 기본근무는 받지 않고 원래 값으로 되돌린다
+            else if (st.BasicStartMin < st.BasicEndMin)
+            {
+                lastBasicStart = st.BasicStartMin; lastBasicEnd = st.BasicEndMin;
+            }
             Persist(); Refresh();
         }
 
@@ -502,7 +725,17 @@ namespace Bugi
         {
             if (syncing) return;
             st.SetUnused(unusedFrom.Value.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), unusedTo.Value.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+            if (st.UnusedStartMin != st.UnusedEndMin)
+            {
+                lastUnusedStart = st.UnusedStartMin; lastUnusedEnd = st.UnusedEndMin;
+            }
             Persist(); Refresh();
+        }
+
+        private void SyncUnused()
+        {
+            DateTime d = DateTime.Today; syncing = true;
+            unusedFrom.Value = d.AddMinutes(st.UnusedStartMin); unusedTo.Value = d.AddMinutes(st.UnusedEndMin); syncing = false;
         }
 
         private static void SetText(Control c, string text) { if (c.Text != text) c.Text = text; }
@@ -525,11 +758,49 @@ namespace Bugi
             SetVisible(banner, pend >= 0);
             if (pend >= 0) SetText(bannerText, OvertimeState.HourLabel(pend) + " 기록이 아직입니다.");
 
-            // 기본근무 · 초근 카드
-            SetEnabled(basicFrom, watch); SetEnabled(basicTo, watch); SetEnabled(unusedFrom, watch); SetEnabled(unusedTo, watch);
-            SetText(unusedHint, st.UnusedStartMin == st.UnusedEndMin ? "없음 · 시작과 끝을 같게 두면 쓰지 않아요" : st.UnusedStartMin > st.UnusedEndMin ? "표에서 빠짐 · 알림 없음 · 자정을 넘김" : "표에서 빠짐 · 알림 없음");
+            // 근무시간 · 미사용 · 초근 카드
+            if (!syncing && !basicFrom.Focused && !basicTo.Focused)
+            {
+                int curFrom = basicFrom.Value.Hour * 60 + basicFrom.Value.Minute;
+                int curTo = basicTo.Value.Hour * 60 + basicTo.Value.Minute;
+                if (curFrom != st.BasicStartMin || curTo != st.BasicEndMin) SyncBasic();
+            }
+            if (!syncing && !unusedFrom.Focused && !unusedTo.Focused)
+            {
+                int uFrom = unusedFrom.Value.Hour * 60 + unusedFrom.Value.Minute;
+                int uTo = unusedTo.Value.Hour * 60 + unusedTo.Value.Minute;
+                if (uFrom != st.UnusedStartMin || uTo != st.UnusedEndMin) SyncUnused();
+            }
+            SetEnabled(basicFrom, watch); SetEnabled(basicTo, watch); SetEnabled(basicQuick, watch);
+            SetEnabled(unusedFrom, watch); SetEnabled(unusedTo, watch); SetEnabled(unusedQuick, watch);
+
+            bool hasBasic = st.BasicStartMin < st.BasicEndMin;
+            bool hasUnused = st.UnusedStartMin != st.UnusedEndMin;
+            SetText(basicTag, "근무시간");
+            basicTag.BackColor = hasBasic ? Color.FromArgb(68, 84, 106) : Color.White;
+            basicTag.ForeColor = hasBasic ? Color.White : Color.FromArgb(123, 135, 152);
+            SetText(basicQuick, hasBasic ? "휴일·해제 ✕" : "평일 09~18");
+            SetText(basicHint, !hasBasic ? (OvertimeState.IsHoliday(now) ? "휴일 · 근무시간 없음" : "없음 · 전 시간대 표시") : "표에서 접힘 · 기록 제외");
+
+            SetText(unusedTag, "미사용");
+            unusedTag.BackColor = hasUnused ? Color.FromArgb(68, 84, 106) : Color.White;
+            unusedTag.ForeColor = hasUnused ? Color.White : Color.FromArgb(123, 135, 152);
+            SetText(unusedQuick, hasUnused ? "숨김 해제 ✕" : "00~08 숨김");
+            SetText(unusedHint, !hasUnused ? "없음 · 전 시간대 표시" : st.UnusedStartMin > st.UnusedEndMin ? "표에서 접힘 · 자정 넘김" : "표에서 접힘 · 알림 없음");
+
             SetText(otText, OvertimeState.HourText(st.StartHour) + " ~ " + OvertimeState.HourText(st.EndHour));
-            SetText(otHours, (st.EndHour - st.StartHour) + "시간");
+            int span = Math.Max(0, st.EndHour - st.StartHour);
+            int actual = Enumerable.Range(st.StartHour, span).Count(h => !st.IsHiddenHour(h));
+            if (actual < span)
+            {
+                SetText(otHours, "실제 " + actual + "시간 (전체 " + span + "시간 중 근무·미사용 " + (span - actual) + "시간 제외)");
+                otHours.ForeColor = Color.FromArgb(154, 91, 0);
+            }
+            else
+            {
+                SetText(otHours, span + "시간");
+                otHours.ForeColor = Color.FromArgb(82, 96, 121);
+            }
             Color tagBg = active ? FriendUI.Blue : Color.FromArgb(170, 181, 196); if (otTag.BackColor != tagBg) otTag.BackColor = tagBg;
             card.Invalidate();
 
@@ -551,7 +822,7 @@ namespace Bugi
         /// <summary>시간표를 실제로 그려 보고, 손잡이 끌기 · 줄 눌러 넓히기 · 알약 누르기가 맞게 움직이는지 본다.</summary>
         internal static void Run(Action<bool, string> check)
         {
-            DateTime now = DateTime.Now.Date.AddHours(20).AddMinutes(15);
+            DateTime now = new DateTime(2026, 11, 12, 20, 15, 0);   // 목요일
             var st = new OvertimeState(); st.SetWatch(true, now); st.EnsureToday(now); st.SetRange(18, 22);
             using (var board = new OvertimeBoard { St = st, Active = true })
                         {
@@ -597,6 +868,16 @@ namespace Bugi
                 check(clicked == 19, "초과근무 표: 지나간 시간대의 상태 알약을 누르면 알려 줌");
                 clicked = -1; Send(board, "OnMouseDown", MouseButtons.Left, board.ChipPoint(22));
                 check(clicked == -1, "초과근무 표: 미도래 시간대는 눌러도 반응 없음");
+
+                // 접힌 구간 줄(A안): 근무시간·미사용이 접힌 줄로 표시되고, [해제 ✕]를 누르면 FoldClicked 가 불린다
+                bool foldBasic = false, foldClear = false;
+                board.FoldClicked += (ib, cl) => { foldBasic = ib; foldClear = cl; };
+                st.SetUnused("00:00", "08:00"); redraw(delegate { });
+                check(board.FoldCount == 2, "초과근무 표: 미사용(00~08)과 근무시간(09~18)이 각각 접힌 줄로 표시됨 (" + board.FoldCount + "줄)");
+                Point fp = board.FoldActionPoint(true);
+                Send(board, "OnMouseDown", MouseButtons.Left, fp); Send(board, "OnMouseUp", MouseButtons.Left, fp);
+                check(foldBasic && foldClear, "초과근무 표: 접힌 근무시간 줄의 [휴일·해제 ✕] 단추 작동");
+                st.SetUnused("00:00", "00:00"); redraw(delegate { });
 
                 // 꺼져 있으면(비활성) 아무것도 못 바꾼다
                 board.Active = false; a = b = -1; clicked = -1;

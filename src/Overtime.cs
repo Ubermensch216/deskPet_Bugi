@@ -17,7 +17,7 @@ namespace Bugi
     }
 
     /// <summary>틱이 만들어 낸 알림 한 건.</summary>
-    internal sealed class OvertimeEvent { internal string Message; }
+    internal sealed class OvertimeEvent { internal string Message; internal int Hour; }   // Hour: 알린 시간대의 시(알림 창을 눌렀을 때 기록됨으로 바꿀 시간대)
 
     /// <summary>
     /// 초과근무 알림 (insarang.sAIde 의 "초과근무 기록 챙기기"를 부기 쪽으로 옮긴 것).
@@ -72,12 +72,77 @@ namespace Bugi
             return FirstCheckMin + (int)(hash % (uint)(FirstCheckMax - FirstCheckMin + 1));
         }
 
-        // ───────── 오늘 챙기기 ─────────
+        // ───────── 오늘 챙기기 · 휴일 판정 ─────────
+        private static readonly KoreanLunisolarCalendar Lunar = new KoreanLunisolarCalendar();
+
+        /// <summary>양력·음력 법정공휴일(일요일 제외, 대체공휴일 계산의 바탕).</summary>
+        private static bool IsPublicHolidayCore(DateTime d, out bool subEligible, out bool sunOnlySub)
+        {
+            subEligible = false; sunOnlySub = false;
+            int m = d.Month, day = d.Day;
+            if (m == 1 && day == 1) return true;   // 신정
+            if ((m == 3 && day == 1) || (m == 5 && day == 5) || (m == 8 && day == 15) || (m == 10 && day == 3) || (m == 10 && day == 9) || (m == 12 && day == 25))
+            { subEligible = true; return true; }   // 삼일절·어린이날·광복절·개천절·한글날·성탄절
+            if ((m == 6 && day == 6) || (m == 7 && day == 17)) return true;   // 현충일·제헌절
+            try
+            {
+                foreach (int offset in new[] { 0, 1 })   // offset=1: 내일이 음력 1월 1일이면 오늘은 섣달그믐(설날 연휴 첫날)
+                {
+                    DateTime t = d.AddDays(offset);
+                    int ly = Lunar.GetYear(t), lm = Lunar.GetMonth(t), ld = Lunar.GetDayOfMonth(t);
+                    int leap = Lunar.GetLeapMonth(ly);
+                    bool isLeap = leap > 0 && lm == leap;
+                    if (isLeap) continue;
+                    int realMonth = (leap > 0 && lm > leap) ? lm - 1 : lm;
+                    if (offset == 1 && realMonth == 1 && ld == 1) { subEligible = true; sunOnlySub = true; return true; }
+                    if (offset == 0 && realMonth == 1 && (ld == 1 || ld == 2)) { subEligible = true; sunOnlySub = true; return true; }
+                    if (offset == 0 && realMonth == 8 && (ld >= 14 && ld <= 16)) { subEligible = true; sunOnlySub = true; return true; }
+                    if (offset == 0 && realMonth == 4 && ld == 8) { subEligible = true; return true; }   // 부처님오신날
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>오늘이 휴일(토·일요일 또는 대한민국 법정공휴일·대체공휴일)인지 판정한다.</summary>
+        internal static bool IsHoliday(DateTime d)
+        {
+            DateTime dt = d.Date;
+            if (dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday) return true;
+            bool sub, sunOnly;
+            if (IsPublicHolidayCore(dt, out sub, out sunOnly)) return true;
+            // 대체공휴일: 직전 1~3일 안에 토·일요일(설·추석은 일요일)과 겹친 공휴일이 있으면 그 다음 첫 평일
+            for (int back = 1; back <= 3; back++)
+            {
+                DateTime prev = dt.AddDays(-back);
+                bool pSub, pSunOnly;
+                if (!IsPublicHolidayCore(prev, out pSub, out pSunOnly) || !pSub) continue;
+                bool overlappedWeekend = pSunOnly ? prev.DayOfWeek == DayOfWeek.Sunday : (prev.DayOfWeek == DayOfWeek.Saturday || prev.DayOfWeek == DayOfWeek.Sunday);
+                if (!overlappedWeekend) continue;
+                // prev 다음 날부터 dt 전날까지 모두 휴일(토·일·공휴일)이어야 dt 가 첫 비휴일 평일
+                bool allHolidayBetween = true;
+                for (int k = 1; k < back; k++)
+                {
+                    DateTime mid = prev.AddDays(k); bool mSub, mSun;
+                    if (mid.DayOfWeek != DayOfWeek.Saturday && mid.DayOfWeek != DayOfWeek.Sunday && !IsPublicHolidayCore(mid, out mSub, out mSun))
+                    { allHolidayBetween = false; break; }
+                }
+                if (allHolidayBetween) return true;
+            }
+            return false;
+        }
+
         internal bool WatchOn(DateTime now) { return WatchDate == DayKey(now); }
 
         internal void SetWatch(bool on, DateTime now)
         {
-            WatchDate = on ? DayKey(now) : ""; Touch();
+            WatchDate = on ? DayKey(now) : "";
+            if (on)
+            {
+                if (IsHoliday(now)) { BasicStartMin = 0; BasicEndMin = 0; }
+                else if (BasicStartMin == BasicEndMin) { BasicStartMin = 9 * 60; BasicEndMin = 18 * 60; }
+            }
+            Touch();
         }
 
         /// <summary>기록 표시는 그날 것만 남긴다.</summary>
@@ -90,9 +155,9 @@ namespace Bugi
 
         private void Touch() { Version++; Dirty = true; }
 
-        // ───────── 초근 시간 · 기본근무 ─────────
+        // ───────── 초근 시간 · 근무시간(기본) ─────────
         internal bool InRange(int hour) { return hour >= StartHour && hour < EndHour; }
-        internal bool IsBasicHour(int hour) { return hour * 60 >= BasicStartMin && (hour + 1) * 60 <= BasicEndMin; }
+        internal bool IsBasicHour(int hour) { return BasicStartMin < BasicEndMin && hour * 60 >= BasicStartMin && (hour + 1) * 60 <= BasicEndMin; }
         /// <summary>미사용 시간대 안에 통째로 들어가는 시. 자정을 넘기는 범위(시작&gt;끝)도 된다. 시작==끝이면 미사용 시간 없음.</summary>
         internal bool IsUnusedHour(int hour)
         {
@@ -111,11 +176,11 @@ namespace Bugi
             StartHour = start; EndHour = end; Touch();
         }
 
-        /// <summary>기본근무시간을 바꾼다. 앞뒤가 뒤집혔거나 형식이 틀리면 false.</summary>
+        /// <summary>근무시간(기본)을 바꾼다. 시작과 끝이 같으면(예: 00:00~00:00) 근무시간 없음. 앞뒤가 뒤집혔거나 형식이 틀리면 false.</summary>
         internal bool SetBasic(string from, string to)
         {
             int a, b;
-            if (!ParseHm(from, out a) || !ParseHm(to, out b) || a >= b) return false;
+            if (!ParseHm(from, out a) || !ParseHm(to, out b) || a > b) return false;
             BasicStartMin = a; BasicEndMin = b; Touch(); return true;
         }
 
@@ -188,9 +253,9 @@ namespace Bugi
                 string label = HourLabel(now.Hour);
                 bool last = minute == LastCallMinute;
                 LastCheckMsg = label + (last ? " 마지막 알림을 보냈습니다." : " 기록 알림을 보냈습니다.");
-                events.Add(new OvertimeEvent { Message = last
-                    ? label + " 시간대가 15분 남았어!\n아직 초과근무 기록 안 했지? 인사랑에서 기록해 줘~"
-                    : label + " 초과근무 기록할 시간이야!\n인사랑에 기록하고 '기록했어요'를 눌러 줘." });
+                events.Add(new OvertimeEvent { Hour = now.Hour, Message = last
+                    ? label + " 시간대가 15분 남았어!\n아직 초과근무 기록 안 했지? 인사랑에서 기록하고 나를 눌러 줘~"
+                    : label + " 초과근무 기록할 시간이야!\n인사랑에 기록하고 나를 눌러 줘. '기록됨'으로 표시할게!" });
             }
             return events;
         }
@@ -296,10 +361,20 @@ namespace Bugi
             st.SetRange(20, 5); check(st.StartHour == 20 && st.EndHour == 21, "초과근무: 초근끝은 초근시작보다 뒤로 보정");
             st.SetRange(18, 22);
 
-            // 오늘 챙기기: 하루만 유효
+            // 오늘 챙기기: 하루만 유효 · 휴일에 켜면 근무시간이 00:00~00:00(없음)으로 바뀜
             check(!st.WatchOn(t0), "초과근무: 처음엔 꺼짐");
             st.SetWatch(true, t0);
             check(st.WatchOn(t0) && st.WatchOn(t0.AddHours(5)) && !st.WatchOn(t0.AddDays(1)), "초과근무: 오늘 챙기기는 그날만 켜져 있음(다음 날 저절로 꺼짐)");
+            {
+                var sat = new DateTime(2026, 11, 14, 14, 0, 0);   // 토요일
+                var xmas = new DateTime(2026, 12, 25, 10, 0, 0);  // 성탄절(금)
+                check(!IsHoliday(t0) && IsHoliday(sat) && IsHoliday(sat.AddDays(1)) && IsHoliday(xmas), "초과근무: 평일·주말·공휴일 판정");
+                var hol = new OvertimeState();
+                hol.SetWatch(true, sat);
+                check(hol.BasicStartMin == 0 && hol.BasicEndMin == 0 && hol.RowHours().Count == 24, "초과근무: 휴일에 켜면 근무시간이 00:00~00:00 으로 없어져 24시간 모두 표시됨");
+                hol.SetWatch(true, t0);
+                check(hol.BasicStartMin == 9 * 60 && hol.BasicEndMin == 18 * 60 && hol.RowHours().Count == 15, "초과근무: 평일에 다시 켜면 기본 근무시간(09:00~18:00) 복원");
+            }
 
             // 시간대 상태
             var now = new DateTime(2026, 11, 12, 20, 15, 0); st.EnsureToday(now);
@@ -313,7 +388,7 @@ namespace Bugi
             st.Dirty = false; DateTime h20 = new DateTime(2026, 11, 12, 20, 0, 0); int c20 = CheckMinute(h20);
             check(st.Tick(h20.AddMinutes(c20 - 1).AddSeconds(59)).Count == 0, "초과근무: 확인 분 직전에는 안 울림");
             var ev = st.Tick(h20.AddMinutes(c20));
-            check(ev.Count == 1 && ev[0].Message.Contains("20:00 ~ 21:00") && ev[0].Message.Contains("기록") && st.Tick(h20.AddMinutes(c20).AddSeconds(30)).Count == 0, "초과근무: 첫 확인 분에 한 번만 알림");
+            check(ev.Count == 1 && ev[0].Hour == 20 && ev[0].Message.Contains("20:00 ~ 21:00") && ev[0].Message.Contains("기록") && st.Tick(h20.AddMinutes(c20).AddSeconds(30)).Count == 0, "초과근무: 첫 확인 분에 한 번만 알림");
             check(st.LastCheckAt == h20.AddMinutes(c20) && st.LastCheckMsg.Contains("20:00 ~ 21:00"), "초과근무: 마지막 확인 기록");
             var last = st.Tick(h20.AddMinutes(45));
             check(last.Count == 1 && last[0].Message.Contains("15분 남았어"), "초과근무: 45분 마지막 알림");
@@ -329,7 +404,7 @@ namespace Bugi
             check(day.Recorded.Count == 0 && !day.WatchOn(tomorrow), "초과근무: 다음 날에는 기록 표시가 지워지고 챙기기가 꺼짐");
 
             // 저장 · 불러오기
-            var sv = new OvertimeState { StartHour = 19, EndHour = 23 }; sv.SetBasic("08:30", "17:30"); sv.SetUnused("23:00", "06:00"); sv.SetWatch(true, DateTime.Now); sv.EnsureToday(DateTime.Now);
+            var sv = new OvertimeState { StartHour = 19, EndHour = 23 }; sv.SetWatch(true, DateTime.Now); sv.SetBasic("08:30", "17:30"); sv.SetUnused("23:00", "06:00"); sv.EnsureToday(DateTime.Now);
             sv.MarkRecorded(DateTime.Now.Hour, true, DateTime.Now);
             check(sv.Save(), "초과근무: 저장");
             var ld = Load();

@@ -432,7 +432,7 @@ namespace Bugi
             }
             step("통합 설정창: 알림 · 초과근무 알림 탭", () =>
             {
-                var now = DateTime.Now; app.Overtime.SetWatch(true, now); app.Overtime.EnsureToday(now); app.Overtime.SetRange(10, 23);
+                var now = DateTime.Now; app.Overtime.SetWatch(true, now); app.Overtime.SetBasic("09:00", "18:00"); app.Overtime.EnsureToday(now); app.Overtime.SetRange(10, 23);
                 var f = new SettingsForm(app, 2); f.SelectAlarmTab(1); shot(f, "ui_settings_overtime");
                 // 기본근무 시간을 고치면 시간표 줄이 곧바로 달라져야 한다(09~18 → 10~16)
                 var pickers = new List<DateTimePicker>(); OvertimeBoard board = null;
@@ -453,6 +453,25 @@ namespace Bugi
                 int rows3 = board.RowCount;
                 pickers[3].Value = d0; int rows4 = board.RowCount; f2.Close();
                 if (rows3 != 9 || rows4 != 15) throw new Exception("unused rows " + rows3 + "/" + rows4);
+            });
+            step("초과근무 알림: 알림 속 부기를 누르면 '기록됨'", () =>
+            {
+                var st = app.Overtime; DateTime n = DateTime.Now; int h = n.Hour;
+                st.SetWatch(true, n); st.EnsureToday(n); st.MarkRecorded(h, false, n);
+                var a = app.ShowOvertimeAlert(new OvertimeEvent { Hour = h, Message = OvertimeState.HourLabel(h) + " 초과근무 기록할 시간이야!" });
+                if (a == null) throw new Exception("alert not shown");
+                pump(.3);
+                if (st.Recorded.ContainsKey(h)) throw new Exception("recorded before click");
+                Action<Control, MouseButtons> up = (w, b) => typeof(Control).GetMethod("OnMouseUp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(w, new object[] { new MouseEventArgs(b, 1, 10, 10, 0) });
+                up(a, MouseButtons.Left); pump(.2);
+                if (!st.Recorded.ContainsKey(h)) throw new Exception("not recorded after click");
+                if (!a.IsDisposed && a.Visible) throw new Exception("alert still open");
+                // 오른쪽 단추로 닫으면 기록하지 않는다
+                st.MarkRecorded(h, false, n);
+                var b2 = app.ShowOvertimeAlert(new OvertimeEvent { Hour = h, Message = OvertimeState.HourLabel(h) + " 초과근무 기록할 시간이야!" });
+                pump(.3); up(b2, MouseButtons.Right); pump(.2);
+                if (st.Recorded.ContainsKey(h)) throw new Exception("recorded by right click");
+                st.SetWatch(false, n);
             });
             step("펫 전원: 끄면 펫 창이 숨고 켜면 돌아옴", () =>
             {

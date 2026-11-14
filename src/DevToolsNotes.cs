@@ -165,7 +165,7 @@ namespace Bugi
         private static void ShotOvertime(App app, string path)
         {
             DateTime now = DateTime.Now; var st = app.Overtime;
-            st.SetWatch(true, now); st.EnsureToday(now); st.SetRange(10, 23); st.SetUnused("00:00", "06:00");
+            st.SetWatch(true, now); st.SetBasic("09:00", "18:00"); st.EnsureToday(now); st.SetRange(10, 23); st.SetUnused("00:00", "06:00");
             using (var f = new SettingsForm(app, 2)) { f.SelectAlarmTab(1); CaptureForm(f, path); }
         }
 
