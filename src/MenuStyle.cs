@@ -80,6 +80,9 @@ namespace Bugi
         protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
         {
             using (var b = new SolidBrush(Back)) e.Graphics.FillRectangle(b, e.AffectedBounds);
+            // 섹션 사이 윗선: 항목 폭은 글자 폭만큼이라 잘리므로, 메뉴 전체 폭으로 여기서 긋는다 (왼쪽 바는 이어서 바가 덮는다)
+            float s = Scale(e.ToolStrip); int x0 = MarginOf(e.ToolStrip, s) + (int)(6 * s), x1 = e.ToolStrip.Width - (int)(8 * s);
+            using (var p = new Pen(Line)) foreach (ToolStripItem it in e.ToolStrip.Items) { var sec = it as MenuSection; if (sec != null && !sec.First) { int y = sec.Bounds.Top + sec.Gap - (int)(4 * s); e.Graphics.DrawLine(p, x0, y, x1, y); } }
         }
 
         protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
@@ -120,8 +123,6 @@ namespace Bugi
             int rowTop = sec.Gap, rowH = sec.RowHeight, right = sec.Owner.Width - sec.Bounds.Left - 1;   // 항목 폭이 아니라 메뉴 폭 기준
             g.SmoothingMode = SmoothingMode.AntiAlias; g.PixelOffsetMode = PixelOffsetMode.HighQuality; g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            // 섹션 사이 윗선 (왼쪽 바 위에는 긋지 않음)
-            if (!sec.First) using (var p = new Pen(Line)) g.DrawLine(p, mr + (int)(6 * s), rowTop - (int)(4 * s), right - (int)(8 * s), rowTop - (int)(4 * s));
 
             // 배지: 왼쪽 바 한가운데(바 폭은 mr)
             int d = (int)Math.Round(20 * s);
@@ -129,6 +130,7 @@ namespace Bugi
             DrawBadge(g, badge, sec.Kind);
 
             bool status = sec.Kind == MenuKind.Status;
+            if (!status) return;   // 교류·일·설정은 제목 글자 없이 아이콘 배지만 보여 준다 (사용자 요청)
             using (var f = new Font(sec.Font.FontFamily, sec.Font.Size * (status ? 1f : .95f), status ? FontStyle.Regular : FontStyle.Bold))
             {
                 Color c = status ? Color.FromArgb(60, 48, 52) : Muted;
