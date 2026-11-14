@@ -25,7 +25,8 @@ namespace Bugi
         internal bool First { get { return Owner != null && Owner.Items.Count > 0 && Owner.Items[0] == this; } }
         /// <summary>머리글 줄 위쪽의 여백(첫 줄은 없음). 그 아래 RowHeight 만큼이 실제 줄이다.</summary>
         internal int Gap { get { return First ? (int)Math.Round(3 * Scale) : (int)Math.Round(9 * Scale); } }
-        internal int RowHeight { get { return (int)Math.Round(24 * Scale); } }
+        /// <summary>친밀도 줄만 실제 줄이 있다. 교류·일·설정 머리글은 구분 여백(Gap)만 차지하고, 배지는 섹션 첫 항목 옆 왼쪽 바에 그린다.</summary>
+        internal int RowHeight { get { return Kind == MenuKind.Status ? (int)Math.Round(24 * Scale) : 0; } }
 
         public override Size GetPreferredSize(Size constrainingSize)
         {
@@ -113,6 +114,7 @@ namespace Bugi
                 for (int j = i + 1; j < items.Count; j++) if (items[j] is MenuSection) { bottom = items[j].Bounds.Top + ((MenuSection)items[j]).Gap - 3; break; }
                 if (sec.Kind == MenuKind.Status) bottom = Math.Min(bottom, sec.Bounds.Bottom - 2);   // 친밀도 줄은 줄 하나만
                 using (var b = new SolidBrush(Accent(sec.Kind))) g.FillRectangle(b, m.Left, top, Math.Max(2, (int)Math.Round(3 * s)), Math.Max(2, bottom - top));
+                if (sec.Kind != MenuKind.Status && i + 1 < items.Count) { g.SmoothingMode = SmoothingMode.AntiAlias; int d = (int)Math.Round(20 * s); Rectangle row = items[i + 1].Bounds; DrawBadge(g, new Rectangle(m.Left + (m.Width - d) / 2 + 1, row.Top + (row.Height - d) / 2, d, d), sec.Kind); }   // 배지는 섹션 첫 항목 옆
             }
         }
 
@@ -127,6 +129,7 @@ namespace Bugi
             // 배지: 왼쪽 바 한가운데(바 폭은 mr)
             int d = (int)Math.Round(20 * s);
             var badge = new Rectangle((mr - d) / 2 + 1, rowTop + (rowH - d) / 2, d, d);
+            if (sec.Kind != MenuKind.Status) return;   // 교류·일·설정: 줄 없이 여백만, 배지는 OnRenderImageMargin 에서
             DrawBadge(g, badge, sec.Kind);
 
             bool status = sec.Kind == MenuKind.Status;
