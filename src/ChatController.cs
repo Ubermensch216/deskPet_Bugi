@@ -141,7 +141,8 @@ namespace Bugi
             var mode = ChatMode.Current; parser = new ReplyParser(mode.MaxSentences, mode.MaxChars); var req = request = new ChatRequest(); streaming = true;
             var worker = new Thread(delegate ()
             {
-                if (proactive && LlmClient.Probe(opts) != ProbeResult.Ok) { inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Silent }); return; }
+                // EXAONE 은 초당 호출 수 제한이 있어 확인 요청 바로 뒤 본 요청이 429 로 밀린다(재시도 1.2초). 실패해도 Silent 로 조용히 끝나니 확인은 Ollama 에서만 한다.
+                if (proactive && !opts.IsExaone && LlmClient.Probe(opts) != ProbeResult.Ok) { inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Silent }); return; }
                 string err = LlmClient.Stream(opts, msgs, tok => inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Token, Text = tok }), req, mode.NumPredict, mode.Temperature);
                 if (err == null) inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Done });
                 else if (err != "cancelled") inbox.Enqueue(new Evt { Gen = g, Kind = proactive ? Kind.Silent : Kind.Error, Text = err });

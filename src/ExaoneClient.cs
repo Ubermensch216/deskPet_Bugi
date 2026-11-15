@@ -43,6 +43,11 @@ namespace Bugi
             r.Method = "POST"; r.Timeout = timeoutMs; r.ReadWriteTimeout = 90000; r.UserAgent = "Bugi-DeskPet";
             r.Headers["Authorization"] = "Bearer " + o.ExaoneKeyEffective;
             r.Accept = "application/json, text/event-stream";
+            // 지연 줄이기: .NET 은 POST 마다 "100-continue" 답을 최대 350ms 기다리고, Nagle 로 작은 패킷을 묶어 늦게 보낸다.
+            // 연결 수 기본값(2)이면 대화 뒤 기억·일기 요청이 새 대화 요청을 줄 세울 수 있어 넉넉히 연다.
+            var sp = r.ServicePoint;
+            sp.Expect100Continue = false; sp.UseNagleAlgorithm = false;
+            if (sp.ConnectionLimit < 6) sp.ConnectionLimit = 6;
             return r;
         }
 
