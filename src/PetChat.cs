@@ -247,10 +247,17 @@ namespace Bugi
                     if (k > .3) { Pose h = new Pose(); HungryCryPose(h, mt); CopyFace(P, h); L.FaceRight = false; }
                     break;
                 case ChatMood.Blank:
-                    DaydreamPose(P, mt);            // 멍...(가이드북 p32)
+                    DaydreamPose(P, mt);            // 멍...(부기는 가이드북 p32, 부캉이는 턱 괴기)
+                    if (Art.Id == 1) { L.Decor |= Decor.Dots; L.DecorPhase = (float)mt; }
                     break;
                 default:
                 {
+                    if (Art.Id == 1)
+                    {
+                        if (Mood == ChatMood.Praise) { IdCardPose(P, mt); break; }
+                        if (Mood == ChatMood.Cheer || Mood == ChatMood.Busan) { FlagPose(P, mt); L.Decor |= Decor.Tool; break; }
+                        if (Mood == ChatMood.Explain) { GuidePose(P, mt); break; }
+                    }
                     // 가이드북 응용동작(p27~36): 인사 · 웃음 · 사랑 · 응원 · 칭찬 · 위로 · 뿌듯 · 바쁨 · 여행 · 설명 · 등장 · 오케이 · 부산
                     Skit sk;
                     if (MoodSkit(Mood, out sk)) { SkitPose(P, ref L, sk, mt, 9999); break; }

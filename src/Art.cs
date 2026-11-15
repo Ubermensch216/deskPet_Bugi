@@ -35,6 +35,20 @@ namespace Bugi
                     "옷차림: 하늘색 조끼 · 크로스백 · 바이저 · 선글라스"
                 }
             },
+            new CharInfo
+            {
+                Key = "bukangyee",
+                Name = "부캉이",
+                Title = "부산 소통 캐릭터 · 부산 상어",
+                Accent = Color.FromArgb(40, 132, 235),
+                Traits = new[]
+                {
+                    "부산 바다에서 온 통통하고 씩씩한 꼬마 상어",
+                    "까만 백팩 · 등지느러미 · 노란 테 선글라스",
+                    "시그니처 동작: 부산 최고! · 파도 깃발 · 액션캠 셀카",
+                    "홍보대사 어깨띠를 두르면 안내 · 배꼽인사 · 응원"
+                }
+            },
         };
         internal static int Count { get { return Infos.Length; } }
         internal static float Scale = 1f;
@@ -76,7 +90,7 @@ namespace Bugi
             Id = id; Info = Infos[id]; Zoom = zoom;
             H = (int)Math.Round(BaseHeight * Scale * zoom);
             K = H / Rig.RefH;
-            W = (int)Math.Round(150 * K);
+            W = (int)Math.Round((id == 1 ? 214 : 150) * K);
             HeadRoom = (int)Math.Round(H * .12f);   // 안전모(키 상자 위로 약 .11H 솟음)가 화면 맨 위에서도 잘리지 않을 만큼
         }
 
@@ -119,23 +133,34 @@ namespace Bugi
 
         internal static Bitmap IconBitmap(int id, int n)
         {
-            return IconBitmap(n);
+            var bmp = new Bitmap(n, n, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                Quality(g); g.Clear(Color.Transparent);
+                if (id == 1)
+                {
+                    // 부캉이 머리(가로 184 · 등지느러미 포함)가 아이콘 칸 안에 들어오도록 확대
+                    float k = (n - 1.5f) / 204f;
+                    g.TranslateTransform(n / 2f, (BukangyeeRig.RefFootY - 14f) * k + .75f);
+                    var pose = new Pose { Turn = -.12f, Eyes = EyeStyle.Happy, Beak = .6f, Blush = .5f };
+                    BukangyeeRig.Draw(g, pose, k, false);
+                }
+                else
+                {
+                    // 부기 머리: 기준 치수 y 4~154 가 정사각형에 들어오도록 발 위치를 아래로 내린다
+                    float k = (n - 1.5f) / 150f;
+                    g.TranslateTransform(n / 2f, (Rig.RefFootY - 4f) * k + .75f);
+                    var pose = new Pose { Turn = -.25f };
+                    Rig.Draw(g, pose, k, false);
+                }
+            }
+            return bmp;
         }
 
         /// <summary>얼굴(머리카락·빨간 안경·부리)이 잘 보이도록 머리를 확대한 아이콘 그림.</summary>
         internal static Bitmap IconBitmap(int n)
         {
-            var bmp = new Bitmap(n, n, PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                Quality(g); g.Clear(Color.Transparent);
-                // 머리: 기준 치수 y 4~154 가 정사각형에 들어오도록 발 위치를 아래로 내린다
-                float k = (n - 1.5f) / 150f;
-                g.TranslateTransform(n / 2f, (Rig.RefFootY - 4f) * k + .75f);
-                var pose = new Pose { Turn = -.25f };
-                Rig.Draw(g, pose, k, false);
-            }
-            return bmp;
+            return IconBitmap(0, n);
         }
     }
 }

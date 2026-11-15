@@ -117,9 +117,10 @@ namespace Bugi
             if (request != null) request.Abort();
             streaming = false; chipsWanted = false; gen++;
             Pet p = pet; pet = null;
+            int charId = p != null ? p.Art.Id : 0;
             if (p != null) { p.OnChatChar = null; p.EndChat(app); }
             if (input != null) { var i = input; input = null; i.Dispose(); }
-            Digest();
+            Digest(charId);
         }
 
         // ───────── 말 보내기·받기 ─────────
@@ -132,7 +133,7 @@ namespace Bugi
             input.Echo(text);
             history.Add(new ChatMessage("user", text));
             pet.ChatThink();
-            StartStream(ChatPersona.Build(history, DateTime.Now), false);
+            StartStream(ChatPersona.Build(history, DateTime.Now, pet.Art.Id), false);
         }
 
         private void StartStream(List<ChatMessage> msgs, bool proactive)
@@ -260,7 +261,7 @@ namespace Bugi
             pet = p; p.ChatThink(); lastActivity = now;
             p.OnChatChar = ch => ChatSound.Char(ch, pet != null ? pet.Mood : ChatMood.Neutral);
             history.Add(ChatPersona.ProactivePrompt(ProactiveReason()));
-            StartStream(ChatPersona.Build(history, DateTime.Now), true);
+            StartStream(ChatPersona.Build(history, DateTime.Now, p.Art.Id), true);
             return true;
         }
 
@@ -280,16 +281,17 @@ namespace Bugi
         /// 대화가 끝나면 (1) 알게 된 사실만 한두 줄로 추려 두고(다음에 자연스럽게 꺼내려고) (2) 부기의 일기장에 한 줄을 적는다.
         /// 한 모델에 동시에 두 번 묻지 않도록 한 일꾼이 차례로 한다.
         /// </summary>
-        private void Digest()
+        private void Digest(int charId = 0)
         {
             var o = ChatOptions.Current;
             var fresh = history.Skip(extractedUpTo).ToList(); extractedUpTo = history.Count;
             if ((!o.Memory && !o.Diary) || fresh.Count(m => m.Role == "user" && !m.Content.StartsWith("(상황")) < 2) return;
             var sb = new StringBuilder();
+            string speaker = charId == 1 ? "부캉이: " : "부기: ";
             foreach (var m in fresh)
             {
                 if (m.Role == "user" && m.Content.StartsWith("(상황")) continue;
-                sb.Append(m.Role == "user" ? "사용자: " : "부기: ").Append(m.Content).Append('\n');
+                sb.Append(m.Role == "user" ? "사용자: " : speaker).Append(m.Content).Append('\n');
             }
             string transcript = sb.ToString(); DateTime when = DateTime.Now;
             new Thread(delegate ()
@@ -301,7 +303,7 @@ namespace Bugi
                 }
                 if (o.Diary)
                 {
-                    string line = ChatPersona.ParseDiary(LlmClient.Complete(o, ChatPersona.DiaryRequest(transcript, when), 160, .7));
+                    string line = ChatPersona.ParseDiary(LlmClient.Complete(o, ChatPersona.DiaryRequest(transcript, when, charId), 160, .7));
                     if (line != null) inbox.Enqueue(new Evt { Kind = Kind.Diary, Text = line, When = when });
                 }
             }) { IsBackground = true }.Start();

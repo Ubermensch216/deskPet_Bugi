@@ -159,12 +159,14 @@ namespace Bugi
             }
             L.Bubble = PersistentBubble(hourlyBubble, Bubble);
             CompanionLook(ref L, now);
+            if (Art.Id == 0)
             {
                 // 소품·글자·하트가 몸 상자 밖으로 나가므로 그림 상자를 넓힌다(응용동작 그림 p27~36)
                 Pose q = L.Pose;
                 if (q.Prop != PropKind.None || q.Cape || q.Chair || q.Helmet || q.Hat || !string.IsNullOrEmpty(q.Sfx) || q.Hearts >= 0 || q.Stars >= 0 || q.Marks >= 0) L.Decor |= Decor.Prop;
             }
             L.Pose.Outfit = L.Work = WearsOutfit;
+            if (Art.Id == 0)
             {
                 // 근무복 종류와 아이템(가이드북 p18·p20). 설정을 끄고 동작만 보는 중이면 기본 조끼를 입는다.
                 var po = PlayOptions.Current; Pose q = L.Pose;
@@ -206,12 +208,19 @@ namespace Bugi
                     SleepPose(P, t); L.ZPhase = (int)(t * 20) % 100000; L.ZTime = (float)t; L.Decor |= Decor.Sleepy;
                     break;
                 case RestPose.Daydream:
-                    // 멍...(가이드북 p32): 퍼질러 앉아 옆을 멍하니 바라본다.
+                    // 멍...(부기는 가이드북 p32 퍼질러 앉기, 부캉이는 턱 괴고 위 쳐다보기)
                     DaydreamPose(P, t);
+                    if (Art.Id == 1) { L.Decor |= Decor.Dots; L.DecorPhase = (float)t; }
                     break;
                 case RestPose.Skit:
                     // 가이드북 응용동작(p27~36)
                     SkitPose(P, ref L, skit, t, extraDuration);
+                    break;
+                case RestPose.Selfie:
+                    SelfiePose(P, t); L.Decor |= Decor.Tool;
+                    break;
+                case RestPose.Cool:
+                    CoolPose(P, t);
                     break;
                 case RestPose.Stretch:
                 {
@@ -254,6 +263,18 @@ namespace Bugi
                     // 배꼽인사(근무복 그림 10): 날개를 배 앞에 모으고 눈을 감은 채 공손히 숙인다.
                     BowPose(P, t);
                     break;
+                case RestPose.IdCard:
+                    // 부산 최고! 두 엄지를 번쩍.
+                    IdCardPose(P, t);
+                    break;
+                case RestPose.Flag:
+                {
+                    // 파도 깃발 흔들기: 부산 파랑 깃발을 높이 들고 폴짝폴짝.
+                    FlagPose(P, t); L.Decor |= Decor.Tool;
+                    double fe = Window(t, .2, extraDuration - .4, .5);
+                    L.HopY = -(float)(Math.Abs(Math.Sin(t * 5.2)) * 6 * S * fe);
+                    break;
+                }
                 default:
                     SitIdlePose(P, animT);
                     break;
@@ -420,7 +441,8 @@ namespace Bugi
                 {
                     bg.Transform = full;
                     if (L.Upside) { bg.TranslateTransform(0, -h / 2); bg.RotateTransform(180); bg.TranslateTransform(0, h / 2); }
-                    Rig.Draw(bg, L.Pose, art.K, L.FaceRight);
+                    if (art.Id == 1) BukangyeeRig.Draw(bg, L.Pose, art.K, L.FaceRight);
+                    else Rig.Draw(bg, L.Pose, art.K, L.FaceRight);
 
                     // 몸에 붙어 따라 움직이는 장식
                     bg.Transform = full;
@@ -644,7 +666,7 @@ namespace Bugi
         /// <summary>두 손으로 안아 든 꽃다발(손은 Rig 가 배 앞에 모아 쥐고 있다).</summary>
         private static void DrawBouquet(Graphics g, CharacterArt art, float w, float h, float s, Pen ink)
         {
-            float handY = (176 - Rig.RefFootY) * art.K, x = 0, y = handY - 20 * s;
+            float handY = ((art.Id == 1 ? 192 : 176) - Rig.RefFootY) * art.K, x = 0, y = handY - 20 * s;
             using (var stem = new Pen(Color.FromArgb(90, 141, 97), 2.4f * s))
                 for (int j = -1; j <= 1; j++) g.DrawLine(stem, x - 3 * s, y + 25 * s, x + j * 9 * s, y - (j == 0 ? 7 : 0) * s);
             using (var wrap = new SolidBrush(Color.FromArgb(255, 224, 231)))

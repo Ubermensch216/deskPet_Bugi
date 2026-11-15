@@ -125,6 +125,9 @@ namespace Bugi
                 K("구명조끼", (p, w) => { PlayOptions.Current.Outfit = true; PlayOptions.Current.OutfitStyle = OutfitStyle.LifeJacket; p.SetState(PetState.Pause, w); }), K("아이템", (p, w) => { PlayOptions.Current.AccBag = PlayOptions.Current.AccVisor = true; p.SetState(PetState.Pause, w); }), K("선글라스", (p, w) => { PlayOptions.Current.AccSunglasses = true; p.SetState(PetState.Pause, w); }),
                 K("안내", (p, w) => { p.Demonstrate(w, "guide"); for (int i = 0; i < 125; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("배꼽인사", (p, w) => { p.Demonstrate(w, "bow"); for (int i = 0; i < 115; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("셀카", (p, w) => { p.Demonstrate(w, "selfie"); for (int i = 0; i < 105; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("부산최고", (p, w) => { p.Demonstrate(w, "idcard"); for (int i = 0; i < 90; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("파도깃발", (p, w) => { p.Demonstrate(w, "flag"); for (int i = 0; i < 90; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("멍...", (p, w) => { p.Demonstrate(w, "daydream"); for (int i = 0; i < 60; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("안녕", (p, w) => SkitShot(p, w, Skit.Hello)), K("ㅋㅋ", (p, w) => SkitShot(p, w, Skit.Laugh)), K("하트", (p, w) => SkitShot(p, w, Skit.HeartHug)),
                 K("두두등장", (p, w) => SkitShot(p, w, Skit.Hero)), K("응원", (p, w) => SkitShot(p, w, Skit.Cheer)), K("뿌듯", (p, w) => SkitShot(p, w, Skit.Proud)),
@@ -651,6 +654,22 @@ namespace Bugi
                     for (double t = 0; t < 12; t += .1) { wo.Now += .1; po.Update(wo, .1, null, 0); }
                     check(po.State != PetState.Resting && !po.WearsOutfit, "근무복 동작이 끝나면 다시 벗음: " + kind);
                 }
+                // 부캉이 전용 시그니처 · 홍보대사 동작 점검
+                var bk = new Pet(wo, 1, 640, 720) { Area = wo.Areas[0] };
+                bk.SetState(PetState.Pause, wo); bk.X = 640; bk.Y = 720;
+                foreach (var sig in Signatures.All[1])
+                {
+                    bk.RequestSignature(wo, sig);
+                    bool entered = bk.State == PetState.Resting, drew = true;
+                    for (double t = 0; t < 2.2; t += .1)
+                    {
+                        wo.Now += .1; bk.Update(wo, .1, null, 0);
+                        try { PointF oo; using (Bitmap bo = Pet.Render(bk.GetLook(wo.Now), out oo)) drew &= bo.Width > 10 && bo.Width < 4000; } catch { drew = false; }
+                    }
+                    check(entered && drew, "부캉이 시그니처: " + sig.Name);
+                    for (double t = 0; t < 6; t += .1) { wo.Now += .1; bk.Update(wo, .1, null, 0); }
+                }
+                check(ChatPersona.SystemPrompt(new DateTime(2026, 1, 5, 10, 3, 0), 1).Contains("부캉이"), "부캉이 AI 대화 페르소나");
                 Func<float, int> inkH = sq =>
                 { using (var bm = new Bitmap(300, 400)) using (var gg = Graphics.FromImage(bm)) { CharacterArt.Quality(gg); gg.Clear(Color.Transparent); gg.TranslateTransform(150, 380); Rig.Draw(gg, new Pose { Squash = sq }, 1.2f, false); return CharacterArt.Bounds(bm).Height; } };
                 check(inkH(.4f) == inkH(.05f) && inkH(-.4f) == inkH(-.05f), "규격 가드: 몸이 눌리거나 늘어나는 정도 5% 한도");

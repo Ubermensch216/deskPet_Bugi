@@ -6,7 +6,7 @@ using System.Drawing.Drawing2D;
 namespace Bugi
 {
     internal enum EyeStyle { Dot, Half, Closed, Happy, Squint, Wide, Spiral }
-    internal enum ToolKind { None, Pickaxe }
+    internal enum ToolKind { None, Pickaxe, Camera, Flag }
 
     /// <summary>가이드북 응용동작(p27~36)에 나오는 소품. RigProps.cs 가 그린다.</summary>
     internal enum PropKind { None, Heart, Pompom, Board, Megaphone, Laptop, Map, Sign }
@@ -45,6 +45,7 @@ namespace Bugi
         public PointF? WingLTo, WingRTo;       // 날개 끝이 갈 곳(기준 좌표). 있으면 각도 대신 사용하고 몸 앞에 그림
         public bool WingBack;                  // 날개를 몸 뒤에 그림
         public float WingLSweep, WingRSweep;   // 날개가 앞(-)·뒤(+)로 뻗는 정도(-1..1). 옆모습일 때 팔 흔들기·뒤로 젖히기로 보인다
+        public float Thumb;                    // 엄지척(부캉이 양손 엄지가 위로 솟는 정도 0..1)
         // 다리·신발
         public float FootLX, FootLY, FootRX, FootRY, FootLRot, FootRRot;
         // 꼬리
@@ -52,6 +53,7 @@ namespace Bugi
         // 장식
         public float Tears = -1, Sweat = -1, Anger, Cookie = -1, Puff = -1, Holo = -1;
         public ToolKind Tool; public float ToolAng;
+        public float Flash = -1;               // >=0 이면 카메라 플래시(위상)
         public float Debris = -1, DebrisX = 246, DebrisY = 294;
         public float Ghost, GhostAng;          // 꾸벅꾸벅 졸 때 머리가 남기는 잔상
         // 근무복(공식 3D 근무복: 흰 셔츠 깃 + 하늘색 조끼 + 목걸이 명찰). 몸 윤곽 안쪽에 겹쳐 그리므로 규격 비율은 그대로다.
@@ -59,6 +61,7 @@ namespace Bugi
         public float CardSwing;                // 명찰이 흔들리는 각도
         public float CardShow;                 // 0 가슴에 걸림, 1 번쩍 들어 보여줌
         public float Sparkle = -1;             // >=0 이면 짠! 반짝임(위상)
+        public float FlagWave;                 // 깃발 펄럭임 위상
         // 가이드북 응용동작(p27~36): 소품·옷·효과. 그림은 왼쪽을 보는(또는 정면) 모습으로만 쓴다.
         public PropKind Prop; public float PropT;          // 소품과 그 움직임 위상
         public bool Gray;                                  // 몸이 회색 실루엣으로 비어 보임(p31 "네..?")
@@ -87,12 +90,12 @@ namespace Bugi
                 add(WingLA, 3); add(WingLB, 3); add(WingRA, 3); add(WingRB, 3);
                 add(WingLTo.HasValue ? WingLTo.Value.X : -999, 2); add(WingLTo.HasValue ? WingLTo.Value.Y : -999, 2);
                 add(WingRTo.HasValue ? WingRTo.Value.X : -999, 2); add(WingRTo.HasValue ? WingRTo.Value.Y : -999, 2);
-                add(WingBack ? 1 : 0, 1); add(WingLSweep, 10); add(WingRSweep, 10);
+                add(WingBack ? 1 : 0, 1); add(WingLSweep, 10); add(WingRSweep, 10); add(Thumb, 10);
                 add(FootLX, 2); add(FootLY, 2); add(FootRX, 2); add(FootRY, 2); add(FootLRot, 3); add(FootRRot, 3);
                 add(Tail, 3); add(TailWag, 3);
-                add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8);
+                add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8); add(Flash, 12);
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
-                add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8);
+                add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8); add(FlagWave, 6);
                 add((int)Prop, 1); add(PropT, 8); add(Gray ? 1 : 0, 1); add(Casual ? 1 : 0, 1);
                 add(OutfitKind, 1); add((Bag ? 1 : 0) + (Visor ? 2 : 0) + (Sunglasses ? 4 : 0) + (Helmet ? 8 : 0), 1);
                 add((Hat ? 1 : 0) + (Shades ? 2 : 0) + (Cape ? 4 : 0) + (Mask ? 8 : 0) + (Lanyard ? 16 : 0) + (Chair ? 32 : 0), 1);

@@ -207,7 +207,15 @@ namespace Bugi
                     P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1; P.Beak = F(.25 * e); P.Tuft += F(-10 * fl * e); P.Look = Lerp(P.Look, 0, e);
                     break;
                 }
-                case 7: // 안녕(가이드북 p27): 날개를 번쩍 들어 흔들고 한쪽 다리를 차올린다
+                case 7: // 안녕! 인사
+                    if (Art.Id == 1)
+                    {
+                        P.WingRA = Lerp(P.WingRA, 150, e); P.WingRB = Lerp(P.WingRB, 140 + Math.Sin(u * 16) * 28, e);
+                        P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1;
+                        P.Beak = F(.5 * (.5 + .5 * Math.Sin(u * 8)) * e); P.Blush = .3f * ef; P.Look = Lerp(P.Look, 0, e); P.HeadTilt += 4 * ef;
+                        break;
+                    }
+                    // 안녕(가이드북 p27): 날개를 번쩍 들어 흔들고 한쪽 다리를 차올린다
                     P.WingLA = Lerp(P.WingLA, 150, e); P.WingLB = Lerp(P.WingLB, 128 + Math.Sin(u * 12) * 30, e);
                     P.Eyes = EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.FootRY = F(-15 * e); P.FootRX = F(-6 * e); P.FootRRot = F(-38 * e);
                     P.Beak = F(.18 * (.5 + .5 * Math.Sin(u * 8)) * e); P.Look = Lerp(P.Look, .2, e); P.HeadTilt += 5 * ef; P.Lean += 4 * ef;
@@ -345,6 +353,24 @@ namespace Bugi
 
         private void DaydreamPose(Pose P, double t)
         {
+            if (Art.Id == 1)
+            {
+                // 부캉이 멍때리기: 하늘을 올려다보며 가끔 손을 턱에 괴고 생각에 잠긴다
+                SitDown(P);
+                P.Breath = F(Math.Sin(t * 1.1) * .6);
+                P.OpenL = P.OpenR = BlinkOpen(t * .6); P.Eyes = EyeStyle.Dot;
+                P.Gx = F(Math.Sin(t * .45) * .55); P.Gy = F(-.9 + Math.Sin(t * .31) * .2); P.Look = F(Math.Sin(t * .45) * .3);
+                P.HeadTilt = F(-4 + Math.Sin(t * .7) * 3); P.HeadY = -1;
+                P.Beak = .12f; P.Tuft = F(Math.Sin(t * .9) * 4); P.TuftWave = 4; P.TuftPhase = F(t * 1.4);
+                P.WingLA = F(46 + Math.Sin(t * .6) * 3); P.WingRA = F(46 - Math.Sin(t * .6) * 3); P.WingLB = 30; P.WingRB = 30;
+                double c = t % 7.0, e = Window(c, 1.0, 4.6, .5);
+                if (e > .001)
+                {
+                    P.WingRTo = new PointF(Lerp(262, 226, e), Lerp(214, 140, e)); P.HeadTilt += F(-4 * e); P.Eyes = EyeStyle.Half; P.Brow = F(.15 * e);
+                }
+                P.TailWag = F(Math.Sin(t * .8) * 4);
+                return;
+            }
             // 멍...(가이드북 p32): 퍼질러 앉아 날개를 늘어뜨리고 옆을 멍하니 바라본다. 눈은 점 그대로, 입은 다문다.
             SitDown(P);
             P.Breath = F(Math.Sin(t * 1.1) * .6);
@@ -613,6 +639,61 @@ namespace Bugi
             P.Turn = Lerp(0, -.45, bow); P.Look = Lerp(P.Look, 0, bow);
             P.Lean = F(P.Lean - 17 * bow); P.HeadTilt = F(P.HeadTilt - 9 * bow); P.HeadY += F(4 * bow); P.Squash = F(.03 * bow);
             P.Tuft += F(-8 * bow); P.CardSwing += F(-12 * bow);
+        }
+
+        // ───────── 부캉이 전용 동작: 셀카 · 선글라스 · 부산 최고 · 파도 깃발 ─────────
+        private void SelfiePose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .2, extraDuration - .4, .5), u = t % 3.2;
+            P.Tool = ToolKind.Camera; P.ToolAng = F(14 + Math.Sin(t * 2) * 4) * F(e);
+            P.WingRTo = new PointF(Lerp(262, 262 + Math.Sin(t * 2.2) * 4, e), Lerp(214, 134 + Math.Cos(t * 2.2) * 3, e));
+            P.WingLA = Lerp(P.WingLA, 70 + Math.Sin(t * 5) * 5, e); P.WingLB = Lerp(P.WingLB, 50, e);
+            P.Turn = Lerp(P.Turn, -.22, e); P.Look = Lerp(P.Look, .25, e);
+            P.Eyes = e > .3 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.45 * e); P.Beak = F(.55 * e);
+            P.HeadTilt += F(-4 * e); P.Lean += F(Math.Sin(t * 1.6) * 1.5 * e);
+            if (u > 1.9 && u < 3.0)
+            {
+                P.Flash = F(u - 1.9); P.Squash += F(-.03 * Math.Sin(Math.PI * (u - 1.9) / 1.1) * e); P.TuftWave += 4;
+            }
+        }
+
+        private void CoolPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double c = t % 8.0, hold = Window(c, .5, 6.6, .4);
+            double dropK = Ease((c - .3) / .25) * (1 - Ease((c - 6.9) / .3));
+            P.GlassDrop = F(dropK); P.GlassTilt = F(Math.Sin(t * 3) * 1.2 * hold);
+            P.Turn = Lerp(P.Turn, -.55, hold); P.Look = Lerp(P.Look, .1, hold);
+            P.WingLA = Lerp(P.WingLA, 66, hold); P.WingRA = Lerp(P.WingRA, 66, hold); P.WingLB = Lerp(P.WingLB, 52, hold); P.WingRB = Lerp(P.WingRB, 52, hold);
+            P.Squash += F(.025 * hold); P.Eyes = EyeStyle.Dot; P.Beak = F(.06 * hold);
+            if (c > .35 && c < 1.6) P.Sparkle = F(c);
+        }
+
+        private void IdCardPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .2, extraDuration - .4, .6);
+            P.Thumb = F(e);
+            P.WingLTo = new PointF(Lerp(138, 126, e), Lerp(214, 178, e)); P.WingRTo = new PointF(Lerp(262, 274, e), Lerp(214, 178, e));
+            P.Eyes = e > .4 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.35 * e);
+            P.HeadTilt += F(3 * e); P.Look = Lerp(P.Look, -.1, e); P.Beak = F(.4 * e);
+            P.BodyY -= F(Math.Abs(Math.Sin(t * 4.4)) * 3 * e);
+            P.Sparkle = e > .6 ? F(t) : -1f;
+        }
+
+        private void FlagPose(Pose P, double t)
+        {
+            IdleBase(P, animT, false);
+            double e = Window(t, .2, extraDuration - .4, .5), hop = Math.Abs(Math.Sin(t * 5.2)) * e;
+            P.Tool = ToolKind.Flag; P.FlagWave = F(t * 9);
+            P.WingRTo = new PointF(Lerp(262, 262 + Math.Sin(t * 3) * 5, e), Lerp(214, 124, e));
+            P.ToolAng = F(Math.Sin(t * 3.2) * 12 * e);
+            P.WingLA = Lerp(P.WingLA, 118 + Math.Sin(t * 6) * 8, e); P.WingLB = Lerp(P.WingLB, 126, e);
+            P.Eyes = e > .3 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.Blush = F(.4 * e);
+            P.Beak = F(.25 * e * Math.Max(0, Math.Sin(t * 5.2)));
+            P.FootLY = P.FootRY = F(-4 * hop); P.FootLRot = P.FootRRot = F(-12 * hop);
+            P.Tuft += F(-8 * hop); P.TuftWave += 4;
         }
     }
 }

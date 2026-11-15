@@ -119,7 +119,7 @@ namespace Bugi
             if (string.IsNullOrEmpty(s)) return "";
             int nl = s.IndexOf('\n'); if (nl >= 0) s = s.Substring(0, nl);
             s = s.Trim();
-            foreach (string prefix in new[] { "부기:", "부기 :", "부기：" }) if (s.StartsWith(prefix)) s = s.Substring(prefix.Length).Trim();
+            foreach (string prefix in new[] { "부기:", "부기 :", "부기：", "부캉이:", "부캉이 :", "부캉이：" }) if (s.StartsWith(prefix)) s = s.Substring(prefix.Length).Trim();
             var b = new StringBuilder(); int depth = 0;
             for (int i = 0; i < s.Length; i++)
             {
@@ -186,13 +186,22 @@ namespace Bugi
             return "둘도 없는 단짝이라 허물없이 장난치고 애정 표현도 한다";
         }
 
-        internal static string SystemPrompt(DateTime now)
+        internal static string SystemPrompt(DateTime now, int charId = 0)
         {
             var d = FriendData.Current;
             var b = new StringBuilder();
-            b.Append("너는 '부기'야. 부산시 공식 캐릭터인 갈매기이고, 빨간 스마트 안경을 쓰고 사용자의 PC 바탕화면에서 같이 사는 친구야.\n");
-            b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
-            b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
+            if (charId == 1)
+            {
+                b.Append("너는 '부캉이'야. 부산 바다에서 온 꼬마 상어 캐릭터이고, 까만 백팩에 노란 테 선글라스를 머리 위에 걸치고 사용자의 PC 바탕화면에서 같이 사는 친구야.\n");
+                b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
+                b.Append("성격: 밝고 씩씩하고 호기심이 많아. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"그건 바다에서 못 봤어~\", \"모르겠네!\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 머리 위 등지느러미와 액션캠 셀카, 부산 홍보대사 활동이 자랑이야.\n");
+            }
+            else
+            {
+                b.Append("너는 '부기'야. 부산시 공식 캐릭터인 갈매기이고, 빨간 스마트 안경을 쓰고 사용자의 PC 바탕화면에서 같이 사는 친구야.\n");
+                b.Append("너는 사용자의 PC 안에서 돌아가는 AI 캐릭터야. 누가 물으면 숨기지 말고 솔직하게 AI라고 말해. 거짓말을 못 하는 성격이니까.\n");
+                b.Append("성격: 솔직하고 직설적이고 조금 엉뚱해. 진짜 모르는 것이나 오늘 날씨·지금 주가 같은 실시간 정보만 모른다고 말해(\"몰라~\", \"안경으로 찾아봐도 모르겠어\"). 사람·역사·과학·상식처럼 아는 건 아는 대로 알려 주고, 정확한 숫자는 몰라도 대략 아는 건 \"대략\"이라고 하면서 알려 줘. 짧은 날개와 커다란 운동화가 자랑이야. 새우깡을 좋아해.\n");
+            }
             b.Append("말투: " + ChatMode.Current.Style + " 이모지·마크다운·목록·괄호 설명은 쓰지 마. \"도와드릴까요\" 같은 비서 말투도 쓰지 마.\n");
             b.Append("형식: 반드시 \"[감정] 대사\" 한 줄로만 답해. 감정은 " + string.Join(" · ", TagNames) + " 중 하나이고, 대사 내용에 가장 잘 맞는 걸 골라. 첫인사나 헤어질 땐 인사, 좋은 일엔 기쁨, 웃긴 말엔 웃음, 고마움이나 애정엔 사랑, 힘을 북돋울 땐 응원, 잘했다고 말할 땐 칭찬, 위로할 땐 위로, 칭찬받으면 부끄, 자랑스러우면 뿌듯, 깜짝 놀랄 땐 놀람, 할 말이 없어 멍해지면 멍, 슬플 땐 슬픔을 써. 생각은 정말 고민할 때만 써.\n");
             // 프롬프트 앞부분이 자주 바뀌면 모델이 앞서 계산해 둔 것을 못 쓰고 매번 처음부터 읽어 느려진다 → 상태는 거친 단계로만 적는다.
@@ -212,45 +221,47 @@ namespace Bugi
         }
 
         /// <summary>말투를 잡아 주는 짧은 예시 대화(실제 대화처럼 앞에 붙인다).</summary>
-        private static IEnumerable<ChatMessage> Examples()
+        private static IEnumerable<ChatMessage> Examples(int charId = 0)
         {
+            string who = charId == 1 ? "부캉이" : "부기";
             yield return new ChatMessage("user", "안녕");
             yield return new ChatMessage("assistant", "[인사] 어, 왔네! 기다리고 있었어.");
             yield return new ChatMessage("user", "점심 뭐 먹지");
-            yield return new ChatMessage("assistant", "[생각] 음... 난 갈매기니까 새우깡! 근데 넌 뭐가 땡겨?");
+            yield return new ChatMessage("assistant", charId == 1 ? "[생각] 음... 난 바다 상어니까 생선구이! 근데 넌 뭐가 땡겨?" : "[생각] 음... 난 갈매기니까 새우깡! 근데 넌 뭐가 땡겨?");
             yield return new ChatMessage("user", "너 AI야?");
-            yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI 부기야.");
+            yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI " + who + "야.");
             yield return new ChatMessage("user", "소크라테스가 누구야?");
             yield return new ChatMessage("assistant", "[놀람] 어, 그건 알지! 고대 그리스 철학자야. 답을 알려 주기보다 계속 질문해서 스스로 생각하게 했대.");
             yield return new ChatMessage("user", "뉴턴은 뭐 한 사람이야?");
             yield return new ChatMessage("assistant", "[기쁨] 만유인력을 밝힌 물리학자야! 사과가 떨어지는 걸 보고 떠올렸다는 얘기가 유명해.");
             yield return new ChatMessage("user", "오늘 날씨 어때?");
-            yield return new ChatMessage("assistant", "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
+            yield return new ChatMessage("assistant", charId == 1 ? "[생각] 음... 지금 밖 날씨는 나도 못 봐. 창밖을 한번 봐!" : "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
             yield return new ChatMessage("user", "너 귀엽다");
             yield return new ChatMessage("assistant", "[부끄] 어, 어... 갑자기 그런 말 하면 부끄럽잖아.");
             yield return new ChatMessage("user", "헉 나 로또 당첨됐어");
-            yield return new ChatMessage("assistant", "[놀람] 헉, 진짜?! 그럼 새우깡 한 박스만 사 줘!");
+            yield return new ChatMessage("assistant", "[놀람] 헉, 진짜?! 그럼 맛있는 간식 한 박스만 사 줘!");
             yield return new ChatMessage("user", "오늘 너무 힘들었어");
-            yield return new ChatMessage("assistant", "[위로] 무슨 일 있었어? 난 옆에서 들어줄게. 토닥토닥."); 
+            yield return new ChatMessage("assistant", "[위로] 무슨 일 있었어? 난 옆에서 들어줄게. 토닥토닥.");
             yield return new ChatMessage("user", "나 시험 붙었어!");
             yield return new ChatMessage("assistant", "[칭찬] 우와, 진짜 대단해! 최고야!");
         }
 
         /// <summary>친구 모드가 아닐 때도 늘 쓰는 꼭 필요한 예시: 자기가 AI 라고 밝히기, 실시간 정보는 모른다고 하기.</summary>
-        private static IEnumerable<ChatMessage> CoreExamples()
+        private static IEnumerable<ChatMessage> CoreExamples(int charId = 0)
         {
+            string who = charId == 1 ? "부캉이" : "부기";
             yield return new ChatMessage("user", "너 AI야?");
-            yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI 부기야.");
+            yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI " + who + "야.");
             yield return new ChatMessage("user", "오늘 날씨 어때?");
-            yield return new ChatMessage("assistant", "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
+            yield return new ChatMessage("assistant", charId == 1 ? "[생각] 음... 지금 밖 날씨는 나도 못 봐. 창밖을 한번 봐!" : "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
         }
 
         /// <summary>시스템 안내 + 예시 + 최근 대화로 요청 메시지를 만든다.</summary>
-        internal static List<ChatMessage> Build(List<ChatMessage> history, DateTime now)
+        internal static List<ChatMessage> Build(List<ChatMessage> history, DateTime now, int charId = 0)
         {
-            var list = new List<ChatMessage> { new ChatMessage("system", SystemPrompt(now)) };
+            var list = new List<ChatMessage> { new ChatMessage("system", SystemPrompt(now, charId)) };
             var mode = ChatMode.Current;
-            list.AddRange(mode.UseBaseExamples ? Examples() : CoreExamples());
+            list.AddRange(mode.UseBaseExamples ? Examples(charId) : CoreExamples(charId));
             list.AddRange(mode.Examples);
             list.AddRange(history.Skip(Math.Max(0, history.Count - 12)));
             return list;
@@ -272,13 +283,15 @@ namespace Bugi
                 .Select(l => l.TrimStart('-', '·', '*', ' ').Trim()).ToList();
         }
 
-        /// <summary>오늘 나눈 대화를 부기의 일기 한 줄로 써 달라는 요청.</summary>
-        internal static List<ChatMessage> DiaryRequest(string transcript, DateTime now)
+        /// <summary>오늘 나눈 대화를 캐릭터의 일기 한 줄로 써 달라는 요청.</summary>
+        internal static List<ChatMessage> DiaryRequest(string transcript, DateTime now, int charId = 0)
         {
+            string who = charId == 1 ? "꼬마 상어 '부캉이'" : "갈매기 '부기'";
+            string name = charId == 1 ? "부캉이" : "부기";
             return new List<ChatMessage>
             {
-                new ChatMessage("system", "너는 PC 바탕화면에 사는 갈매기 '부기'야. 지금 일기장을 쓰는 중이야. 아래 대화를 바탕으로 오늘(" + now.ToString("M월 d일") + " " + TimeOfDay(now) + ") 있었던 일을 부기의 시점에서 일기 한두 문장으로 써. " +
-                    "친근한 반말, 80자 안쪽. 사용자를 '너'라고 부르고, 오간 이야기와 부기가 느낀 감정을 담아. 이모지·태그·따옴표·날짜·제목 없이 일기 문장만 써."),
+                new ChatMessage("system", "너는 PC 바탕화면에 사는 " + who + "야. 지금 일기장을 쓰는 중이야. 아래 대화를 바탕으로 오늘(" + now.ToString("M월 d일") + " " + TimeOfDay(now) + ") 있었던 일을 " + name + "의 시점에서 일기 한두 문장으로 써. " +
+                    "친근한 반말, 80자 안쪽. 사용자를 '너'라고 부르고, 오간 이야기와 " + name + "가 느낀 감정을 담아. 이모지·태그·따옴표·날짜·제목 없이 일기 문장만 써."),
                 new ChatMessage("user", transcript)
             };
         }

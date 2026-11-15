@@ -200,6 +200,10 @@ namespace Bugi
             if (kind == "lie") BeginRestPose(w, RestPose.Lie, 10);
             if (kind == "guide") BeginRestPose(w, RestPose.Guide, 6);
             if (kind == "bow") BeginRestPose(w, RestPose.Bow, 5);
+            if (kind == "selfie") BeginRestPose(w, RestPose.Selfie, 4.6);
+            if (kind == "cool") BeginRestPose(w, RestPose.Cool, 7.4);
+            if (kind == "idcard") BeginRestPose(w, RestPose.IdCard, 5.2);
+            if (kind == "flag") BeginRestPose(w, RestPose.Flag, 5.6);
             if (kind.StartsWith("skit:")) { Skit sk; if (Enum.TryParse(kind.Substring(5), out sk)) BeginSkit(w, sk); }
             if (kind == "mine") BeginRestPose(w, RestPose.Mine, 10);
             if (kind == "search") BeginRestPose(w, RestPose.Search, 10);
@@ -211,6 +215,13 @@ namespace Bugi
             if (kind == "hop") { extraDuration = .7; SetState(PetState.Hop, w); }
             if (kind == "slide") { extraDuration = .85; SetState(PetState.Sliding, w); }
             DelayIdle(w);
+        }
+
+        internal void RequestSignature(IWorld w, SigDef sig)
+        {
+            if (State == PetState.Drag || sig == null) return;
+            if (sig.DemoKind != null) { ClearAttachments(); SnapToFloor(w); Demonstrate(w, sig.DemoKind); return; }
+            RequestSignature(w, sig.Skit);
         }
 
         internal void RequestSignature(IWorld w, Skit s)
@@ -437,7 +448,7 @@ namespace Bugi
         internal double FeatureJitterX { get { return lookJitterX; } }
 
         // ───── 쉬는 자세: 앉기 · 잠자기 · 멍때리기 · 기지개 ─────
-        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search, Skit, Guide, Bow }
+        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search, Skit, Selfie, Cool, Guide, Bow, IdCard, Flag }
         internal RestPose restPose = RestPose.Sit;
         private RestPose lastRestPose = RestPose.Sit;
 
@@ -448,11 +459,24 @@ namespace Bugi
             double sigP = focus ? 0 : PlayOptions.SigChance(PlayOptions.Current.SigFreq);
             if (w.Rng.NextDouble() < sigP)
             {
+                if (Art.Id == 1)
+                {
+                    int c = w.Rng.Next(3);
+                    return c == 0 ? RestPose.IdCard : c == 1 ? RestPose.Flag : RestPose.Selfie;
+                }
                 skit = lastSkit = ChooseSkit(w);
                 return RestPose.Skit;
             }
             Func<RestPose> roll = () =>
             {
+                if (Art.Id == 1)
+                {
+                    if (PlayOptions.Current.Outfit && w.Rng.NextDouble() < .34)
+                    { double q = w.Rng.NextDouble(); return q < .3 ? RestPose.Guide : q < .55 ? RestPose.Bow : q < .78 ? RestPose.IdCard : RestPose.Flag; }
+                    double a = w.Rng.NextDouble();
+                    return a < .22 ? RestPose.Sit : a < .34 ? RestPose.Daydream : a < .46 ? RestPose.Stretch : a < .60 ? RestPose.Sleep
+                        : a < .72 ? RestPose.Lie : a < .86 ? RestPose.Selfie : RestPose.Cool;
+                }
                 // 근무복을 입고 있으면 안내 · 배꼽인사도 가끔 한다
                 if (PlayOptions.Current.Outfit && w.Rng.NextDouble() < .3) return w.Rng.NextDouble() < .55 ? RestPose.Guide : RestPose.Bow;
                 double r = w.Rng.NextDouble();
@@ -473,8 +497,12 @@ namespace Bugi
                 case RestPose.Daydream: extraDuration = baseSeconds * .75; break;
                 case RestPose.Stretch: extraDuration = 4.2; break;
                 case RestPose.Lie: extraDuration = Math.Max(7, baseSeconds * 1.2); break;
-                case RestPose.Guide: extraDuration = 5.6; Bubble = "이쪽으로 안내할게요!"; BubbleUntil = w.Now + 4.2; break;
-                case RestPose.Bow: extraDuration = 4.6; Bubble = "안녕하세요! 부기입니다"; BubbleUntil = w.Now + 3.8; break;
+                case RestPose.Selfie: extraDuration = 4.6; Bubble = "찰칵! 셀카 찍자~"; BubbleUntil = w.Now + 3.4; break;
+                case RestPose.Cool: extraDuration = 7.4; break;
+                case RestPose.Guide: extraDuration = 5.6; Bubble = Art.Id == 1 ? "이쪽으로 안내할게요! 부캉캉캉~" : "이쪽으로 안내할게요!"; BubbleUntil = w.Now + 4.2; break;
+                case RestPose.Bow: extraDuration = 4.6; Bubble = Art.Id == 1 ? "안녕하세요! 부캉이입니다" : "안녕하세요! 부기입니다"; BubbleUntil = w.Now + 3.8; break;
+                case RestPose.IdCard: extraDuration = 5.2; Bubble = "부산 최고!"; BubbleUntil = w.Now + 4.0; break;
+                case RestPose.Flag: extraDuration = 5.6; Bubble = "부산 파이팅!"; BubbleUntil = w.Now + 4.4; break;
                 case RestPose.Skit: extraDuration = SkitSeconds(skit); break;
                 case RestPose.Mine: extraDuration = Math.Max(6.8, Math.Min(14, baseSeconds * .8)); break;
                 case RestPose.Search: extraDuration = Math.Max(8, Math.Min(16, baseSeconds * .8)); break;
