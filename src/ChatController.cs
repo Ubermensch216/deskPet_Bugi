@@ -141,8 +141,8 @@ namespace Bugi
             var mode = ChatMode.Current; parser = new ReplyParser(mode.MaxSentences, mode.MaxChars); var req = request = new ChatRequest(); streaming = true;
             var worker = new Thread(delegate ()
             {
-                if (proactive && OllamaClient.Probe(opts) != ProbeResult.Ok) { inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Silent }); return; }
-                string err = OllamaClient.Stream(opts, msgs, tok => inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Token, Text = tok }), req, mode.NumPredict, mode.Temperature);
+                if (proactive && LlmClient.Probe(opts) != ProbeResult.Ok) { inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Silent }); return; }
+                string err = LlmClient.Stream(opts, msgs, tok => inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Token, Text = tok }), req, mode.NumPredict, mode.Temperature);
                 if (err == null) inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Done });
                 else if (err != "cancelled") inbox.Enqueue(new Evt { Gen = g, Kind = proactive ? Kind.Silent : Kind.Error, Text = err });
             }) { IsBackground = true };
@@ -156,9 +156,9 @@ namespace Bugi
             bool warm = now - lastWarm > 25 * 60; if (warm) lastWarm = now;
             new Thread(delegate ()
             {
-                ProbeResult r = OllamaClient.Probe(opts);
+                ProbeResult r = LlmClient.Probe(opts);
                 inbox.Enqueue(new Evt { Gen = g, Kind = Kind.Probe, Probe = r });
-                if (r == ProbeResult.Ok && warm) OllamaClient.Warmup(opts);
+                if (r == ProbeResult.Ok && warm) LlmClient.Warmup(opts);
             }) { IsBackground = true }.Start();
         }
 
@@ -204,8 +204,11 @@ namespace Bugi
             switch (e.Kind)
             {
                 case Kind.Probe:
-                    if (e.Probe == ProbeResult.Offline) { pet.ChatSayInstant(ChatMood.Sleepy, "...zzz 아직 못 일어나겠어. Ollama가 꺼져 있나 봐!"); }
-                    else if (e.Probe == ProbeResult.ModelMissing) pet.ChatSayInstant(ChatMood.Think, "내가 쓸 모델(" + ChatOptions.Current.Model + ")이 안 보여. 설정에서 이름을 확인해 줘!");
+                    if (e.Probe == ProbeResult.Offline)
+                        pet.ChatSayInstant(ChatMood.Sleepy, ChatOptions.Current.IsExaone ? "...zzz EXAONE 서버에 닿지 않아. 인터넷이 연결돼 있는지 봐 줄래?" : "...zzz 아직 못 일어나겠어. Ollama가 꺼져 있나 봐!");
+                    else if (e.Probe == ProbeResult.ModelMissing) pet.ChatSayInstant(ChatMood.Think, "내가 쓸 모델(" + ChatOptions.Current.ActiveModel + ")이 안 보여. 설정에서 이름을 확인해 줘!");
+                    else if (e.Probe == ProbeResult.NoKey) pet.ChatSayInstant(ChatMood.Think, "EXAONE API 키가 없어. 설정 → AI 대화에 키를 넣어 줘!");
+                    else if (e.Probe == ProbeResult.AuthFailed) pet.ChatSayInstant(ChatMood.Pout, "EXAONE이 키가 틀렸대. 설정에서 API 키를 확인해 줘!");
                     break;
                 case Kind.Token:
                     if (parser != null && parser.Feed(e.Text)) pet.ChatSay(parser.Mood, parser.Text, false);
@@ -226,7 +229,9 @@ namespace Bugi
                     bool timeout = e.Text != null && (e.Text.Contains("초과") || e.Text.ToLowerInvariant().Contains("timeout"));
                     pet.ChatSayInstant(ChatMood.Sleepy, timeout
                         ? "으음... 답변이 너무 늦어졌어. 모델을 불러오는 중일 수 있으니 잠시 뒤에 다시 말해 줄래?"
-                        : "으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?");
+                        : ChatOptions.Current.IsExaone
+                            ? (e.Text != null && e.Text.Contains("429") ? "으음... 지금 너무 많이 물어봤대. 조금 있다가 다시 말해 줄래?" : "으음... EXAONE 쪽에서 대답이 안 왔어. 인터넷이랑 API 키를 확인해 줄래?")
+                            : "으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?");
                     break;
                 case Kind.Silent:
                     streaming = false; End(); nextProactive = now + 600;
@@ -290,12 +295,12 @@ namespace Bugi
             {
                 if (o.Memory)
                 {
-                    string reply = OllamaClient.Complete(o, ChatPersona.MemoryRequest(transcript), 120, .2);
+                    string reply = LlmClient.Complete(o, ChatPersona.MemoryRequest(transcript), 120, .2);
                     if (!string.IsNullOrWhiteSpace(reply)) inbox.Enqueue(new Evt { Kind = Kind.Facts, Facts = ChatPersona.ParseFacts(reply) });
                 }
                 if (o.Diary)
                 {
-                    string line = ChatPersona.ParseDiary(OllamaClient.Complete(o, ChatPersona.DiaryRequest(transcript, when), 160, .7));
+                    string line = ChatPersona.ParseDiary(LlmClient.Complete(o, ChatPersona.DiaryRequest(transcript, when), 160, .7));
                     if (line != null) inbox.Enqueue(new Evt { Kind = Kind.Diary, Text = line, When = when });
                 }
             }) { IsBackground = true }.Start();

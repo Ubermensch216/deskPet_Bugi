@@ -12,7 +12,7 @@ namespace Bugi
         internal ChatMessage(string role, string content) { Role = role; Content = content; }
     }
 
-    internal enum ProbeResult { Ok, ModelMissing, Offline }
+    internal enum ProbeResult { Ok, ModelMissing, Offline, NoKey, AuthFailed }
 
     /// <summary>진행 중인 요청을 다른 스레드에서 끊을 수 있게 붙잡아 둔다(말 도중에 새 말을 걸 때).</summary>
     internal sealed class ChatRequest

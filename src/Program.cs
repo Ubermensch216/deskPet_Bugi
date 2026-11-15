@@ -266,14 +266,14 @@ namespace Bugi
             Action<double> pump = secs => { var end = DateTime.UtcNow.AddSeconds(secs); while (DateTime.UtcNow < end) { Application.DoEvents(); Thread.Sleep(15); } };
             PlayOptions.Load(); FriendData.Load(); CharacterArt.Reset(Native.SystemDpiScale()); ChatOptions.Load();
             var opts = ChatOptions.Current;
-            log.AppendLine("Probe: " + OllamaClient.Probe(opts));
+            log.AppendLine("Probe: " + LlmClient.Probe(opts));
 
             // (1) 품질
             foreach (string q in new[] { "안녕", "오늘 너무 피곤해", "너 누구야?", "점심 뭐 먹을까", "서울 인구가 몇 명이야?", "너 AI야?", "니체가 누구야?", "아인슈타인은 뭐 한 사람이야?", "광합성이 뭐야?", "오늘 날씨 어때?" })
             {
                 var hist = new List<ChatMessage> { new ChatMessage("user", q) };
                 var parser = new ReplyParser(); var req = new ChatRequest(); var sw = System.Diagnostics.Stopwatch.StartNew(); long first = -1;
-                string err = OllamaClient.Stream(opts, ChatPersona.Build(hist, DateTime.Now), t => { if (first < 0) first = sw.ElapsedMilliseconds; parser.Feed(t); }, req);
+                string err = LlmClient.Stream(opts, ChatPersona.Build(hist, DateTime.Now), t => { if (first < 0) first = sw.ElapsedMilliseconds; parser.Feed(t); }, req);
                 log.AppendLine(string.Format("Q: {0}\n   -> [{1}] {2}   (첫 글자 {3}ms, 전체 {4}ms, err={5})\n   raw: {6}", q, parser.Mood, parser.Text, first, sw.ElapsedMilliseconds, err, parser.Raw.Replace("\n", "\\n")));
                 if (err != null || parser.Text.Length == 0) failures++;
             }
@@ -284,7 +284,7 @@ namespace Bugi
                 {
                     ChatOptions.Current.Mode = mi; var mode = ChatMode.All[mi];
                     var parser = new ReplyParser(mode.MaxSentences, mode.MaxChars); var req = new ChatRequest();
-                    string err = OllamaClient.Stream(opts, ChatPersona.Build(new List<ChatMessage> { new ChatMessage("user", q) }, DateTime.Now), t => parser.Feed(t), req, mode.NumPredict, mode.Temperature);
+                    string err = LlmClient.Stream(opts, ChatPersona.Build(new List<ChatMessage> { new ChatMessage("user", q) }, DateTime.Now), t => parser.Feed(t), req, mode.NumPredict, mode.Temperature);
                     log.AppendLine(string.Format("[{0}] Q: {1} -> [{2}] {3}  ({4}자, err={5})", mode.Name, q, parser.Mood, parser.Text, parser.Text.Length, err));
                     if (err != null || parser.Text.Length == 0) failures++;
                 }
@@ -351,7 +351,7 @@ namespace Bugi
             ChatDiary.Reload(); log.AppendLine("일기: " + string.Join(" / ", ChatDiary.Entries.Select(e => e.When.ToString("HH:mm") + " " + e.Text).ToArray()));
             if (ChatDiary.Entries.Count == 0) { log.AppendLine("FAIL 일기가 안 쓰임"); failures++; }
             // (3) 기억 추려내기: 대화 → 사실 한두 줄
-            string memReply = OllamaClient.Complete(opts, ChatPersona.MemoryRequest("사용자: 나 이번 주 금요일에 면접 있어\n부기: [놀람] 헉, 어디 면접이야?\n사용자: 네이버 백엔드 개발자 면접이야. 우리 집 고양이 이름은 두부야\n부기: [기쁨] 두부? 이름 귀엽다! 면접 잘 될 거야.\n"), 120, .2);
+            string memReply = LlmClient.Complete(opts, ChatPersona.MemoryRequest("사용자: 나 이번 주 금요일에 면접 있어\n부기: [놀람] 헉, 어디 면접이야?\n사용자: 네이버 백엔드 개발자 면접이야. 우리 집 고양이 이름은 두부야\n부기: [기쁨] 두부? 이름 귀엽다! 면접 잘 될 거야.\n"), 120, .2);
             var memFacts = ChatPersona.ParseFacts(memReply);
             log.AppendLine("기억 추출 raw: " + (memReply ?? "(null)").Replace("\n", " / ") + "  => " + memFacts.Count + "개");
             if (memFacts.Count == 0) failures++;
@@ -736,6 +736,15 @@ namespace Bugi
                 check(sys1 == sys2 && sys1.Contains("AI"), "시스템 프롬프트는 같은 시간대에 안 바뀜(캐시 유지) · AI 라고 밝힘");
                 ChatOptions.Current = new ChatOptions { Model = "test:1b", Sound = true, Proactive = true, ProactiveMinutes = 15, Hotkey = false }; ChatOptions.Current.Save(); ChatOptions.Load();
                 check(ChatOptions.Current.Model == "test:1b" && ChatOptions.Current.Sound && ChatOptions.Current.Proactive && ChatOptions.Current.ProactiveMinutes == 15 && !ChatOptions.Current.Hotkey, "AI 대화 설정 저장·불러오기");
+                // EXAONE: 대화 상대·키 저장(키는 암호화돼 파일에 평문이 없어야 함) · 요청 본문 · 한 줄 끊기
+                ChatOptions.Current = new ChatOptions { Provider = "exaone", ExaoneKey = "test-key-123", ExaoneEffort = "high" }; ChatOptions.Current.Save(); ChatOptions.Load();
+                check(ChatOptions.Current.IsExaone && ChatOptions.Current.ExaoneKey == "test-key-123" && ChatOptions.Current.ExaoneEffort == "high" && !File.ReadAllText(ChatOptions.FilePath).Contains("test-key-123"), "EXAONE 설정 저장·불러오기(키 암호화)");
+                string exBody = ExaoneClient.Body(ChatOptions.Current, new List<ChatMessage> { new ChatMessage("system", "s"), new ChatMessage("user", "안녕") }, true, 170, .85);
+                object exJ = Json.Parse(exBody);
+                check(Json.Str(exJ, "model") == "k-exaone_v2.5" && Json.Flag(exJ, "stream") && (double)Json.Get(exJ, "max_tokens") > 170 && Json.Str(exJ, "reasoning_effort") == "high" && ((List<object>)Json.Get(exJ, "messages")).Count == 2, "EXAONE 요청 본문: " + exBody);
+                var lc = new ExaoneClient.LineCutter(); string cutText = lc.Feed("\n\n") + lc.Feed("[기쁨] 안") + lc.Feed("녕!\n부기: 또") + lc.Feed("더");
+                check(cutText == "[기쁨] 안녕!" && lc.Ended, "EXAONE 답: 앞 빈 줄 건너뛰고 첫 줄에서 끊기: " + cutText);
+                check(ExaoneClient.Probe(new ChatOptions { Provider = "exaone" , ExaoneKey = "" }) == ProbeResult.NoKey || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EXAONE_API_KEY")), "EXAONE 키가 없으면 NoKey");
                 ChatOptions.Current = new ChatOptions();
                 ChatMemory.Reload(); ChatMemory.Clear(); int added = ChatMemory.Add(new[] { "- 이름은 민수", "- 이름은 민수야", "없음", "- 고양이를 키운다" });
                 check(added == 2 && ChatMemory.Facts.Count == 2, "기억: 중복·'없음' 거르고 저장 (" + added + ")");

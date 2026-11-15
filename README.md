@@ -66,7 +66,7 @@
 
 설정 → 메모에서 새 메모의 기본 색 · 크기와 저장 폴더를 볼 수 있습니다.
 
-## AI 대화 (로컬 Ollama)
+## AI 대화 (로컬 Ollama · EXAONE API)
 부기와 **채팅창 없이** 이야기할 수 있어요. 내 PC 의 [Ollama](https://ollama.com) 와만 주고받고(기본 `http://localhost:11434`, 모델 `gemma4:e2b`), 서버를 따로 켜 둘 필요 없이 Ollama 만 실행돼 있으면 됩니다.
 Ollama 나 모델이 없는 PC 에서는 설정 → AI 대화의 **AI 자동 설치** 버튼으로 설치 파일 내려받기(디지털 서명 확인) → 조용히 설치 → 서버 켜기 → 모델 받기까지 한 번에 할 수 있어요. 내려받기 전에 용량 안내와 동의를 받고, 서버 주소가 이 PC(localhost)일 때만 쓸 수 있어요. 구조: `OllamaSetup.cs`.
 
@@ -98,7 +98,15 @@ Ollama 나 모델이 없는 PC 에서는 설정 → AI 대화의 **AI 자동 설
 * Ollama 가 꺼져 있으면 부기가 졸린 얼굴로 “아직 못 일어나겠어” 하고 알려 줘요.
 * 설정 → **AI 대화**: 사용 여부 · 모델 이름 · 서버 주소(연결 확인) · 대화 모드 · 단축키(직접 눌러 바꾸기, 3키 이상) · 답장 칩 · 말소리 · 선톡 · 기억 · 일기장. 설정은 `부기_대화.ini` 에 저장돼요.
 
-구조: `ChatClient.cs`(Ollama 스트리밍) · `ChatPersona.cs`(말투 프롬프트·감정 태그 읽기) · `ChatController.cs`(대화 흐름·선톡·기억·단축키) · `PetChat.cs`(부기의 대화 자세·타자 말풍선) · `ChatInput.cs`(알약 입력칸·답장 칩) · `ChatModes.cs`(대화 모드 5가지) · `ChatDiaryForm.cs`(일기장 창) · `PetRender.cs` 의 `DrawAiMark`(말풍선 AI 표시).
+### EXAONE API 로 이야기하기 (선택)
+Ollama 대신 LG AI연구원의 [EXAONE API](https://docs.exaone.ai/ko/docs/overview)(모델 `k-exaone_v2.5`)와 이야기할 수도 있어요. 설정 → AI 대화 → **대화 상대**를 `EXAONE` 으로 바꾸고 **API 키**를 넣은 뒤 연결 확인(플러그 단추)을 누르세요.
+
+* **대화가 PC 밖으로 나가요**: 대화 내용 · 부기의 기억 · 일기 요약 요청이 LG AI연구원 서버(`https://api.exaone.ai`)로 보내지고, 사용량에 따라 요금이 나올 수 있어요. 처음 바꿀 때 한 번 더 물어봐요.
+* **API 키**: 이 Windows 계정에서만 풀리게 DPAPI 로 암호화해 `부기_대화.ini` 의 `ExaoneKeyEnc` 에 저장해요. 칸을 비워 두면 환경 변수 `EXAONE_API_KEY` 를 써요.
+* **추론 강도**: EXAONE 은 대답 전에 늘 생각(추론)해요. `low`(기본)가 가장 빠르고 `high` · `max` 는 느리지만 깊게 생각해요. 추론 글은 보여 주지 않고 대답만 말풍선에 나와요.
+* Ollama 와 EXAONE 의 모델 · 주소는 따로 기억돼서 오가며 바꿔도 지워지지 않아요. 자동 설치 단추는 Ollama 일 때만 보여요.
+
+구조: `ChatClient.cs`(Ollama 스트리밍) · `ExaoneClient.cs`(EXAONE API · 대화 상대 고르기 `LlmClient` · 키 암호화) · `ChatPersona.cs`(말투 프롬프트·감정 태그 읽기) · `ChatController.cs`(대화 흐름·선톡·기억·단축키) · `PetChat.cs`(부기의 대화 자세·타자 말풍선) · `ChatInput.cs`(알약 입력칸·답장 칩) · `ChatModes.cs`(대화 모드 5가지) · `ChatDiaryForm.cs`(일기장 창) · `PetRender.cs` 의 `DrawAiMark`(말풍선 AI 표시).
 첫 말만 모델을 불러오느라 몇 초 걸리고, 그 뒤로는 첫 글자가 0.2초 안팎으로 나와요(프롬프트 앞부분을 안 바꿔서 Ollama 캐시가 맞도록 했어요).
 
 ## 공식 규격 준수 (`ref/bugi-spec.png`)

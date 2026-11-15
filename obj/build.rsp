@@ -6,7 +6,7 @@
 /nowarn:CS0649,CS0169,CS0414,CS0219
 /utf8output
 /langversion:latest
-/out:"D:\Dev\deskPet_Bugi\output\bugi.exe"
+/out:"D:\Dev\deskPet_Bugi\obj\test\bugi.exe"
 /win32manifest:"D:\Dev\deskPet_Bugi\assets\app.manifest"
 /win32icon:"D:\Dev\deskPet_Bugi\assets\bugi.ico"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll"
@@ -16,6 +16,7 @@
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Windows.Forms.dll"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Xml.dll"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Xml.Linq.dll"
+/r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Security.dll"
 "D:\Dev\deskPet_Bugi\src\AlarmComposer.cs"
 "D:\Dev\deskPet_Bugi\src\AlertPet.cs"
 "D:\Dev\deskPet_Bugi\src\App.cs"
@@ -33,6 +34,7 @@
 "D:\Dev\deskPet_Bugi\src\ChatSound.cs"
 "D:\Dev\deskPet_Bugi\src\ChoiceStrip.cs"
 "D:\Dev\deskPet_Bugi\src\DevToolsNotes.cs"
+"D:\Dev\deskPet_Bugi\src\ExaoneClient.cs"
 "D:\Dev\deskPet_Bugi\src\FormsSettings.cs"
 "D:\Dev\deskPet_Bugi\src\Guide.cs"
 "D:\Dev\deskPet_Bugi\src\LogoArt.cs"

@@ -221,7 +221,7 @@ namespace Bugi
     {
         // 움직임 · 반응 · 생활은 "행동" 한 쪽으로 합쳤다.
         internal static readonly string[] PageNames = { "캐릭터", "행동", "알림", "화면 · 시스템", "메모", "AI 대화" };
-        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 초과근무", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · 단축키 · 기억" };
+        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 초과근무", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · EXAONE · 기억" };
         private const int AlarmPage = 2, DisplayPage = 3;
         private static int lastPage;
 
@@ -262,7 +262,7 @@ namespace Bugi
         // 메모
         private ChoiceStrip noteColor, noteSize; private Label noteInfo;
         // AI 대화
-        private ChoiceStrip cMode; private HotkeyBox hkBox; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl; private NumericUpDown nProactive; private Label chatProbe;
+        private ChoiceStrip cMode; private HotkeyBox hkBox; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl, tExaKey; private ComboBox cProvider, cExaEffort; private FlowLayoutPanel rowExa; private Label noteExa; private string[] chatStash = new string[4]; private int providerShown; private NumericUpDown nProactive; private Label chatProbe;
         private FlatButton bChatSetup, bChatSetupCancel; private ProgressBar chatSetupBar; private ChatRequest setupHandle;
 
         public SettingsForm(App app, int page = -1)
@@ -1067,7 +1067,7 @@ namespace Bugi
 
         private Panel BuildChatPage()
         {
-            FlowLayoutPanel f; var page = NewPage("AI 대화", "내 PC의 Ollama와 이야기해요", out f);
+            FlowLayoutPanel f; var page = NewPage("AI 대화", "내 PC의 Ollama 또는 EXAONE API 와 이야기해요", out f);
             var o = ChatOptions.Current;
 
             // 연결: 켜기 · 단추 세 개 / 모델 · 서버 / 상태 한 줄
@@ -1082,16 +1082,36 @@ namespace Bugi
             bChatSetupCancel = IconBtn(FlatIcon.Stop, "설치 취소", delegate { if (setupHandle != null) setupHandle.Abort(); }); bChatSetupCancel.Enabled = false;
             ra.Controls.Add(bChatSetup); ra.Controls.Add(bChatSetupCancel);
 
+            // 대화 상대: Ollama(내 PC) 또는 EXAONE(LG AI연구원 API). 두 쪽의 모델·주소는 따로 기억한다.
+            var rp = Row(a);
+            rp.Controls.Add(Mark(FlatIcon.Chat, "대화 상대\nOllama: 내 PC 에서만 이야기해요(기본).\nEXAONE: LG AI연구원 API 로 대화가 인터넷을 거쳐 보내져요(API 키 필요)."));
+            rp.Controls.Add(Cap("대화 상대", 64));
+            cProvider = Combo(new[] { "Ollama — 내 PC (기본)", "EXAONE — LG AI연구원 API (인터넷)" }, o.IsExaone ? 1 : 0, 280); rp.Controls.Add(cProvider);
+            chatStash = new[] { o.Model, o.Endpoint, o.ExaoneModel, o.ExaoneEndpoint }; providerShown = cProvider.SelectedIndex;
+
             var rb = Row(a);
-            rb.Controls.Add(Mark(FlatIcon.Chip, "모델  (Ollama 모델 이름)"));
-            tChatModel = new TextBox { Text = o.Model, Width = 150, Margin = new Padding(3, 3, 12, 3) }; rb.Controls.Add(tChatModel);
-            rb.Controls.Add(Mark(FlatIcon.Globe, "서버 주소\n대화는 이 서버로만 보내져요.\n기본값(localhost)이면 이 PC 밖으로 나가지 않아요."));
-            tChatUrl = new TextBox { Text = o.Endpoint, Width = 250, Margin = new Padding(3) }; rb.Controls.Add(tChatUrl);
+            rb.Controls.Add(Mark(FlatIcon.Chip, "모델 이름\nOllama: 예) gemma4:e2b\nEXAONE: k-exaone_v2.5"));
+            tChatModel = new TextBox { Text = chatStash[providerShown * 2], Width = 150, Margin = new Padding(3, 3, 12, 3) }; rb.Controls.Add(tChatModel);
+            rb.Controls.Add(Mark(FlatIcon.Globe, "서버 주소\n대화는 이 서버로만 보내져요.\nOllama 기본값(localhost)이면 이 PC 밖으로 나가지 않아요.\nEXAONE 기본값: https://api.exaone.ai"));
+            tChatUrl = new TextBox { Text = chatStash[providerShown * 2 + 1], Width = 250, Margin = new Padding(3) }; rb.Controls.Add(tChatUrl);
+
+            rowExa = Row(a);
+            rowExa.Controls.Add(Mark(FlatIcon.PlugCheck, "EXAONE API 키\nLG AI연구원 EXAONE API Platform 에서 발급받아요.\n이 Windows 계정에서만 풀리게 암호화해 저장해요.\n비워 두면 환경 변수 EXAONE_API_KEY 를 써요."));
+            rowExa.Controls.Add(Cap("API 키"));
+            tExaKey = new TextBox { Text = o.ExaoneKey, Width = 170, UseSystemPasswordChar = true, Margin = new Padding(3, 3, 10, 3) }; rowExa.Controls.Add(tExaKey);
+            rowExa.Controls.Add(Cap("추론"));
+            cExaEffort = Combo(new[] { "low (빠름)", "high", "max (깊게)" }, Math.Max(0, Array.IndexOf(ExaoneClient.Efforts, o.ExaoneEffort)), 100);
+            tips.SetToolTip(cExaEffort, "EXAONE 은 대답 전에 늘 생각(추론)해요.\n낮을수록 빨리 대답하고 토큰도 덜 써요. 수다엔 low 를 권해요.");
+            rowExa.Controls.Add(cExaEffort);
+            rowExa.Controls.Add(IconBtn(FlatIcon.OpenOut, "EXAONE API 문서 · 키 발급 페이지 열기\n(docs.exaone.ai)", delegate { try { System.Diagnostics.Process.Start("https://docs.exaone.ai/ko/docs/overview"); } catch { } }));
+            noteExa = Note(a, "EXAONE 을 고르면 대화 내용과 부기의 기억 · 일기 요약 요청이 LG AI연구원 서버로 보내지고, 사용량에 따라 요금이 나올 수 있어요.", 480);
+            cProvider.SelectedIndexChanged += delegate { ProviderChanged(); };
 
             var rs = Row(a);
             chatProbe = new Label { Text = "○ 아직 확인 안 함", AutoSize = false, AutoEllipsis = true, Width = 330, Height = 20, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(6, 3, 3, 3), ForeColor = Color.DimGray };
             chatSetupBar = new ProgressBar { Width = 140, Height = 8, Margin = new Padding(6, 9, 3, 3), Visible = false };
             rs.Controls.Add(chatProbe); rs.Controls.Add(chatSetupBar);
+            ShowProviderRows();
 
             // 대화 방식: 그림 카드 다섯 장 + 단축키 한 줄
             var g2 = Group(f, "대화 방식", 520); var b = In(g2);
@@ -1136,21 +1156,60 @@ namespace Bugi
             return page;
         }
 
+        private bool ExaoneSelected { get { return cProvider != null && cProvider.SelectedIndex == 1; } }
+
+        /// <summary>지금 칸에 적힌 모델·주소를 보이고 있던 대화 상대 몫으로 챙겨 둔다.</summary>
+        private void StashProviderFields() { chatStash[providerShown * 2] = tChatModel.Text.Trim(); chatStash[providerShown * 2 + 1] = tChatUrl.Text.Trim().TrimEnd('/'); }
+
+        private void ProviderChanged()
+        {
+            StashProviderFields();
+            providerShown = cProvider.SelectedIndex;
+            tChatModel.Text = chatStash[providerShown * 2]; tChatUrl.Text = chatStash[providerShown * 2 + 1];
+            ShowProviderRows();
+            SetChatStatus("○ 아직 확인 안 함", Color.DimGray);
+        }
+
+        private void ShowProviderRows()
+        {
+            bool exa = ExaoneSelected;
+            rowExa.Visible = noteExa.Visible = exa;
+            bChatSetup.Visible = bChatSetupCancel.Visible = !exa;   // 자동 설치는 Ollama 몫
+        }
+
+        /// <summary>설정 화면에 적힌 값으로 대화 설정을 채운다(연결 확인 · 저장 공용).</summary>
+        private void FillChatConnection(ChatOptions c)
+        {
+            StashProviderFields();
+            c.Provider = ExaoneSelected ? "exaone" : "ollama";
+            c.Model = chatStash[0].Length > 0 ? chatStash[0] : "gemma4:e2b";
+            c.Endpoint = chatStash[1].Length > 0 ? chatStash[1] : "http://localhost:11434";
+            c.ExaoneModel = chatStash[2].Length > 0 ? chatStash[2] : ExaoneClient.DefaultModel;
+            c.ExaoneEndpoint = chatStash[3].Length > 0 ? chatStash[3] : ExaoneClient.DefaultEndpoint;
+            c.ExaoneKey = tExaKey.Text.Trim();
+            c.ExaoneEffort = ExaoneClient.Efforts[Math.Max(0, cExaEffort.SelectedIndex)];
+        }
+
         private void SetChatStatus(string text, Color color)
         { chatProbe.ForeColor = color; chatProbe.Text = text; tips.SetToolTip(chatProbe, text); }
 
         private void ProbeChat()
         {
-            var probe = new ChatOptions { Endpoint = tChatUrl.Text.Trim().TrimEnd('/'), Model = tChatModel.Text.Trim() };
+            var probe = new ChatOptions(); FillChatConnection(probe);
             SetChatStatus("확인하는 중...", Color.DimGray);
             new System.Threading.Thread(delegate ()
             {
-                ProbeResult r = OllamaClient.Probe(probe);
+                ProbeResult r = LlmClient.Probe(probe);
                 try
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        SetChatStatus(r == ProbeResult.Ok ? "● 연결됐어요" : r == ProbeResult.ModelMissing ? "● 모델이 없어요 — 설치(↓) 단추를 눌러요" : "● 연결 안 됨 — Ollama 가 켜져 있나요?", r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick);
+                        string why = r == ProbeResult.Ok ? "● 연결됐어요"
+                            : r == ProbeResult.ModelMissing ? (probe.IsExaone ? "● 모델 이름을 확인해 주세요 (k-exaone_v2.5)" : "● 모델이 없어요 — 설치(↓) 단추를 눌러요")
+                            : r == ProbeResult.NoKey ? "● API 키를 넣어 주세요"
+                            : r == ProbeResult.AuthFailed ? "● API 키가 맞지 않아요"
+                            : probe.IsExaone ? "● 연결 안 됨 — 인터넷 · 서버 주소를 확인해요" : "● 연결 안 됨 — Ollama 가 켜져 있나요?";
+                        SetChatStatus(why, r == ProbeResult.Ok ? Color.FromArgb(30, 130, 70) : Color.Firebrick);
                     }));
                 }
                 catch { }
@@ -1239,6 +1298,12 @@ namespace Bugi
         {
             if (!Settings.ParseTime(tLunch.Text).HasValue) { nav.SelectedIndex = AlarmPage; Warn("점심 시간을 12:00처럼 적어 주세요."); tLunch.Focus(); return false; }
             if (!Settings.ParseTime(tLeave.Text).HasValue) { nav.SelectedIndex = AlarmPage; Warn("퇴근 시간을 18:00처럼 적어 주세요."); tLeave.Focus(); return false; }
+            // EXAONE 으로 처음 바꿀 때: 대화가 PC 밖으로 나간다는 것을 한 번 알리고 동의를 받는다
+            if (ExaoneSelected && !ChatOptions.Current.IsExaone && cChat.Checked
+                && MessageBox.Show(this, "AI 대화 상대를 EXAONE(LG AI연구원 API)으로 바꿀까요?\n\n이제부터 부기와 나눈 대화, 부기가 기억한 내 이야기, 일기 요약 요청이 인터넷을 거쳐 LG AI연구원 서버로 보내져요. 사용량에 따라 요금이 나올 수 있어요.", "부기 · AI 대화", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            { cProvider.SelectedIndex = 0; return false; }
+            if (ExaoneSelected && cChat.Checked && tExaKey.Text.Trim().Length == 0 && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EXAONE_API_KEY")))
+                Warn("EXAONE API 키가 비어 있어요. 키를 넣기 전까지 부기가 대답하지 못해요.");
             try { StartupOption.SetEnabled(cStartup.Checked); }
             catch (Exception ex) { nav.SelectedIndex = DisplayPage; Warn("자동 시작 설정을 저장하지 못했어요.\n" + ex.Message); return false; }
 
@@ -1273,8 +1338,7 @@ namespace Bugi
             if (s.LeaveMsg.Length == 0) s.LeaveMsg = "퇴근이다! 오늘도 수고했어";
 
             var chat = ChatOptions.Current;
-            chat.Enabled = cChat.Checked; chat.Model = tChatModel.Text.Trim().Length > 0 ? tChatModel.Text.Trim() : "gemma4:e2b";
-            chat.Endpoint = tChatUrl.Text.Trim().Length > 0 ? tChatUrl.Text.Trim().TrimEnd('/') : "http://localhost:11434";
+            chat.Enabled = cChat.Checked; FillChatConnection(chat);
             chat.Mode = Math.Max(0, cMode.SelectedIndex); chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();

@@ -150,6 +150,9 @@ namespace Bugi
         internal double Speed = 1.0, FallSpeed = 1.2, SlideSpeed = 1.0, EscapeDelay = .12;
         internal int HungerMinutes = 60;
         internal int PetOpacityPercent = 100;
+        internal int PetSizePercent = 100;   // 걷는 친구 크기(화면 배율에 곱한다). 바꾸면 친구들이 다시 등장한다
+        internal const int MinPetSize = 50, MaxPetSize = 200;
+        internal float PetSize { get { return Math.Max(MinPetSize, Math.Min(MaxPetSize, PetSizePercent)) / 100f; } }
         internal ClickReaction ClickMode = ClickReaction.Cycle;
         internal int SigFreq = 2;            // 시그니처(★) 자동 재생 빈도: 0 끔 · 1 드물게 · 2 보통 · 3 자주
         internal static double SigChance(int freq) { return freq <= 0 ? 0 : freq == 1 ? .08 : freq == 2 ? .20 : .38; }
@@ -195,6 +198,7 @@ namespace Bugi
                 if (d.TryGetValue("EscapeDelay", out v)) o.EscapeDelay = ReadNumber(v, o.EscapeDelay, .05, 1);
                 if (d.TryGetValue("HungerMinutes", out v) && int.TryParse(v, out n)) o.HungerMinutes = Math.Max(0, Math.Min(360, n));
                 if (d.TryGetValue("PetOpacityPercent", out v) && int.TryParse(v, out n)) o.PetOpacityPercent = Math.Max(20, Math.Min(100, n));
+                if (d.TryGetValue("PetSizePercent", out v) && int.TryParse(v, out n)) o.PetSizePercent = Math.Max(MinPetSize, Math.Min(MaxPetSize, n));
                 if (d.TryGetValue("SigFreq", out v) && int.TryParse(v, out n)) o.SigFreq = Math.Max(0, Math.Min(3, n));
                 ClickReaction mode;
                 if (d.TryGetValue("ClickMode", out v) && Enum.TryParse(v, true, out mode) && Enum.IsDefined(typeof(ClickReaction), mode)) o.ClickMode = mode;
