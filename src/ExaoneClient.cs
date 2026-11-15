@@ -38,6 +38,7 @@ namespace Bugi
 
         private static HttpWebRequest Make(ChatOptions o, int timeoutMs)
         {
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;   // TLS 1.2: 이 앱은 .NET 4.0 호환 모드라 기본이 Ssl3/Tls 뿐이어서 api.exaone.ai 와 TLS 연결이 안 된다
             var r = (HttpWebRequest)WebRequest.Create(o.ExaoneEndpoint.TrimEnd('/') + "/v1/chat/completions");
             r.Method = "POST"; r.Timeout = timeoutMs; r.ReadWriteTimeout = 90000; r.UserAgent = "Bugi-DeskPet";
             r.Headers["Authorization"] = "Bearer " + o.ExaoneKeyEffective;
@@ -78,10 +79,12 @@ namespace Bugi
                 {
                     object j = Json.Parse(sr.ReadToEnd());
                     string m = Json.Str(Json.Get(j, "error"), "message") ?? Json.Str(j, "description") ?? Json.Str(j, "error") ?? Json.Str(j, "message");
+                    if (status == 429) return "HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요";
                     if (!string.IsNullOrEmpty(m)) return "HTTP " + status + ": " + m;
                 }
             }
             catch { }
+            if (status == 429) return "HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요";
             return "HTTP " + status + ": " + e.Message;
         }
 
@@ -100,10 +103,11 @@ namespace Bugi
             }
             catch (WebException e)
             {
-                int status; string msg = ErrorText(e, out status).ToLowerInvariant();
+                int status; ErrorText(e, out status);
                 if (status == 401 || status == 403) return ProbeResult.AuthFailed;
-                if (status == 404 || (status >= 400 && status < 500 && msg.Contains("model") && (msg.Contains("not") || msg.Contains("invalid") || msg.Contains("exist")))) return ProbeResult.ModelMissing;
-                if (status == 400 || status == 422 || status == 429) return ProbeResult.Ok;   // 서버·키는 맞음(빈 입력이라 거절됨, 또는 잠깐 한도 초과)
+                // 모델 이름이 틀리면 404 model_not_found. (모델이 맞고 messages 만 비면 400 "invalid request to model" 이라서, 글 내용으로 추측하면 안 된다)
+                if (status == 404) return ProbeResult.ModelMissing;
+                if (status == 400 || status == 422 || status == 429) return ProbeResult.Ok;   // 서버·키·모델은 맞음(빈 입력이라 거절됨, 또는 서버가 바빠 429)
                 return ProbeResult.Offline;
             }
             catch { return ProbeResult.Offline; }
@@ -128,6 +132,19 @@ namespace Bugi
 
         /// <summary>SSE 로 받아 답 조각마다 onToken 을 부른다. 성공하면 null, 실패하면 이유.</summary>
         internal static string Stream(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict = 170, double temperature = .85)
+        {
+            // 서버가 바쁘면(429 "too many concurrent requests") 요청이 몰린 것이라 잠깐 뒤 다시 보내면 된다. 답이 시작되기 전에만 오는 오류라 중복 출력은 없다.
+            string err = null;
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                if (attempt > 0) { System.Threading.Thread.Sleep(1200); if (handle.Cancelled) return "cancelled"; }
+                err = StreamOnce(o, msgs, onToken, handle, numPredict, temperature);
+                if (err == null || !err.StartsWith("HTTP 429")) return err;
+            }
+            return err;
+        }
+
+        private static string StreamOnce(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict, double temperature)
         {
             if (string.IsNullOrEmpty(o.ExaoneKeyEffective)) return "EXAONE API 키가 없어요";
             HttpWebRequest r = null; bool cutShort = false;
@@ -174,6 +191,19 @@ namespace Bugi
         internal static string Complete(ChatOptions o, List<ChatMessage> msgs, int numPredict, double temperature)
         {
             if (string.IsNullOrEmpty(o.ExaoneKeyEffective)) return null;
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                if (attempt > 0) System.Threading.Thread.Sleep(1200);   // 서버가 바쁠 때(429)만 다시 보낸다
+                bool busy;
+                string c = CompleteOnce(o, msgs, numPredict, temperature, out busy);
+                if (!busy) return c;
+            }
+            return null;
+        }
+
+        private static string CompleteOnce(ChatOptions o, List<ChatMessage> msgs, int numPredict, double temperature, out bool busy)
+        {
+            busy = false;
             try
             {
                 var r = Make(o, 90000);
@@ -187,6 +217,7 @@ namespace Bugi
                     return c == null ? null : c.Trim();
                 }
             }
+            catch (WebException e) { var resp = e.Response as HttpWebResponse; busy = resp != null && (int)resp.StatusCode == 429; return null; }
             catch { return null; }
         }
     }
