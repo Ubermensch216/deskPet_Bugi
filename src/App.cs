@@ -570,7 +570,9 @@ namespace Bugi
 
         internal void ResetAllSettings()
         {
+            bool resized = Math.Abs(CharacterArt.SizeFactor - 1f) > .001f;
             PlayOptions.Current = new PlayOptions(); PlayOptions.Current.Save();
+            if (resized) ApplyCharacterSize();
             ChatOptions.Current = new ChatOptions(); ChatOptions.Current.Save(); Chat.ApplyOptions();
             string roster = Settings.Roster; Settings = new Settings { Roster = roster }; Settings.Save();
             try { StartupOption.SetEnabled(false); } catch { }
@@ -601,6 +603,23 @@ namespace Bugi
         {
             foreach (var window in windows) { window.Pet.SyncPinned(this); window.Invalidate2(); window.Present(Now); }
             RememberPinnedPosition();
+        }
+        /// <summary>설정의 캐릭터 크기를 바꾼 뒤: 그림 배율을 다시 잡고, 같은 친구들을 새 크기로 다시 등장시킨다.</summary>
+        internal void ApplyCharacterSize()
+        {
+            Chat.End();
+            int[] roster = windows.Select(w => w.Pet.Art.Id).ToArray();
+            foreach (PetWindow w in windows.ToArray())
+            {
+                try { w.Pet.ReleaseFeatures(this); } catch (Exception e) { FeatureLog.Write(e); }
+                try { w.Close(); w.Dispose(); } catch { }
+            }
+            windows.Clear();
+            CharacterArt.Reset(CharacterArt.DpiScale, PlayOptions.Current.PetSize);
+            loadingRoster = true;
+            try { if (roster.Length == 0) Spawn(); else foreach (int c in roster.Take(MaxPets)) Spawn(c); }
+            finally { loadingRoster = false; }
+            SaveRoster(); lastTick = Now;
         }
         internal void SetPositionFixed(bool enabled)
         { PlayOptions.Current.PositionFixed = enabled; ApplyCharacterSettings(); PlayOptions.Current.Save(); }

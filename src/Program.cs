@@ -46,7 +46,7 @@ namespace Bugi
                 try
                 {
                     PlayOptions.Load(); FriendData.Load();
-                    CharacterArt.Reset(Native.SystemDpiScale());
+                    CharacterArt.Reset(Native.SystemDpiScale(), PlayOptions.Current.PetSize);
                     var app = new App(); app.Notes = new NoteManager(app); app.Notes.Start();
                     Application.Run(app);
                 }
@@ -562,10 +562,10 @@ namespace Bugi
                 check(App.HourlyMessage(new DateTime(2026, 10, 21, 12, 0, 0), true, "12:00", "점심!", true, "18:00", "퇴근!") == "지금은 오후 12시야!\n점심!", "정각 문구+점심 병합");
                 check(App.HourlyText(new DateTime(2026, 10, 21, 0, 0, 0)) == "지금은 오전 12시야!", "정각 문구 0시");
 
-                var o = new PlayOptions { Walls = false, Speed = 1.5, ClickMode = ClickReaction.Cry, HungerMinutes = 30, PetOpacityPercent = 70, FixedX = 123.5, FixedY = 456.25, PetPower = false };
+                var o = new PlayOptions { Walls = false, Speed = 1.5, ClickMode = ClickReaction.Cry, HungerMinutes = 30, PetOpacityPercent = 70, PetSizePercent = 150, FixedX = 123.5, FixedY = 456.25, PetPower = false };
                 PlayOptions.Current = o; check(o.Save(), "움직임 설정 저장");
                 PlayOptions.Load(); var l = PlayOptions.Current;
-                check(!l.Walls && l.Speed == 1.5 && l.ClickMode == ClickReaction.Cry && l.HungerMinutes == 30 && l.PetOpacityPercent == 70 && l.FixedX == 123.5 && l.FixedY == 456.25, "움직임 설정 불러오기 일치");
+                check(!l.Walls && l.Speed == 1.5 && l.ClickMode == ClickReaction.Cry && l.HungerMinutes == 30 && l.PetOpacityPercent == 70 && l.PetSizePercent == 150 && l.FixedX == 123.5 && l.FixedY == 456.25, "움직임 설정 불러오기 일치");
                 check(!l.PetPower && new PlayOptions().PetPower, "펫 전원: 기본은 켜짐, 꺼 둔 상태는 저장·불러오기로 유지");
 
                 // 친구 기록

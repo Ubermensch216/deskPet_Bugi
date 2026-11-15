@@ -23,7 +23,7 @@ namespace Bugi
 
         internal static readonly Color Paper = Color.FromArgb(255, 252, 247), Ink = Color.FromArgb(30, 30, 30), Blue = Color.FromArgb(54, 96, 190);
 
-        private readonly float s = CharacterArt.Scale;
+        private readonly float s = CharacterArt.DpiScale;
         private readonly Frame frame;
         private readonly Editor edit;
         private readonly int pillW, pillH, margin, echoH, chipRow;

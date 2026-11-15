@@ -221,7 +221,7 @@ namespace Bugi
             t.Append("OutfitStyle=" + OutfitStyle + "\r\nAccBag=" + b(AccBag) + "\r\nAccVisor=" + b(AccVisor) + "\r\nAccSunglasses=" + b(AccSunglasses) + "\r\n");
             t.Append("Speed=" + f(Speed) + "\r\nFallSpeed=" + f(FallSpeed) + "\r\nSlideSpeed=" + f(SlideSpeed) + "\r\nClickMode=" + ClickMode + "\r\n");
             t.Append("EscapeDelay=" + f(EscapeDelay) + "\r\nHungerMinutes=" + HungerMinutes + "\r\n");
-            t.Append("PetOpacityPercent=" + PetOpacityPercent + "\r\n");
+            t.Append("PetOpacityPercent=" + PetOpacityPercent + "\r\nPetSizePercent=" + PetSizePercent + "\r\n");
             t.Append("SigFreq=" + SigFreq + "\r\n");
             t.Append("FixedX=" + FixedX.ToString("R", CultureInfo.InvariantCulture) + "\r\nFixedY=" + FixedY.ToString("R", CultureInfo.InvariantCulture) + "\r\n");
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, t.ToString(), new UTF8Encoding(true)); return true; }

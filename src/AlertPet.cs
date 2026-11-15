@@ -215,7 +215,7 @@ namespace Bugi
             AutoScaleMode = AutoScaleMode.None; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; TopMost = true;
             Text = "부기 · 알림"; Size = new Size(1, 1); Location = new Point(-32000, -32000);
             area = Screen.FromPoint(Cursor.Position).WorkingArea;
-            art = CharacterArt.Zoomed(character, Zoom);
+            art = CharacterArt.Zoomed(character, Zoom / CharacterArt.SizeFactor);   // 캐릭터 크기 설정과 상관없이 화면 배율의 Zoom 배
             // 발바닥 위치: 몸통의 한가운데가 화면 한가운데에 오도록
             pet = new Pet(app, art, area.Left + area.Width / 2.0, area.Top + area.Height / 2.0 + art.H / 2.0);
             pet.StartAlert(app);
@@ -246,7 +246,7 @@ namespace Bugi
         private void Relayout()
         {
             string text = string.Join("\n\n", messages.ToArray());
-            float u = art.Unit, scale = CharacterArt.Scale;
+            float u = art.Unit, scale = CharacterArt.DpiScale;
             bubbleWidth = Math.Min(area.Width * .55f, 760f * scale);
             // 말풍선 윗면 = 화면 가운데 − 몸 반 높이 − (꼬리·간격 10u) − 말풍선 높이. 폴짝 뛰는 높이(약 11u)와 여유를 빼 둔다.
             float room = Math.Max(60f, area.Height / 2f - art.H / 2f - 10 * u - 14 * u - 6);

@@ -100,7 +100,7 @@ namespace Bugi
         /// <summary>입력칸은 부기 발치 옆(공간이 있는 쪽)에 둔다. 부기도 그쪽을 바라본다.</summary>
         private Point InputPosition()
         {
-            float s = CharacterArt.Scale; Rectangle a = pet.Area; int pw = input.PillWidth;
+            float s = CharacterArt.DpiScale; Rectangle a = pet.Area; int pw = input.PillWidth;
             double half = pet.Art.W * .5, gap = 6 * s;
             bool rightOk = pet.X + half + gap + pw <= a.Right - 2, leftOk = pet.X - half - gap - pw >= a.Left + 2;
             int side = pet.ChatSide;

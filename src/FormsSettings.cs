@@ -221,7 +221,7 @@ namespace Bugi
     {
         // 움직임 · 반응 · 생활은 "행동" 한 쪽으로 합쳤다.
         internal static readonly string[] PageNames = { "캐릭터", "행동", "알림", "화면 · 시스템", "메모", "AI 대화" };
-        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 초과근무", "투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · EXAONE · 기억" };
+        internal static readonly string[] PageHints = { "친구 · 도감 · ★ 기술", "이동 · 반응 · 생활", "정각 · 점심 · 퇴근 · 초과근무", "크기 · 투명도 · 자동 시작", "새 메모 기본값 · 단축키", "Ollama · EXAONE · 기억" };
         private const int AlarmPage = 2, DisplayPage = 3;
         private static int lastPage;
 
@@ -258,7 +258,7 @@ namespace Bugi
         // 알림 쪽 위의 탭: 정각 · 점심 · 퇴근 · 알람 / 초과근무 알림
         private SubTabs alarmTabs; private FlowLayoutPanel alarmFlow; private OvertimePanel overtimePanel;
         // 화면·시스템
-        private NumericUpDown nOpacity; private CheckBox cStartup;
+        private NumericUpDown nOpacity, nPetSize; private CheckBox cStartup;
         // 메모
         private ChoiceStrip noteColor, noteSize; private Label noteInfo;
         // AI 대화
@@ -945,9 +945,10 @@ namespace Bugi
         // ───────── 6. 화면 · 시스템 ─────────
         private Panel BuildDisplayPage()
         {
-            FlowLayoutPanel f; var page = NewPage("화면 · 시스템", "투명도 · Windows 시작", out f);
+            FlowLayoutPanel f; var page = NewPage("화면 · 시스템", "크기 · 투명도 · Windows 시작", out f);
             var o = PlayOptions.Current;
             var g1 = Group(f, "캐릭터 모습"); var a = In(g1);
+            var rz = Row(a); rz.Controls.Add(Cap("캐릭터 크기", 110)); nPetSize = Num(PlayOptions.MinPetSize, PlayOptions.MaxPetSize, Math.Max(PlayOptions.MinPetSize, Math.Min(PlayOptions.MaxPetSize, o.PetSizePercent)), 0, 10, 72); rz.Controls.Add(nPetSize); rz.Controls.Add(Cap("%   (바꾸면 친구들이 다시 등장해요)"));
             var rp = Row(a); rp.Controls.Add(Cap("캐릭터 진하기", 110)); nOpacity = Num(20, 100, o.PetOpacityPercent, 0, 5, 72); rp.Controls.Add(nOpacity); rp.Controls.Add(Cap("%   낮을수록 투명해요"));
             var g3 = Group(f, "Windows"); var c = In(g3);
             cStartup = Check(c, "Windows 로그인 시 자동으로 켜기", StartupOption.IsEnabled());
@@ -1317,6 +1318,7 @@ namespace Bugi
             o.Escape = cursorMode.SelectedIndex == 0; o.Follow = cursorMode.SelectedIndex == 1; o.EscapeDelay = (double)nDelay.Value; o.Secrets = cSecrets.Checked;
             o.HungerMinutes = (int)nHunger.Value; o.HungerCry = cHungerCry.Checked; o.ShowAffinity = cAffinity.Checked;
             o.PetOpacityPercent = (int)nOpacity.Value;
+            bool resized = o.PetSizePercent != (int)nPetSize.Value; o.PetSizePercent = (int)nPetSize.Value;
             Settings s = app.Settings;
             s.HourlyOn = cHourly.Checked; s.HourlyWindow = cPopup.Checked; s.AlertPet = cAlertPet.Checked; s.EdgeGlow = cGlow.Checked;
             s.EdgeGlowTheme = glowTheme.SelectedIndex; s.EdgeGlowWidth = glowWidth.SelectedIndex; s.EdgeGlowStrength = glowStrength.SelectedIndex;
@@ -1342,6 +1344,7 @@ namespace Bugi
             chat.Mode = Math.Max(0, cMode.SelectedIndex); chat.Hotkey = cChatKey.Checked; chat.HotkeyMods = hkBox.Mods; chat.HotkeyKey = hkBox.Key; chat.Sound = cChatSound.Checked; chat.Proactive = cChatProactive.Checked; chat.ProactiveMinutes = (int)nProactive.Value; chat.Memory = cChatMemory.Checked; chat.Chips = cChatChips.Checked; chat.Diary = cChatDiary.Checked;
 
             app.OnSettingsChanged();
+            if (resized) app.ApplyCharacterSize();
             app.ApplyCharacterSettings(); app.Chat.ApplyOptions(); app.Chat.ModeChanged();
             if (chat.Enabled && chat.Hotkey && !app.Chat.HotkeyRegistered) Warn("단축키 " + ChatHotkey.Text(chat.HotkeyMods, chat.HotkeyKey) + " 는 다른 프로그램이 이미 쓰고 있어서 등록하지 못했어요. 다른 조합을 골라 주세요.");
             if (app.Notes != null) { app.Notes.DefaultColor = NoteColors.All[Math.Max(0, noteColor.SelectedIndex)]; app.Notes.DefaultSize = (NoteSizePreset)Math.Max(0, noteSize.SelectedIndex); }

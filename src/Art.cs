@@ -38,6 +38,10 @@ namespace Bugi
         };
         internal static int Count { get { return Infos.Length; } }
         internal static float Scale = 1f;
+        /// <summary>화면 DPI 배율(설정의 캐릭터 크기를 곱하기 전). 알림 부기 · 트레이 아이콘 · 입력칸처럼 크기 설정과 상관없는 것에 쓴다.</summary>
+        internal static float DpiScale = 1f;
+        /// <summary>설정의 캐릭터 크기 비율(1 = 100%).</summary>
+        internal static float SizeFactor { get { return DpiScale > 0 ? Scale / DpiScale : 1f; } }
         /// <summary>서 있을 때 키(귀끝~발바닥, 화면 픽셀). 배율 1 기준.</summary>
         internal const float BaseHeight = 112f;
 
@@ -49,7 +53,7 @@ namespace Bugi
             if (!cache.TryGetValue(id, out a)) cache[id] = a = new CharacterArt(id);
             return a;
         }
-        internal static void Reset(float scale) { Scale = scale; cache.Clear(); }
+        internal static void Reset(float scale, float size = 1f) { DpiScale = scale; Scale = scale * size; cache.Clear(); }
 
         /// <summary>같은 캐릭터를 배율을 더 키워 그린다(알림 부기). 걸어 다니는 부기는 늘 배율 1.</summary>
         internal static CharacterArt Zoomed(int id, float zoom)
@@ -103,7 +107,7 @@ namespace Bugi
         {
             try
             {
-                int n = Math.Max(16, (int)Math.Round(16 * Scale));
+                int n = Math.Max(16, (int)Math.Round(16 * DpiScale));
                 using (Bitmap bmp = IconBitmap(id, n))
                 {
                     IntPtr hicon = bmp.GetHicon();
