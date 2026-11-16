@@ -359,7 +359,7 @@ namespace Bugi
                 Box = new TextBox
                 {
                     BorderStyle = BorderStyle.None, BackColor = Paper, ForeColor = Color.FromArgb(40, 40, 40), MaxLength = 200, Dock = DockStyle.Fill,
-                    Font = new Font("Malgun Gothic", 16f * s, FontStyle.Regular, GraphicsUnit.Pixel), ImeMode = ImeMode.Hangul
+                    Font = new Font("Malgun Gothic", 14f * s, FontStyle.Regular, GraphicsUnit.Pixel), ImeMode = ImeMode.Hangul
                 };
                 Controls.Add(Box);
                 Size = new Size(200, Box.PreferredHeight);
