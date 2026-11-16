@@ -327,17 +327,27 @@ namespace Bugi
         }
 
         // ───────────────────────── 그리기 ─────────────────────────
-        private static Font bubbleFont, affinityFont;
-        private static float fontScale;
+        private static Font bubbleFont, aiBubbleFont, affinityFont;
+        private static float fontScale, fontDpiScale;
         private static void EnsureFonts()
         {
-            float s = CharacterArt.Scale;
-            if (bubbleFont != null && fontScale == s) return;
-            fontScale = s;
+            float s = CharacterArt.Scale, d = CharacterArt.DpiScale;
+            if (bubbleFont != null && aiBubbleFont != null && fontScale == s && fontDpiScale == d) return;
+            fontScale = s; fontDpiScale = d;
             try { bubbleFont = new Font("Malgun Gothic", 11f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
             catch { bubbleFont = new Font(FontFamily.GenericSansSerif, 11f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
+            float aiPx = 14f * Math.Max(s, d);
+            try { aiBubbleFont = new Font("Malgun Gothic", aiPx, FontStyle.Bold, GraphicsUnit.Pixel); }
+            catch { aiBubbleFont = new Font(FontFamily.GenericSansSerif, aiPx, FontStyle.Bold, GraphicsUnit.Pixel); }
             try { affinityFont = new Font("Segoe UI", 10f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
             catch { affinityFont = new Font(FontFamily.GenericSansSerif, 10f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
+        }
+        private static Font BubbleFontFor(Look L) { return L.BubbleFont ?? (L.Ai ? aiBubbleFont : bubbleFont); }
+        private static float BubbleScaleFor(Look L, float scale) { return L.Ai ? Math.Max(scale, CharacterArt.DpiScale) : scale; }
+        private static int BubbleWidthFor(Look L, float scale)
+        {
+            if (L.BubbleWidth > 0) return (int)L.BubbleWidth;
+            return (int)(L.Ai ? 220 * BubbleScaleFor(L, scale) : 170 * scale);
         }
         private static FontFamily zFamily;
         private static FontFamily ZFamily
@@ -410,12 +420,13 @@ namespace Bugi
                 using (var g = Graphics.FromImage(tmp))
                 {
                     g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                    textSize = g.MeasureString(L.Bubble, L.BubbleFont ?? bubbleFont, (int)(L.BubbleWidth > 0 ? L.BubbleWidth : 170 * scale), StringFormat.GenericTypographic);
+                    textSize = g.MeasureString(L.Bubble, BubbleFontFor(L), BubbleWidthFor(L, scale), StringFormat.GenericTypographic);
                 }
-                float pad = 7 * scale;
-                float bw = (float)Math.Ceiling(textSize.Width + pad * 2 + 2 * scale), bh = (float)Math.Ceiling(textSize.Height + pad * 1.4f + 2 * scale);
+                float bScale = BubbleScaleFor(L, scale);
+                float pad = 7 * bScale;
+                float bw = (float)Math.Ceiling(textSize.Width + pad * 2 + 2 * bScale), bh = (float)Math.Ceiling(textSize.Height + pad * 1.4f + 2 * bScale);
                 bubble = new RectangleF(-bw / 2, spriteTop - 3 * scale - tail - bh, bw, bh);
-                minX = Math.Min(minX, bubble.Left); maxX = Math.Max(maxX, bubble.Right); minY = Math.Min(minY, bubble.Top - (L.Ai ? 6 * scale : 0));
+                minX = Math.Min(minX, bubble.Left); maxX = Math.Max(maxX, bubble.Right); minY = Math.Min(minY, bubble.Top - (L.Ai ? 6 * bScale : 0));
                 if (L.CloseMark) { maxX = Math.Max(maxX, bubble.Right + CloseRadius * scale); minY = Math.Min(minY, bubble.Top - CloseRadius * scale); }
             }
             if (L.Neon.A != 0)
@@ -473,16 +484,17 @@ namespace Bugi
 
         private static void DrawBubble(Graphics g, Look L, RectangleF r, SizeF textSize, float tail, float scale)
         {
-            using (GraphicsPath path = RoundRect(r, 8 * scale))
+            float bScale = BubbleScaleFor(L, scale);
+            using (GraphicsPath path = RoundRect(r, 8 * bScale))
             {
                 var tri = new[] { new PointF(-5 * scale, r.Bottom - 1), new PointF(1 * scale, r.Bottom + tail), new PointF(6 * scale, r.Bottom - 1) };
-                using (var pen = new Pen(L.Work ? Color.FromArgb(255, 54, 96, 190) : Color.FromArgb(255, 30, 30, 30), 2 * scale) { LineJoin = LineJoin.Round })
+                using (var pen = new Pen(L.Work ? Color.FromArgb(255, 54, 96, 190) : Color.FromArgb(255, 30, 30, 30), 2 * bScale) { LineJoin = LineJoin.Round })
                 using (var fill = new SolidBrush(Color.White))
                 {
                     g.FillPath(fill, path); g.DrawPath(pen, path);
                     g.FillPolygon(fill, tri); g.DrawLine(pen, tri[0], tri[1]); g.DrawLine(pen, tri[1], tri[2]);
-                    using (var cover = new Pen(Color.White, 2.2f * scale))
-                        g.DrawLine(cover, tri[0].X + 2.2f * scale, r.Bottom - .5f * scale, tri[2].X - 2.2f * scale, r.Bottom - .5f * scale);
+                    using (var cover = new Pen(Color.White, 2.2f * bScale))
+                        g.DrawLine(cover, tri[0].X + 2.2f * scale, r.Bottom - .5f * bScale, tri[2].X - 2.2f * scale, r.Bottom - .5f * bScale);
                 }
             }
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
@@ -491,7 +503,7 @@ namespace Bugi
             {
                 var box = new RectangleF(r.Left + (r.Width - textSize.Width) / 2, r.Top + (r.Height - textSize.Height) / 2, textSize.Width + 2, textSize.Height + 2);
                 var saved = g.Save();
-                Font bubbleF = L.BubbleFont ?? bubbleFont;
+                Font bubbleF = BubbleFontFor(L);
                 // AI 가 하는 말은 전체 글을 기준으로 자리를 잡고, 찍힌 글자까지만 보여 준다(말풍선 크기가 흔들리지 않게)
                 if (L.BubbleReveal >= 0 && L.BubbleReveal < L.Bubble.Length)
                 {
@@ -502,7 +514,7 @@ namespace Bugi
                 g.Restore(saved);
             }
             if (L.CloseMark) DrawCloseMark(g, r, scale);
-            if (L.Ai) DrawAiMark(g, r, scale);
+            if (L.Ai) DrawAiMark(g, r, bScale);
         }
 
         private const float CloseRadius = 11f;

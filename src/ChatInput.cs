@@ -59,7 +59,7 @@ namespace Bugi
 
         internal ChatInput()
         {
-            pillW = (int)Math.Round(272 * s); pillH = (int)Math.Round(38 * s); margin = (int)Math.Round(8 * s); echoH = (int)Math.Round(34 * s); chipRow = (int)Math.Round(34 * s);
+            pillW = (int)Math.Round(300 * s); pillH = (int)Math.Round(42 * s); margin = (int)Math.Round(8 * s); echoH = (int)Math.Round(36 * s); chipRow = (int)Math.Round(36 * s);
             frame = new Frame(); frame.Size = new Size(pillW + margin * 2, chipRow + echoH + pillH + margin * 2);
             edit = new Editor(s);
             edit.Box.TextChanged += delegate { if (edit.Box.TextLength > 0) chips = null; if (Typing != null) Typing(edit.Box.TextLength); Redraw(); };
@@ -189,20 +189,20 @@ namespace Bugi
                 DrawStar(g, cx + 6 * s, cy - 6 * s, 2.6f * s, Color.FromArgb(255, 226, 70));
                 // 오른쪽: 엔터 안내(글자가 있을 때 진하게)
                 bool has = edit.Box.TextLength > 0;
-                using (var f = new Font("Malgun Gothic", 12f * s, FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var f = new Font("Malgun Gothic", 14f * s, FontStyle.Bold, GraphicsUnit.Pixel))
                 using (var br = new SolidBrush(has ? Blue : Color.FromArgb(190, 190, 200)))
                 using (var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                     g.DrawString("↵", f, br, new RectangleF(pill.Right - 34 * s, pill.Top, 28 * s, pill.Height), fmt);
                 // 보낸 말의 잔상
                 if (echoText != null && echoAlpha > 0)
                 {
-                    using (var f = new Font("Malgun Gothic", 11.5f * s, FontStyle.Regular, GraphicsUnit.Pixel))
+                    using (var f = new Font("Malgun Gothic", 13f * s, FontStyle.Regular, GraphicsUnit.Pixel))
                     using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap | StringFormatFlags.NoClip })
                     {
                         float maxW = pillW - 40 * s;
                         SizeF sz = g.MeasureString(echoText, f, PointF.Empty, StringFormat.GenericTypographic);
-                        float w = Math.Min(maxW, sz.Width) + 22 * s, h = 24 * s;
-                        float lift = chips != null ? 32 * s : 0;              // 칩이 떠 있으면 그 위로 비켜 준다
+                        float w = Math.Min(maxW, sz.Width) + 22 * s, h = 26 * s;
+                        float lift = chips != null ? 34 * s : 0;              // 칩이 떠 있으면 그 위로 비켜 준다
                         var r = new RectangleF(pill.Right - w, pill.Top - h - 5 * s - lift - (1 - echoAlpha) * 6 * s, w, h);
                         int a = (int)(255 * echoAlpha);
                         using (var path = RoundPath(r, h / 2))
@@ -224,8 +224,8 @@ namespace Bugi
         {
             if (chips == null) { chipRects = new RectangleF[0]; return; }
             var rects = new RectangleF[chips.Length];
-            float h = 26 * s, gap = 6 * s, x = pill.Left + 4 * s, y = pill.Top - h - 6 * s, now = (float)(Environment.TickCount / 1000.0 - chipsStart);
-            using (var f = new Font("Malgun Gothic", 11.5f * s, FontStyle.Regular, GraphicsUnit.Pixel))
+            float h = 28 * s, gap = 6 * s, x = pill.Left + 4 * s, y = pill.Top - h - 6 * s, now = (float)(Environment.TickCount / 1000.0 - chipsStart);
+            using (var f = new Font("Malgun Gothic", 13f * s, FontStyle.Regular, GraphicsUnit.Pixel))
             using (var fmt = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
             {
                 // 알약 너비 안에 다 들어가는 칩만 남긴다(번호 Ctrl+1~3 이 보이는 칩과 어긋나지 않게)
@@ -359,7 +359,7 @@ namespace Bugi
                 Box = new TextBox
                 {
                     BorderStyle = BorderStyle.None, BackColor = Paper, ForeColor = Color.FromArgb(40, 40, 40), MaxLength = 200, Dock = DockStyle.Fill,
-                    Font = new Font("Malgun Gothic", 14f * s, FontStyle.Regular, GraphicsUnit.Pixel), ImeMode = ImeMode.Hangul
+                    Font = new Font("Malgun Gothic", 16f * s, FontStyle.Regular, GraphicsUnit.Pixel), ImeMode = ImeMode.Hangul
                 };
                 Controls.Add(Box);
                 Size = new Size(200, Box.PreferredHeight);
