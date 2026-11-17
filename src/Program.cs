@@ -476,6 +476,19 @@ namespace Bugi
                 if (st.Recorded.ContainsKey(h)) throw new Exception("recorded by right click");
                 st.SetWatch(false, n);
             });
+            step("알람 만들기 창: 취소 단추로 닫힘", () =>
+            {
+                var f = new AlarmComposer(app.TrayIconImage, a => true); f.Show(); pump(.2);
+                Func<Form, Button> cancelOf = w => w.Controls.OfType<Button>().First(b => b.Text == "취소");
+                cancelOf(f).PerformClick(); pump(.2);
+                if (!f.IsDisposed && f.Visible) throw new Exception("composer still open after cancel");
+                var g = new AlarmComposer(app.TrayIconImage, a => true); g.Show(); pump(.2);
+                g.CancelButton.PerformClick(); pump(.2);   // Esc 가 누르는 단추
+                if (!g.IsDisposed && g.Visible) throw new Exception("composer still open after Esc");
+                var r = new ReminderForm((d, rule) => { }); r.Show(); pump(.2);
+                cancelOf(r).PerformClick(); pump(.2);
+                if (!r.IsDisposed && r.Visible) throw new Exception("reminder form still open after cancel");
+            });
             step("펫 전원: 끄면 펫 창이 숨고 켜면 돌아옴", () =>
             {
                 bool before = PlayOptions.Current.PetPower;

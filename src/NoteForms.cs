@@ -293,7 +293,8 @@ namespace Bugi
             interval = new NumericUpDown { Left = 134, Top = 104, Width = 58, Minimum = 1, Maximum = 366, Value = 1, Enabled = false }; unit = new Label { Left = 198, Top = 108, AutoSize = true, Text = "", ForeColor = FriendUI.Ink };
             Controls.Add(repeat); Controls.Add(interval); Controls.Add(unit);
             summary = new Label { Left = 14, Top = 144, Width = 350, Height = 38, ForeColor = Color.DimGray }; Controls.Add(summary);
-            var ok = new Button { Text = "만들기", Left = 200, Top = 188, Width = 80, Height = 28 }; var cancel = new Button { Text = "취소", Left = 288, Top = 188, Width = 76, Height = 28, DialogResult = DialogResult.Cancel };
+            var ok = new Button { Text = "만들기", Left = 200, Top = 188, Width = 80, Height = 28 }; var cancel = new Button { Text = "취소", Left = 288, Top = 188, Width = 76, Height = 28 };
+            cancel.Click += delegate { Close(); };   // Show() 로 띄우는 창이라 DialogResult 만으로는 안 닫힌다
             Controls.Add(ok); Controls.Add(cancel); AcceptButton = ok; CancelButton = cancel;
             EventHandler update = delegate { interval.Enabled = repeat.SelectedIndex > 0; unit.Text = repeat.SelectedIndex == 1 ? "일마다" : repeat.SelectedIndex == 2 ? "주마다" : repeat.SelectedIndex == 3 ? "개월마다" : repeat.SelectedIndex == 4 ? "년마다" : ""; UpdateSummary(); };
             date.ValueChanged += update; time.ValueChanged += update; repeat.SelectedIndexChanged += update; interval.ValueChanged += update;

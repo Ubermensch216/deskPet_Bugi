@@ -28,7 +28,9 @@ namespace Bugi
             summary = new Label { Left = 14, Top = 134, Width = 352, Height = 40, ForeColor = Color.DimGray };
             Controls.Add(summary);
             var ok = new Button { Text = "만들기", Left = 200, Top = 182, Width = 80, Height = 28 };
-            var cancel = new Button { Text = "취소", Left = 288, Top = 182, Width = 76, Height = 28, DialogResult = DialogResult.Cancel };
+            var cancel = new Button { Text = "취소", Left = 288, Top = 182, Width = 76, Height = 28 };
+            // 이 창은 Show() 로 띄우는 일반 창이라 DialogResult 만으로는 닫히지 않는다. 직접 닫는다(Esc 도 같은 단추를 누른 것으로 처리).
+            cancel.Click += delegate { Close(); };
             Controls.Add(ok); Controls.Add(cancel); AcceptButton = ok; CancelButton = cancel;
             EventHandler update = delegate { UpdateSummary(); };
             time.ValueChanged += update; repeat.CheckedChanged += update;
