@@ -6,7 +6,7 @@
 /nowarn:CS0649,CS0169,CS0414,CS0219
 /utf8output
 /langversion:latest
-/out:"D:\Dev\deskPet_Bugi\output\bugi.exe"
+/out:"C:\Users\COMTREE\AppData\Local\Temp\claude\27007b35dbce216f\9837fc00-1fb1-41f5-adb2-d6a80b5bb4c5\scratchpad\bugi_build\bugi.exe"
 /win32manifest:"D:\Dev\deskPet_Bugi\assets\app.manifest"
 /win32icon:"D:\Dev\deskPet_Bugi\assets\bugi.ico"
 /r:"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll"
