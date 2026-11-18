@@ -93,7 +93,7 @@ namespace Bugi
                 add(WingBack ? 1 : 0, 1); add(WingLSweep, 10); add(WingRSweep, 10); add(Thumb, 10);
                 add(FootLX, 2); add(FootLY, 2); add(FootRX, 2); add(FootRY, 2); add(FootLRot, 3); add(FootRRot, 3);
                 add(Tail, 3); add(TailWag, 3);
-                add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 20); add(Puff, 14); add(Holo, 8); add(Flash, 12);
+                add(Tears, 8); add(Sweat, 8); add(Anger, 8); add(Cookie, 80); add(Puff, 14); add(Holo, 8); add(Flash, 12);
                 add((int)Tool, 1); add(ToolAng, 3); add(Debris, 14); add(DebrisX, 1); add(DebrisY, 1);
                 add(Ghost, 10); add(GhostAng, 3); add(Outfit ? 1 : 0, 1); add(CardSwing, 3); add(CardShow, 14); add(Sparkle, 8); add(FlagWave, 6);
                 add((int)Prop, 1); add(PropT, 8); add(Gray ? 1 : 0, 1); add(Casual ? 1 : 0, 1);
@@ -995,29 +995,151 @@ namespace Bugi
             }
         }
 
-        // ───────── 간식 ─────────
+        // ───────── 간식 (새우깡 봉지에서 꺼내 먹기) ─────────
         private static void DrawCookie(Graphics g, Ctx c)
         {
-            float bite = Clamp(c.P.Cookie, 0, 1);
-            PointF at = c.Map(200, 150);
-            var st = g.Save();
-            g.TranslateTransform(at.X, at.Y);
-            using (var cookie = new SolidBrush(Color.FromArgb(240, 192, 128)))   //fx
-            using (var chip = new SolidBrush(Color.FromArgb(104, 62, 40)))   //fx
+            DrawSaeukkangSnack(g, c.P.Cookie, c.Map(182, 184), c.Map(200, 102), c.Ink);
+        }
+
+        internal static void DrawSaeukkangSnack(Graphics g, float prog, PointF bagAt, PointF mouthAt, Pen ink)
+        {
+            prog = Clamp(prog, 0, 1);
+            float u = prog < .5f ? prog * 2f : (prog - .5f) * 2f;
+            float shake = u < .28f ? (float)Math.Sin(u * 65f) * 2.2f : 0f;
+            float bagTilt = u < .22f ? -4f * (float)Math.Sin(u / .22f * Math.PI) : 0f;
+
+            PointF bagCtr = new PointF(bagAt.X + shake, bagAt.Y);
+            bool hasStick = u >= .18f && u < .94f;
+            bool stickBehindFront = u < .32f;
+
+            // 1) 봉지 뒤쪽 입구 (열린 안쪽)
+            var stBack = g.Save();
+            g.TranslateTransform(bagCtr.X, bagCtr.Y);
+            g.RotateTransform(bagTilt);
+            using (var inside = new SolidBrush(Color.FromArgb(148, 52, 18)))   //fx
             {
-                float r = 18;
-                const int n = 40;
-                var pts = new PointF[n];
-                for (int i = 0; i < n; i++)
+                PointF[] rim = { new PointF(-26, -26), new PointF(-15, -33), new PointF(0, -34), new PointF(15, -33), new PointF(26, -26), new PointF(22, -18), new PointF(-22, -18) };
+                g.FillPolygon(inside, rim);
+                g.DrawLines(ink, new[] { rim[0], rim[1], rim[2], rim[3], rim[4] });
+            }
+            g.Restore(stBack);
+
+            // 막대가 봉지 속에서 막 올라오는 동안엔 봉지 앞면보다 먼저 그려서 봉지 안에서 나오는 느낌을 낸다
+            if (hasStick && stickBehindFront) DrawSaeukkangStickAt(g, u, bagCtr, mouthAt, ink);
+
+            // 2) 새우깡 봉지 앞면
+            DrawSaeukkangBagFront(g, bagCtr, bagTilt, ink);
+
+            // 3) 봉지 밖으로 나온 새우깡 과자
+            if (hasStick && !stickBehindFront) DrawSaeukkangStickAt(g, u, bagCtr, mouthAt, ink);
+        }
+
+        private static void DrawSaeukkangBagFront(Graphics g, PointF bagCtr, float tilt, Pen ink)
+        {
+            var st = g.Save();
+            g.TranslateTransform(bagCtr.X, bagCtr.Y);
+            g.RotateTransform(tilt);
+
+            PointF[] body = Geo.Smooth(new[]
+            {
+                new PointF(-26, -26), new PointF(0, -24), new PointF(26, -26),
+                new PointF(29, 2), new PointF(25, 31),
+                new PointF(0, 32), new PointF(-25, 31),
+                new PointF(-29, 2)
+            }, true, 4);
+
+            using (var path = new GraphicsPath())
+            {
+                path.AddPolygon(body);
+                using (var orange = new SolidBrush(Color.FromArgb(242, 102, 34)))   //fx
+                    g.FillPath(orange, path);
+
+                var clip = g.Save();
+                g.SetClip(path, CombineMode.Intersect);
+                // 은은한 사선 빗살무늬
+                using (var stripe = new Pen(Color.FromArgb(252, 134, 58), 5.0f))   //fx
+                    for (int i = -2; i <= 2; i++)
+                        g.DrawLine(stripe, -38 + i * 16, 36, 12 + i * 16, -36);
+
+                // 상·하단 금색 & 빨강 띠
+                using (var gold = new SolidBrush(Color.FromArgb(238, 186, 56)))   //fx
+                { g.FillRectangle(gold, -32, -27, 64, 5f); g.FillRectangle(gold, -32, 25, 64, 7); }
+                using (var redBand = new SolidBrush(Color.FromArgb(204, 44, 24)))   //fx
+                    g.FillRectangle(redBand, -32, 21.5f, 64, 4f);
+
+                // 하단 생새우 일러스트
+                using (var shrimp = new Pen(Color.FromArgb(238, 76, 68), 5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
+                    g.DrawArc(shrimp, 4, 6, 15, 13, -30, 210);
+                using (var shrimpTail = new SolidBrush(Color.FromArgb(238, 76, 68)))   //fx
+                    g.FillEllipse(shrimpTail, 3, 14, 5.5f, 4.5f);
+
+                // 중앙 "새우깡" 로고 (크고 선명하게)
+                using (var logo = TextPath("새우깡", 17.5f, 0, -16, true))
+                using (var logoRim = new Pen(Color.FromArgb(136, 20, 10), 4.0f) { LineJoin = LineJoin.Round })   //fx
                 {
-                    double a = i * Math.PI * 2 / n, d = Math.Abs(Math.Atan2(Math.Sin(a + 1.6), Math.Cos(a + 1.6)));
-                    double cut = Math.Max(0, 1 - d / (.5 + bite * 2.1)) * bite * (.62 + .22 * Math.Abs(Math.Sin(a * 4.5)));
-                    float rr = (float)(r * (1 - cut));
-                    pts[i] = new PointF((float)Math.Cos(a) * rr, (float)Math.Sin(a) * rr);
+                    g.DrawPath(logoRim, logo);
+                    g.FillPath(bWhite, logo);
                 }
-                g.FillPolygon(cookie, pts); g.DrawPolygon(c.Ink, pts);
-                if (bite < .9f)
-                { g.FillEllipse(chip, -r * .45f, -r * .35f, 5, 5); g.FillEllipse(chip, r * .15f, r * .25f, 4.5f, 4.5f); g.FillEllipse(chip, -r * .15f, -r * .65f, 4, 4); }
+                g.Restore(clip);
+            }
+
+            using (var bagInk = new Pen(ink.Color, Math.Max(1.8f, ink.Width * .82f)) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
+                g.DrawPolygon(bagInk, body);
+            g.Restore(st);
+        }
+
+        private static void DrawSaeukkangStickAt(Graphics g, float u, PointF bagCtr, PointF mouthAt, Pen ink)
+        {
+            PointF bagOpen = new PointF(bagCtr.X + 4, bagCtr.Y - 22);
+            PointF eatPos = new PointF(mouthAt.X + 10, mouthAt.Y + 10);
+            float sx, sy, ang, bite;
+            if (u < .44f)
+            {
+                float s = SmoothStep((u - .18f) / .26f);
+                sx = bagOpen.X + (eatPos.X - bagOpen.X) * s;
+                sy = (bagOpen.Y + 12) + (eatPos.Y - (bagOpen.Y + 12)) * s;
+                ang = -6f + (-32f - (-6f)) * s;
+                bite = 0f;
+            }
+            else
+            {
+                float t = (u - .44f) / .48f;
+                sx = eatPos.X;
+                sy = eatPos.Y + (float)Math.Sin(t * 2.0 * Math.PI * 2) * 2.2f;
+                ang = -32f + (float)Math.Sin(t * 3.0 * Math.PI * 2) * 4f;
+                bite = Clamp(t, 0, 1);
+            }
+
+            float len = 26f * (1f - bite * .9f);
+            if (len < 2.5f) return;
+
+            var st = g.Save();
+            g.TranslateTransform(sx, sy);
+            g.RotateTransform(ang);
+
+            float hw = 3.2f, top = -len * .5f, bot = len * .5f;
+            PointF[] stick = Geo.Smooth(new[]
+            {
+                new PointF(-hw, top), new PointF(hw, top),
+                new PointF(hw + .6f, 0), new PointF(hw, bot),
+                new PointF(-hw, bot), new PointF(-hw + .6f, 0)
+            }, true, 3);
+
+            using (var cracker = new SolidBrush(Color.FromArgb(244, 198, 114)))   //fx
+            using (var groove = new Pen(Color.FromArgb(196, 128, 54), 1.3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })   //fx
+            using (var edge = new Pen(Color.FromArgb(152, 90, 36), Math.Max(1.4f, ink.Width * .55f)) { LineJoin = LineJoin.Round })   //fx
+            {
+                g.FillPolygon(cracker, stick);
+                for (float gy = top + 3.5f; gy < bot - 2f; gy += 4.2f)
+                    g.DrawLine(groove, -hw + .6f, gy, hw - .4f, gy - 1.4f);
+                g.DrawPolygon(edge, stick);
+
+                if (bite > .08f && bite < .92f)
+                {
+                    float ph = (bite * 4f) % 1f;
+                    g.FillEllipse(cracker, -5 - ph * 5, top - 3 - ph * 4, 2.6f, 2.6f);
+                    g.FillEllipse(cracker, 3 + ph * 4, top - 2 - ph * 5, 2.2f, 2.2f);
+                }
             }
             g.Restore(st);
         }

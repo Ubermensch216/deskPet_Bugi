@@ -157,9 +157,18 @@ namespace Bugi
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb)
             { ClearAttachments(); SetState(PetState.Falling, w); return; }
             if (!FriendData.Current.TrySnack())
-            { Bubble = Loc.T("배가 꽉 찼어! 조금 출출해지면 먹자"); BubbleUntil = w.Now + 3; return; }
-            AfterReaction = PetState.Walk; extraDuration = 3;
-            SetState(PetState.Eating, w); Bubble = Loc.T("냠냠! 고마워"); BubbleUntil = w.Now + 3;
+            {
+                string[] refusals =
+                {
+                    Loc.T("배가 빵빵해서 새우깡 한 개도 안 들어가... 서양배 몸매 터지겠어!"),
+                    Loc.T("이 이상 먹으면 날개로 못 날고 굴러다녀야 할지도 몰라! 조금 이따 먹자"),
+                    Loc.T("새우깡은 사랑이지만 지금은 배가 꽉 찼어... 위장 파업 선언!"),
+                };
+                int idx = w.Rng != null ? w.Rng.Next(refusals.Length) : 0;
+                Bubble = refusals[idx]; BubbleUntil = w.Now + 3.5; return;
+            }
+            AfterReaction = PetState.Walk; extraDuration = 3.6;
+            SetState(PetState.Eating, w); Bubble = Loc.T("냠냠! 고마워"); BubbleUntil = w.Now + 3.6;
             mouseGrace = w.Now + 5; DelayIdle(w);
         }
 

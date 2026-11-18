@@ -158,7 +158,7 @@ namespace Bugi
                 K("퍼덕낙하", (p, w) => p.Demonstrate(w, "fall")),
                 K("벽타기", (p, w) => p.Demonstrate(w, "wall")),
                 K("천장", (p, w) => p.Demonstrate(w, "ceiling")),
-                K("먹는중", (p, w) => { FriendData.Current.Satiety = 40; p.Feed(w); }),
+                K("먹는중", (p, w) => { FriendData.Current.Satiety = 40; p.Feed(w); for (int i = 0; i < 45; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("꽃다발", (p, w) => p.StartFlower(w, 100)),
                 K("말풍선", (p, w) => p.Cheer(w, "점심 먹으러 가자!", 8)),
                 K("대화-듣는중", (p, w) => ChatDemo(p, w, ChatPhase.Listening, ChatMood.Neutral, "", 30, 8)),
@@ -224,6 +224,7 @@ namespace Bugi
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("응원", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Cheer"); }, 5.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("ㅋㅋ", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Laugh"); }, 4.2, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("여행", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Travel"); }, 5.0, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("간식", (p, w) => { p.Y = 720; FriendData.Current.Satiety = 40; p.Feed(w); }, 3.4, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("도망", (p, w) => { p.Y = 720; p.Demonstrate(w, "slide"); }, 0.8, 0),
                 };
                 int cw = (int)Math.Round(100 * scale), ch = (int)Math.Round(92 * scale), frameCols = 12;

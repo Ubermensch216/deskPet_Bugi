@@ -902,32 +902,11 @@ namespace Bugi
             { g.DrawLines(rim, topPts); g.DrawLines(rim, botPts); g.DrawLine(rim, topPts[0], botPts[0]); g.DrawLine(rim, topPts[n], botPts[n]); }
         }
 
-        // ───────── 간식 ─────────
+        // ───────── 간식 (새우깡 봉지에서 꺼내 먹기) ─────────
         private static void DrawCookie(Graphics g, Ctx c)
         {
-            float bite = Clamp(c.P.Cookie, 0, 1);
-            PointF at = c.Map(200, 168);
-            var st = g.Save();
-            g.TranslateTransform(at.X, at.Y);
-            using (var cookie = new SolidBrush(Color.FromArgb(240, 192, 128)))   //ref
-            using (var chip = new SolidBrush(Color.FromArgb(104, 62, 40)))   //ref
-            using (var rim = new Pen(Color.FromArgb(170, 112, 56), 2f) { LineJoin = LineJoin.Round })   //ref
-            {
-                float r = 18;
-                const int n = 40;
-                var pts = new PointF[n];
-                for (int i = 0; i < n; i++)
-                {
-                    double a = i * Math.PI * 2 / n, d = Math.Abs(Math.Atan2(Math.Sin(a + 1.6), Math.Cos(a + 1.6)));
-                    double cut = Math.Max(0, 1 - d / (.5 + bite * 2.1)) * bite * (.62 + .22 * Math.Abs(Math.Sin(a * 4.5)));
-                    float rr = (float)(r * (1 - cut));
-                    pts[i] = new PointF((float)Math.Cos(a) * rr, (float)Math.Sin(a) * rr);
-                }
-                g.FillPolygon(cookie, pts); g.DrawPolygon(rim, pts);
-                if (bite < .9f)
-                { g.FillEllipse(chip, -r * .45f, -r * .35f, 5, 5); g.FillEllipse(chip, r * .15f, r * .25f, 4.5f, 4.5f); g.FillEllipse(chip, -r * .15f, -r * .65f, 4, 4); }
-            }
-            g.Restore(st);
+            using (var rim = new Pen(Color.FromArgb(40, 40, 48), 2.4f) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })   //ref
+                Rig.DrawSaeukkangSnack(g, c.P.Cookie, c.Map(182, 194), c.Map(200, 120), rim);
         }
 
     }

@@ -405,13 +405,69 @@ namespace Bugi
         private void EatPose(Pose P)
         {
             SitDown(P);
-            double chew = Math.Sin(animT * 2.4 * Tau), prog = Math.Min(1, StateT / Math.Max(1, extraDuration));
-            P.Breath = F(chew * .3);
-            P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1; P.Beak = F(.3 * Math.Max(0, chew) + .05);
-            P.HeadY = F(1 + chew * 1.4); P.HeadTilt = F(chew * 1.6); P.Look = 0;
-            P.WingLTo = new PointF(178, 152); P.WingRTo = new PointF(222, 152);
-            P.Cookie = F(prog); P.Blush = .7f;
-            P.Tuft = F(chew * 3); P.TuftWave = 5; P.TuftPhase = F(animT * 6); P.TailWag = F(Math.Sin(animT * 3.4) * 9);
+            double prog = Math.Min(1, StateT / Math.Max(1, extraDuration));
+            // 두 번에 걸쳐 새우깡 봉지에서 과자를 꺼내 입으로 가져가 먹는다 (0..0.5 첫 번째, 0.5..1 두 번째)
+            double u = prog < .5 ? prog * 2 : (prog - .5) * 2;
+            Func<double, double, double, double> seg = (x, a, b) => { double t = Math.Max(0, Math.Min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+            PointF bagHold = new PointF(158, 180);
+            PointF inBag = new PointF(192, 158);
+            PointF atBeak = new PointF(214, 120);
+            PointF ready = new PointF(224, 146);
+
+            P.WingLTo = bagHold;
+            P.Look = 0;
+            P.Cookie = F(prog);
+            P.Blush = .7f;
+
+            if (u < .22)
+            {
+                // 1) 봉지 안으로 날개를 넣어 새우깡을 집는다
+                double s = seg(u, 0, .22);
+                PointF start = prog < .5 ? ready : atBeak;
+                P.WingRTo = new PointF(F(Lerp(start.X, inBag.X, s)), F(Lerp(start.Y, inBag.Y, s)));
+                P.HeadTilt = F(Lerp(0, -6, s));
+                P.HeadY = F(Lerp(1, 3, s));
+                P.Eyes = EyeStyle.Dot; P.OpenL = P.OpenR = 1;
+                P.Beak = .05f;
+                P.Breath = F(Math.Sin(animT * 5) * .25);
+            }
+            else if (u < .44)
+            {
+                // 2) 봉지에서 새우깡을 쏙 꺼내 입 앞으로 들어올린다
+                double s = seg(u, .22, .44);
+                P.WingRTo = new PointF(F(Lerp(inBag.X, atBeak.X, s)), F(Lerp(inBag.Y, atBeak.Y, s)));
+                P.HeadTilt = F(Lerp(-6, 4, s));
+                P.HeadY = F(Lerp(3, 0, s));
+                P.Eyes = s > .65 ? EyeStyle.Happy : EyeStyle.Dot; P.OpenL = P.OpenR = 1;
+                P.Beak = F(Lerp(.05, .48, s));
+                P.Breath = F(s * .3);
+            }
+            else if (u < .92)
+            {
+                // 3) 입으로 가져가 바삭바삭 냠냠 먹는다
+                double t = (u - .44) / .48;
+                double chew = Math.Sin(t * 3.0 * Tau);
+                P.WingRTo = new PointF(atBeak.X, F(atBeak.Y + Math.Sin(t * 2.0 * Tau) * 2.5));
+                P.HeadTilt = F(chew * 2.2);
+                P.HeadY = F(1 + chew * 1.6);
+                P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1;
+                P.Beak = F(.34 * Math.Max(0, chew) + .06);
+                P.Breath = F(chew * .3);
+                P.Tuft = F(chew * 3); P.TuftWave = 5; P.TuftPhase = F(animT * 6);
+                P.TailWag = F(Math.Sin(animT * 3.8) * 9);
+            }
+            else
+            {
+                // 4) 꿀꺽 삼키고 흐뭇
+                double s = seg(u, .92, 1.0);
+                P.WingRTo = new PointF(F(Lerp(atBeak.X, ready.X, s)), F(Lerp(atBeak.Y, ready.Y, s)));
+                P.HeadTilt = F(Lerp(2, 0, s));
+                P.HeadY = 1;
+                P.Eyes = EyeStyle.Happy; P.OpenL = P.OpenR = 1;
+                P.Beak = .05f;
+                P.TailWag = F(Math.Sin(animT * 3.4) * 7);
+            }
         }
 
         private void HungryCryPose(Pose P, double t)
