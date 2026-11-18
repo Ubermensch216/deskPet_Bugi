@@ -32,9 +32,14 @@ namespace Bugi
             Y = Math.Max(Y, Area.Top + TopReach + 5);   // 처음 낙하는 머리 위 여유까지 화면 안에서 보이게
         }
 
+        internal static bool IsWeakHungry { get { return FriendData.Current.VeryHungry; } }
+        internal static bool IsStarving { get { return FriendData.Current.Starving; } }
+        internal static bool IsWeakRestPose(RestPose p)
+        { return p == RestPose.WeakClutch || p == RestPose.WeakSob || p == RestPose.WeakCollapse || p == RestPose.WeakGaze; }
+
         private void DelayIdle(IWorld w)
         {
-            nextIdle = w.Now + 20 + w.Rng.NextDouble() * 30;
+            nextIdle = w.Now + (IsWeakHungry ? 9 + w.Rng.NextDouble() * 9 : 20 + w.Rng.NextDouble() * 30);
             nextClimb = Math.Max(nextClimb, w.Now + 15);
         }
 
@@ -131,17 +136,18 @@ namespace Bugi
             if (State == PetState.Sleep) { SetState(PetState.Waking, w); return; }
             if (State == PetState.Gather || State == PetState.WaitHome || State == PetState.Cheer) return;
             if (PlayOptions.Current.ClickMode == ClickReaction.None) return;
-            PetState resume = PetState.Walk;
+            PetState resume = IsStarving ? PetState.Pause : PetState.Walk;
             if (State == PetState.TouchCry || State == PetState.Hop || State == PetState.Squish) resume = AfterReaction;
+            if (IsStarving && resume == PetState.Walk) resume = PetState.Pause;
             AfterReaction = resume;
             int choice;
             switch (PlayOptions.Current.ClickMode)
             {
-                case ClickReaction.Random: choice = w.Rng.Next(3); break;
+                case ClickReaction.Random: choice = IsWeakHungry ? w.Rng.Next(2) : w.Rng.Next(3); break;
                 case ClickReaction.Squash: choice = 0; break;
                 case ClickReaction.Cry: choice = 1; break;
-                case ClickReaction.Hop: choice = 2; break;
-                default: choice = ClickCycle++ % 3; break;
+                case ClickReaction.Hop: choice = IsStarving ? 1 : 2; break;
+                default: choice = ClickCycle++ % (IsWeakHungry ? 2 : 3); break;
             }
             if (choice == 0) StartSquish(w, .42, .24, resume, false);
             else if (choice == 1) { extraDuration = 1.6; SetState(PetState.TouchCry, w); }
@@ -178,6 +184,8 @@ namespace Bugi
             mouseGrace = w.Now + 8; hoverSince = -1;
             if (kind == "fall")
             { ReleaseFeatures(w); X = Area.Left + Area.Width * .5; Y = Area.Top + TopReach + 5; Vy = 0; SetState(PetState.Falling, w); return; }
+            if (IsWeakHungry && (kind == "wall" || kind == "walldown" || kind == "ceiling" || kind == "window"))
+            { Bubble = Loc.T("배고파서 올라갈 힘이 없어..."); BubbleUntil = w.Now + 3.5; return; }
             if (kind == "wall")
             { ClearAttachments(); wallSide = 1; wallDescending = false; X = WallX(Area.Left, Area.Right, 1, false); Y = Area.Bottom - BottomExt(false); SetState(PetState.Wall, w); return; }
             if (kind == "walldown")
@@ -216,6 +224,10 @@ namespace Bugi
             if (kind.StartsWith("skit:")) { Skit sk; if (Enum.TryParse(kind.Substring(5), out sk)) BeginSkit(w, sk); }
             if (kind == "mine") BeginRestPose(w, RestPose.Mine, 10);
             if (kind == "search") BeginRestPose(w, RestPose.Search, 10);
+            if (kind == "weak_clutch") BeginRestPose(w, RestPose.WeakClutch, 8);
+            if (kind == "weak_sob") BeginRestPose(w, RestPose.WeakSob, 6);
+            if (kind == "weak_collapse") BeginRestPose(w, RestPose.WeakCollapse, 10);
+            if (kind == "weak_gaze") BeginRestPose(w, RestPose.WeakGaze, 8);
             if (kind == "scratch") { SetState(PetState.Pause, w); pauseAct = 1; stateDur = 3.2; }
             if (kind == "cross") { SetState(PetState.Pause, w); pauseAct = 2; stateDur = 3.2; }
             if (kind == "wave") { SetState(PetState.Pause, w); pauseAct = 7; stateDur = 3.2; }
@@ -253,8 +265,10 @@ namespace Bugi
             if (focus && !focusWasOn && (SupportWindow != IntPtr.Zero || State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb))
             { ClearAttachments(); SetState(PetState.Falling, w); }
             focusWasOn = focus;
-            if ((State == PetState.Wall && !opts.Walls) || (State == PetState.Ceiling && !opts.Ceiling) || (State == PetState.WindowClimb && !opts.Windows))
+            if ((State == PetState.Wall && !opts.Walls) || (State == PetState.Ceiling && !opts.Ceiling) || (State == PetState.WindowClimb && !opts.Windows)
+                || (IsWeakHungry && (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb || State == PetState.Climb)))
             { ClearAttachments(); SetState(PetState.Falling, w); }
+            if (IsWeakHungry) approachWindow = IntPtr.Zero;
             if (SupportWindow != IntPtr.Zero && State != PetState.Falling && State != PetState.Drag)
             {
                 Rectangle r;
@@ -276,7 +290,7 @@ namespace Bugi
                 if (near && !hadNearMouse) hoverSince = w.Now;
                 if (!near) hoverSince = -1;
                 hadNearMouse = near;
-                if (!focus && opts.Escape && near && hoverSince >= 0 && w.Now - hoverSince > opts.EscapeDelay && w.Now > mouseGrace && w.Now > nextEscape && !CirclingMouse(w.Now) && !InputHeld && !DesktopSurfaces.MousePressed)
+                if (!focus && opts.Escape && !IsWeakHungry && near && hoverSince >= 0 && w.Now - hoverSince > opts.EscapeDelay && w.Now > mouseGrace && w.Now > nextEscape && !CirclingMouse(w.Now) && !InputHeld && !DesktopSurfaces.MousePressed)
                 {
                     Dir = mouse.X < X ? 1 : -1;
                     if (X > Area.Right - Art.W * 2) Dir = -1;
@@ -284,16 +298,17 @@ namespace Bugi
                     extraDuration = .7 + w.Rng.NextDouble() * .25;
                     SetState(PetState.Sliding, w); nextEscape = w.Now + 2.5; hoverSince = -1; DelayIdle(w);
                 }
-                else if (!focus && opts.Follow && !opts.Escape && w.Now > mouseGrace && Math.Abs(mouse.Y - Y) < 140 * S && !InputHeld && Math.Abs(mouse.X - X) > Art.W)
+                else if (!focus && opts.Follow && !opts.Escape && !IsStarving && w.Now > mouseGrace && Math.Abs(mouse.Y - Y) < 140 * S && !InputHeld && Math.Abs(mouse.X - X) > Art.W)
                     Dir = mouse.X < X ? -1 : 1;
                 if (opts.Idle && w.Now >= nextIdle && !InputHeld && !near && (State == PetState.Walk || State == PetState.Pause))
                 {
                     extraDuration = opts.ShortRest ? (focus ? 4 : 6 + w.Rng.NextDouble() * 5) : 20 + w.Rng.NextDouble() * 10;
-                    if (!focus && FriendData.Current.Hungry) { extraDuration = 2.4 + w.Rng.NextDouble(); SetState(PetState.IdleCry, w); }
+                    if (IsWeakHungry) BeginWeakRest(w);
+                    else if (!focus && FriendData.Current.Hungry) { extraDuration = 2.4 + w.Rng.NextDouble(); SetState(PetState.IdleCry, w); }
                     else BeginRestPose(w, ChooseRestPose(w), extraDuration);
                     DelayIdle(w);
                 }
-                if (!focus && opts.Windows && State == PetState.Walk && SupportWindow == IntPtr.Zero && w.Now > nextClimb)
+                if (!focus && opts.Windows && !IsWeakHungry && State == PetState.Walk && SupportWindow == IntPtr.Zero && w.Now > nextClimb)
                 {
                     nextClimb = w.Now + 35 + w.Rng.NextDouble() * 30;
                     var possible = DesktopSurfaces.Cached.Where(a => a.Bounds.Top >= Area.Top + 70 * S && a.Bounds.Top < Area.Bottom - 70 * S && a.Bounds.IntersectsWith(Area)).ToList();
@@ -326,7 +341,7 @@ namespace Bugi
                 case PetState.Chat: SnapToFloor(w); break;
                 case PetState.Resting:
                 case PetState.IdleCry:
-                    if (StateT >= extraDuration) { SetState(PetState.Walk, w); DelayIdle(w); }
+                    if (StateT >= extraDuration) { SetState(IsStarving ? PetState.Pause : PetState.Walk, w); DelayIdle(w); }
                     break;
                 case PetState.TouchCry:
                 case PetState.Hop:
@@ -387,7 +402,7 @@ namespace Bugi
 
         internal bool BoundaryFeature(IWorld w, double nextX)
         {
-            if (!PlayOptions.Current.Walls || PlayOptions.IsFocus(DateTime.Now) || State != PetState.Walk || SupportWindow != IntPtr.Zero || approachWindow != IntPtr.Zero) return false;
+            if (!PlayOptions.Current.Walls || IsWeakHungry || PlayOptions.IsFocus(DateTime.Now) || State != PetState.Walk || SupportWindow != IntPtr.Zero || approachWindow != IntPtr.Zero) return false;
             bool hit = Dir > 0 ? nextX + HalfW >= Area.Right : nextX - HalfW <= Area.Left;
             if (!hit) return false;
             double outside = Dir > 0 ? Area.Right + 1 : Area.Left - 1;
@@ -459,9 +474,26 @@ namespace Bugi
         internal double FeatureJitterX { get { return lookJitterX; } }
 
         // ───── 쉬는 자세: 앉기 · 잠자기 · 멍때리기 · 기지개 ─────
-        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search, Skit, Selfie, Cool, Guide, Bow, IdCard, Flag }
+        internal enum RestPose { Sit, Sleep, Daydream, Stretch, Lie, Mine, Search, WeakClutch, WeakSob, WeakCollapse, WeakGaze, Skit, Selfie, Cool, Guide, Bow, IdCard, Flag }
         internal RestPose restPose = RestPose.Sit;
         private RestPose lastRestPose = RestPose.Sit;
+
+        /// <summary>포만감이 매우 낮을 때(10 이하, 5 이하) 취하는 힘없고 서글픈 쉬기 동작을 고른다.</summary>
+        private void BeginWeakRest(IWorld w)
+        {
+            Func<RestPose> pick = () =>
+            {
+                double r = w.Rng.NextDouble();
+                if (IsStarving) return r < .36 ? RestPose.WeakCollapse : r < .62 ? RestPose.WeakClutch : r < .82 ? RestPose.WeakSob : RestPose.WeakGaze;
+                return r < .30 ? RestPose.WeakClutch : r < .56 ? RestPose.WeakSob : r < .78 ? RestPose.WeakGaze : RestPose.WeakCollapse;
+            };
+            RestPose pose = pick();
+            if (pose == lastRestPose) pose = pick();
+            double dur = pose == RestPose.WeakCollapse ? (IsStarving ? 11 + w.Rng.NextDouble() * 4 : 8 + w.Rng.NextDouble() * 3)
+                : pose == RestPose.WeakSob ? 5.5 + w.Rng.NextDouble() * 2.5
+                : (IsStarving ? 8 + w.Rng.NextDouble() * 3.5 : 6.5 + w.Rng.NextDouble() * 3);
+            BeginRestPose(w, pose, dur);
+        }
 
         /// <summary>자세는 무작위로 뽑되, 직전과 같으면 한 번 다시 뽑는다(같은 동작이 반복되면 멈춘 것처럼 보인다).</summary>
         private RestPose ChooseRestPose(IWorld w)

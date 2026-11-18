@@ -244,7 +244,7 @@ namespace Bugi
                     break;
                 }
                 case ChatMood.Hungry:
-                    if (k > .3) { Pose h = new Pose(); HungryCryPose(h, mt); CopyFace(P, h); L.FaceRight = false; }
+                    if (k > .3) { Pose h = new Pose(); if (IsWeakHungry) WeakSobPose(h, mt); else HungryCryPose(h, mt); CopyFace(P, h); L.FaceRight = false; }
                     break;
                 case ChatMood.Blank:
                     DaydreamPose(P, mt);            // 멍...(부기는 가이드북 p32, 부캉이는 턱 괴기)

@@ -256,6 +256,8 @@ namespace Bugi
             { "그렇구나", "I see" },
             { "고마워", "Thanks" },
             { "(상황: {0} — 네가 먼저 사용자에게 가볍게 한마디 건네 줘. 질문 하나면 좋아.)", "(Situation: {0} — start the conversation yourself with a quick, light line to the user. One question would be nice.)" },
+            { "왔어...? 나 기운이 하나도 없어... 간식 좀 줘...", "You're here...? I have no energy left at all... please give me a snack..." },
+            { "왔어? 너무 배고파서 힘이 없어... 간식 있어?", "You're here? I'm so hungry I have no energy... got any snacks?" },
             { "왔어? 나 배고파... 간식 없어?", "You're here? I'm hungry... got any snacks?" },
             { "이 시간에 안 자고 뭐 해? 나 눈 감기려는데...", "Still up at this hour? My eyes are about to close..." },
             { "어... 나 불렀어?", "Uh... did you call me?" },
@@ -769,6 +771,7 @@ namespace Bugi
             { "새우깡은 사랑이지만 지금은 배가 꽉 찼어... 위장 파업 선언!", "Shrimp crackers are love, but I'm full... stomach on strike!" },
             { "냠냠! 고마워", "Yum yum! Thanks" },
             { "창 크기를 줄여서 띄워줘!", "Shrink the window and put it up for me!" },
+            { "배고파서 올라갈 힘이 없어...", "I'm too hungry to climb up..." },
             { "찰칵! 셀카 찍자~", "Click! Let's take a selfie~" },
             { "이쪽으로 안내할게요! 부캉캉캉~", "I'll show you the way! Bukangkangkang~" },
             { "이쪽으로 안내할게요!", "I'll show you the way!" },
@@ -781,6 +784,8 @@ namespace Bugi
             { "멍...", "Zoning out..." },
             // PetRender.cs
             { "배고파! 간식줘 ㅠㅠ", "I'm hungry! Give me a snack T_T" },
+            { "너무 배고파... 걸을 힘도 없어 ㅠㅠ", "I'm so hungry... I barely have the strength to walk T_T" },
+            { "꼬르륵... 한 발짝도 못 움직이겠어...", "Grumble... I can't even move a step..." },
             // PetSecrets.cs
             { "비밀 조종사! 천장으로 출발!", "Secret pilot! Off to the ceiling!" },
             { "친밀도 {0} 달성!\n꽃다발 받아줘 ♥", "Affinity {0} reached!\nPlease take this bouquet ♥" },

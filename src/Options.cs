@@ -257,9 +257,22 @@ namespace Bugi
         internal string Notes = "";
         private DateTime lastSave = DateTime.MinValue;
 
-        internal const double SnackFullThreshold = 80;
+        internal const double SnackFullThreshold = 80, HungryThreshold = 20, WeakThreshold = 10, StarvingThreshold = 5;
         internal bool CanSnack { get { return Satiety < SnackFullThreshold; } }
-        internal bool Hungry { get { return PlayOptions.Current.HungerCry && (PlayOptions.Current.HungerMinutes == 0 || Satiety <= 20); } }
+        internal bool Hungry { get { return PlayOptions.Current.HungerCry && (PlayOptions.Current.HungerMinutes == 0 || Satiety <= HungryThreshold); } }
+        internal bool VeryHungry { get { return Satiety <= WeakThreshold; } }
+        internal bool Starving { get { return Satiety <= StarvingThreshold; } }
+        /// <summary>포만감 단계별 이동 속도 배율: 20 초과 1.0, 20 이하 0.75, 10 이하 0.42, 5 이하 0(한 곳에 정지).</summary>
+        internal double HungerSpeedScale
+        {
+            get
+            {
+                if (Satiety <= StarvingThreshold) return 0;
+                if (Satiety <= WeakThreshold) return .42;
+                if (Satiety <= HungryThreshold) return .75;
+                return 1;
+            }
+        }
 
         internal static double Number(XmlNode node, string name, double fallback)
         {

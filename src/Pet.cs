@@ -97,14 +97,25 @@ namespace Bugi
 
         public void SetState(PetState s, IWorld w)
         {
+            if (s == PetState.Walk && IsStarving) s = PetState.Pause;
             State = s; StateT = 0;
             if (s != PetState.IdleCry) previewIdleCry = false;
             switch (s)
             {
-                case PetState.Walk: stateDur = 3 + w.Rng.NextDouble() * 7; break;
+                case PetState.Walk:
+                    stateDur = IsWeakHungry ? 1.6 + w.Rng.NextDouble() * 2.2 : 3 + w.Rng.NextDouble() * 7;
+                    break;
                 case PetState.Pause:
-                    pauseAct = ChoosePauseAct(w);
-                    stateDur = pauseAct == 0 ? 1.4 + w.Rng.NextDouble() * 2.6 : 3.0 + w.Rng.NextDouble() * .8;
+                    if (IsWeakHungry)
+                    {
+                        pauseAct = 0;
+                        stateDur = IsStarving ? 3.5 + w.Rng.NextDouble() * 2.5 : 2.8 + w.Rng.NextDouble() * 2.2;
+                    }
+                    else
+                    {
+                        pauseAct = ChoosePauseAct(w);
+                        stateDur = pauseAct == 0 ? 1.4 + w.Rng.NextDouble() * 2.6 : 3.0 + w.Rng.NextDouble() * .8;
+                    }
                     break;
                 case PetState.Waking: stateDur = 1.6; break;
             }
@@ -196,6 +207,7 @@ namespace Bugi
                     SnapToFloor(w);
                     if (StateT > stateDur)
                     {
+                        if (IsStarving) { BeginWeakRest(w); break; }
                         if (w.Rng.NextDouble() < .35 && !(AvoidingPartner(w) && -Dir != avoidDir)) Dir = -Dir;
                         SetState(PetState.Walk, w);
                     }
@@ -244,8 +256,9 @@ namespace Bugi
         {
             SnapToFloor(w);
             if (State != PetState.Walk) return;
+            if (IsStarving) { SetState(PetState.Pause, w); return; }
             if (StateT > stateDur) { SetState(PetState.Pause, w); return; }
-            MoveHoriz(w, dt, WalkSpeed);
+            MoveHoriz(w, dt, WalkSpeed * FriendData.Current.HungerSpeedScale);
         }
 
         private void MoveHoriz(IWorld w, double dt, double speed)
@@ -275,6 +288,14 @@ namespace Bugi
             Rectangle next = other.Value;
             if (next.Bottom < Y - 2)
             {
+                if (IsWeakHungry)
+                {
+                    // 배가 너무 고파 높은 모니터로 기어오르지 못하고 돌아선다
+                    Dir = -Dir;
+                    X = Dir <= 0 ? Area.Right - half : Area.Left + half;
+                    if (State == PetState.Walk) SetState(PetState.Pause, w);
+                    return;
+                }
                 // 이웃 모니터가 더 높다 → 기어오르기
                 X = Dir <= 0 ? Area.Left + half * .2 : Area.Right - half * .2;
                 climbTo = next; climbDir = Dir; SetState(PetState.Climb, w);

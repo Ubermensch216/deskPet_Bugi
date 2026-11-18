@@ -272,7 +272,7 @@ namespace Bugi
             b.Append("- 지금은 " + now.ToString("M월 d일") + " " + TimeOfDay(now) + "이야.\n");
             b.Append("- 사용자와의 사이: " + AffinityTone(d.Affinity) + ".\n");
             int sat = (int)Math.Floor(d.Satiety);
-            b.Append("- " + (sat <= 20 ? "배가 많이 고파서 간식 이야기를 자꾸 꺼내." : sat <= 50 ? "조금 출출해." : "배는 부른 편이야.") + "\n");
+            b.Append("- " + (sat <= 5 ? "너무 배고파서 기운이 하나도 없고 꼼짝도 못 하겠어." : sat <= 10 ? "배가 너무 고파서 힘이 없고 걸음도 느려." : sat <= 20 ? "배가 많이 고파서 간식 이야기를 자꾸 꺼내." : sat <= 50 ? "조금 출출해." : "배는 부른 편이야.") + "\n");
             if (PlayOptions.Current.Outfit) b.Append("- 지금 " + PlayOptions.Current.OutfitName + " 근무복을 입고 있어.\n");
             if (ChatOptions.Current.Memory && ChatMemory.Facts.Count > 0)
             {
@@ -345,7 +345,7 @@ namespace Bugi
             b.Append("- It's " + now.ToString("MMMM d", Loc.Culture) + ", " + TimeOfDay(now) + ".\n");
             b.Append("- Your relationship with the user: " + AffinityTone(d.Affinity) + ".\n");
             int sat = (int)Math.Floor(d.Satiety);
-            b.Append("- " + (sat <= 20 ? "You're very hungry and keep bringing up snacks." : sat <= 50 ? "You're a little peckish." : "You're pretty full.") + "\n");
+            b.Append("- " + (sat <= 5 ? "You're starving and so exhausted you can barely move." : sat <= 10 ? "You're very hungry and feel weak and sluggish." : sat <= 20 ? "You're very hungry and keep bringing up snacks." : sat <= 50 ? "You're a little peckish." : "You're pretty full.") + "\n");
             if (PlayOptions.Current.Outfit) b.Append("- You're wearing the " + PlayOptions.Current.OutfitName + " work uniform right now.\n");
             if (ChatOptions.Current.Memory && ChatMemory.Facts.Count > 0)
             {
@@ -502,6 +502,8 @@ namespace Bugi
         internal static string Greeting(Random rng, DateTime now, out ChatMood mood)
         {
             var d = FriendData.Current;
+            if (d.Satiety <= 5) { mood = ChatMood.Hungry; return Loc.T("왔어...? 나 기운이 하나도 없어... 간식 좀 줘..."); }
+            if (d.Satiety <= 10) { mood = ChatMood.Hungry; return Loc.T("왔어? 너무 배고파서 힘이 없어... 간식 있어?"); }
             if (d.Satiety <= 20) { mood = ChatMood.Hungry; return Loc.T("왔어? 나 배고파... 간식 없어?"); }
             if (now.Hour >= 23 || now.Hour < 5) { mood = ChatMood.Sleepy; return Loc.T("이 시간에 안 자고 뭐 해? 나 눈 감기려는데..."); }
             string[] pool = d.Affinity < 30

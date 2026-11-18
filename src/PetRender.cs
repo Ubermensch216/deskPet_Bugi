@@ -42,7 +42,7 @@ namespace Bugi
         }
 
         /// <summary>근무복을 입고 있는가: 설정을 켰거나, 근무복 동작(안내·배꼽인사·신분증·깃발)을 하는 동안.</summary>
-        internal bool WearsOutfit { get { return PlayOptions.Current.Outfit || (State == PetState.Resting && restPose >= RestPose.Guide); } }
+        internal bool WearsOutfit { get { return PlayOptions.Current.Outfit || (State == PetState.Resting && (restPose == RestPose.Guide || restPose == RestPose.Bow || restPose == RestPose.IdCard || restPose == RestPose.Flag)); } }
 
         private double ClimbPhase { get { return gait * Math.PI * 2; } }
 
@@ -55,12 +55,19 @@ namespace Bugi
             float h = Art.H;
             switch (State)
             {
-                case PetState.Walk: case PetState.Gather:
+                case PetState.Walk:
+                    if (IsWeakHungry) WeakWalkPose(P, t);
+                    else { IdleBase(P, t, false); ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f); }
+                    break;
+                case PetState.Gather:
                     IdleBase(P, t, false); ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f);
                     break;
-                case PetState.Pause: case PetState.WaitHome:
-                    if (State == PetState.WaitHome) WaitPose(P); else { IdleBase(P, t, true); PauseFidget(P, StateT); }
-                    ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f);
+                case PetState.Pause:
+                    if (IsWeakHungry) { WeakSighPose(P, StateT); ApplyWalk(P, gait, walkAmp, 8, 4.5f, 4, -6.5f); }
+                    else { IdleBase(P, t, true); PauseFidget(P, StateT); ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f); }
+                    break;
+                case PetState.WaitHome:
+                    WaitPose(P); ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f);
                     break;
                 case PetState.Climb:
                     L.FaceRight = climbDir > 0; IdleBase(P, t, false); ApplyWalk(P, gait, walkAmp, 13, 11, 20, -3f);
@@ -255,6 +262,26 @@ namespace Bugi
                     // 빨간 스마트 안경을 내려쓰고 궁금한 것을 바로 검색한다.
                     SearchPose(P, t);
                     break;
+                case RestPose.WeakClutch:
+                    WeakClutchPose(P, t);
+                    break;
+                case RestPose.WeakSob:
+                    WeakSobPose(P, t);
+                    break;
+                case RestPose.WeakCollapse:
+                {
+                    double inK = Ease(t / 1.1), outK = Ease((extraDuration - t) / 1.0), k = Math.Min(inK, outK);
+                    WeakCollapsePose(P, t);
+                    L.Px = 0; L.Py = 0; L.Angle = F(80 * k);
+                    L.HopY = -(float)(Art.H * .20 * k);
+                    P.Turn = F(-.45 * k);
+                    if (k < .45) { P.Eyes = EyeStyle.Half; P.OpenL = P.OpenR = 1; }
+                    break;
+                }
+                case RestPose.WeakGaze:
+                    WeakGazePose(P, t);
+                    L.Decor |= Decor.Dots; L.DecorPhase = (float)(t * .6);
+                    break;
                 case RestPose.Guide:
                     // 안내하기(근무복 그림 9): 웃는 눈으로 한쪽 날개를 쭉 뻗고 짠! 반짝임.
                     GuidePose(P, t);
@@ -289,6 +316,14 @@ namespace Bugi
             P.HeadY += F(2 + Math.Abs(sob)); P.Gx = 0; P.Gy = Math.Max(P.Gy, .3f); P.Look *= .6f;
         }
 
+        private void WeakSadOverlay(Pose P, double t)
+        {
+            double sob = Math.Sin(t * 5);
+            P.Brow = -.85f; P.Tears = F(t);
+            P.Beak = Math.Max(P.Beak, F(.07 + .05 * Math.Abs(sob)));
+            P.BeakShake = F(Math.Sin(t * 24) * .4);
+        }
+
         private void CompanionLook(ref Look look, double now)
         {
             if (PlayOptions.Current.ShowAffinity)
@@ -300,17 +335,34 @@ namespace Bugi
             if (hungry && IsCompanionFloorPose)
             {
                 if (State == PetState.Squish) look.Pose.Tears = F(animT);
-                else if (State == PetState.Walk || (State == PetState.Pause && walkAmp > .05)) SadOverlay(look.Pose, animT);
-                else if (State == PetState.Pause) { SadOverlay(look.Pose, animT); }
+                else if (State == PetState.Resting && IsWeakRestPose(restPose))
+                {
+                    if (restPose != RestPose.WeakSob) look.Pose.Tears = F(animT);
+                    lookJitterX = Math.Sin(animT * 14) * .25 * S;
+                }
+                else if (IsWeakHungry && (State == PetState.Walk || State == PetState.Pause))
+                {
+                    WeakSadOverlay(look.Pose, animT);
+                    lookJitterX = Math.Sin(animT * 16) * .28 * S;
+                }
+                else if (State == PetState.Walk || State == PetState.Pause)
+                {
+                    SadOverlay(look.Pose, animT);
+                    lookJitterX = Math.Sin(animT * 21) * .45 * S;
+                }
                 else
                 {
                     look.Pose = new Pose(); HungryCryPose(look.Pose, animT); look.FaceRight = false;
                     look.Angle = 0; look.Sx = look.Sy = 1; look.HopY = 0;
+                    lookJitterX = Math.Sin(animT * 21) * .45 * S;
                 }
-                lookJitterX = Math.Sin(animT * 21) * .45 * S;
             }
             if (hungry && (IsCompanionFloorPose || State == PetState.TouchCry) && string.IsNullOrEmpty(look.Bubble) && now >= flowerUntil)
-                look.Bubble = Loc.T("배고파! 간식줘 ㅠㅠ");
+            {
+                look.Bubble = IsStarving ? Loc.T("꼬르륵... 한 발짝도 못 움직이겠어...")
+                    : IsWeakHungry ? Loc.T("너무 배고파... 걸을 힘도 없어 ㅠㅠ")
+                    : Loc.T("배고파! 간식줘 ㅠㅠ");
+            }
             if (now < flowerUntil && IsCompanionFloorPose && !previewIdleCry)
             {
                 look.Pose = new Pose(); FlowerPose(look.Pose, now);

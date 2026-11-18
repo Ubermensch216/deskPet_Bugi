@@ -485,6 +485,106 @@ namespace Bugi
             lookJitterX = Math.Sin(t * 21) * .45 * S;
         }
 
+        // ───────── 포만감 매우 낮음(10 이하 / 5 이하): 힘없고 서글픈 동작들 ─────────
+        private void WeakWalkPose(Pose P, double t)
+        {
+            // 어깨와 고개를 푹 숙이고 날개를 축 늘어뜨린 채 터덜터덜 걷는다
+            IdleBase(P, t * .55, false);
+            ApplyWalk(P, gait, walkAmp, 8, 4.5f, 4, -6.5f);
+            P.WingLA = Lerp(P.WingLA, 16, walkAmp); P.WingRA = Lerp(P.WingRA, 16, walkAmp);
+            P.WingLB = Lerp(P.WingLB, 10, walkAmp); P.WingRB = Lerp(P.WingRB, 10, walkAmp);
+            P.Eyes = EyeStyle.Half; P.OpenL = P.OpenR = BlinkOpen(t * .7); P.Brow = -.8f;
+            P.Gx = -.2f; P.Gy = .5f; P.Look = -.22f;
+            P.HeadTilt = F(-8 + Math.Sin(gait * Tau) * 1.8); P.HeadY = 4;
+            P.Squash = F(.035 + Math.Cos(2 * gait * Tau) * .006);
+            P.Tuft = -7; P.TuftWave = 1.5f; P.Tail = 12; P.TailWag *= .25f;
+        }
+
+        private void WeakSighPose(Pose P, double t)
+        {
+            // 한숨 돌릴 힘조차 없이 축 처져 서서 가끔 깊은 한숨을 내쉰다
+            P.Breath = F(Math.Sin(t * 1.4) * 1.3);
+            P.OpenL = P.OpenR = BlinkOpen(animT * .7); P.Eyes = EyeStyle.Half; P.Brow = -.8f;
+            P.Gx = -.2f; P.Gy = .65f; P.Look = -.18f;
+            P.Lean = -5f; P.Squash = .04f; P.HeadTilt = F(-8.5 + Math.Sin(t * 1.4) * 1.4); P.HeadY = 5f;
+            P.WingLA = F(14 + Math.Sin(t * 1.4) * 1.5); P.WingRA = F(14 + Math.Sin(t * 1.4 + .3) * 1.5);
+            P.WingLB = 8; P.WingRB = 8;
+            P.Tuft = -8; P.TuftWave = 1.5f; P.TuftPhase = F(t * 1.1);
+            P.Tail = 12; P.TailWag = F(Math.Sin(t * 1.2) * 1.5);
+            double sc = (t + .4) % 4.2;
+            if (sc < 1.6)
+            {
+                double q = sc / 1.6;
+                P.Puff = F(q); P.Eyes = EyeStyle.Closed; P.OpenL = P.OpenR = 0;
+                P.Beak = F(.18 * Math.Sin(Math.PI * Math.Min(1, sc / .9)));
+                P.HeadTilt = F(-10.5 * Math.Sin(Math.PI * q * .5) - 2);
+            }
+        }
+
+        private void WeakClutchPose(Pose P, double t)
+        {
+            // 주저앉아 배를 웅켜쥐고 웅크린 채 배고픔을 참는다
+            SitDown(P);
+            double ache = Math.Sin(t * 2.6), pang = t % 4.5;
+            P.Breath = F(Math.Sin(t * 1.5) * 1.2);
+            P.Lean = -5f; P.Squash = .045f;
+            P.HeadTilt = F(-8.5 + ache * 1.5); P.HeadY = F(4.5 + Math.Abs(ache) * 1.2);
+            P.Eyes = pang > 3.2 ? EyeStyle.Closed : EyeStyle.Half; P.OpenL = P.OpenR = P.Eyes == EyeStyle.Closed ? 0 : 1;
+            P.Brow = -.9f; P.Gx = 0; P.Gy = .55f; P.Look = -.1f;
+            P.Beak = F(.08 + .07 * Math.Abs(ache));
+            P.WingLTo = new PointF(F(182 + ache * 2), F(200 + Math.Abs(ache) * 2));
+            P.WingRTo = new PointF(F(218 - ache * 2), F(200 + Math.Abs(ache) * 2));
+            P.Tuft = -8; P.TuftWave = 1.5f; P.TuftPhase = F(t);
+            P.Tail = 10; P.TailWag = 0;
+            if (pang > 3.2) P.BodyX = F(Math.Sin(t * 32) * .6);
+        }
+
+        private void WeakSobPose(Pose P, double t)
+        {
+            // 힘없이 주저앉아 한쪽 날개로 눈물을 훔치며 서글프게 훌쩍인다
+            SitDown(P);
+            double sob = Math.Sin(t * 4.2), rub = Math.Sin(t * 3.8);
+            P.Breath = F(Math.Sin(t * 2.1) * 1.1);
+            P.Eyes = (t % 3.6) > 2.8 ? EyeStyle.Squint : EyeStyle.Half;
+            P.OpenL = P.OpenR = 1; P.Brow = -.9f; P.Gx = 0; P.Gy = .5f; P.Look = 0;
+            P.Beak = F(.14 + .12 * Math.Abs(sob)); P.BeakShake = F(Math.Sin(t * 26) * .5);
+            P.HeadTilt = F(-9.5 + sob * 1.2); P.HeadY = F(4.5 + Math.Abs(sob) * 1.2);
+            P.WingLA = 16; P.WingLB = 8;
+            P.WingRTo = new PointF(F(222 - rub * 3), F(122 + Math.Abs(rub) * 3));
+            P.Tears = F(t); P.Tuft = -9; P.TuftWave = 1.5f; P.TuftPhase = F(t * 2);
+            P.Tail = 10; P.TailWag = 0;
+            lookJitterX = Math.Sin(t * 14) * .25 * S;
+        }
+
+        private void WeakCollapsePose(Pose P, double t)
+        {
+            // 기운이 완전히 빠져 바닥에 옆으로 힘없이 늘어져 눕는다
+            P.Breath = F(Math.Sin(t * 1.0) * 1.4);
+            P.Eyes = (t % 5.0) < 3.4 ? EyeStyle.Half : EyeStyle.Closed;
+            P.OpenL = P.OpenR = P.Eyes == EyeStyle.Closed ? 0 : 1;
+            P.Brow = -.85f; P.Gx = 0; P.Gy = .45f; P.Beak = .04f; P.Blush = 0;
+            P.HeadTilt = F(-4 + Math.Sin(t * .7) * 1.5); P.Tuft = -7; P.TuftWave = 1.5f; P.TuftPhase = F(t);
+            P.WingLA = F(16 + Math.Sin(t * 1.0) * 2); P.WingLB = 10;
+            P.WingRA = F(26 + Math.Sin(t * 1.0 + .6) * 2); P.WingRB = 14;
+            P.FootLY = -2; P.FootRY = -4; P.FootLRot = 12; P.FootRRot = 16;
+            P.Tail = 10; P.TailWag = 0;
+            double sc = (t + 1.0) % 5.4;
+            if (sc < 1.5) { P.Puff = F(sc / 1.5); P.Beak = F(.14 * Math.Sin(Math.PI * Math.Min(1, sc / .9))); }
+        }
+
+        private void WeakGazePose(Pose P, double t)
+        {
+            // 풀 죽은 채 주저앉아 날개를 바닥에 떨구고 멍하니 간식을 기다린다
+            SitDown(P);
+            P.Breath = F(Math.Sin(t * 1.2) * 1.0);
+            P.OpenL = P.OpenR = BlinkOpen(t * .5); P.Eyes = EyeStyle.Half; P.Brow = -.75f;
+            P.Gx = F(-.6 + Math.Sin(t * .4) * .15); P.Gy = F(.35 + Math.Sin(t * .3) * .1); P.Look = -.22f;
+            P.HeadTilt = F(-8 + Math.Sin(t * .6) * 1.2); P.HeadY = 4;
+            P.Beak = 0; P.Tuft = -7; P.TuftWave = 1.5f; P.TuftPhase = F(t);
+            P.WingLA = 16; P.WingRA = 16; P.WingLB = 8; P.WingRB = 8;
+            P.Tail = 10; P.TailWag = 0;
+        }
+
         private void TouchCryPose(Pose P)
         {
             // 놀라 눈이 휘둥그레지고 날개를 가슴에 모아 달달 떤다. 부리가 덜덜.

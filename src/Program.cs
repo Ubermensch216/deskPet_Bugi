@@ -152,6 +152,11 @@ namespace Bugi
                 K("눌림", (p, w) => { p.StartSquish(w, .4, .24, PetState.Walk, false); w.Now += .2; p.Update(w, .2, null, 0); }),
                 K("우는중", (p, w) => p.Demonstrate(w, "cry")),
                 K("배고픔", (p, w) => p.Demonstrate(w, "weep")),
+                K("힘없음-한숨", (p, w) => { FriendData.Current.Satiety = 8; p.SetState(PetState.Pause, w); for (int i = 0; i < 30; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("힘없음-배웅킴", (p, w) => { FriendData.Current.Satiety = 8; p.Demonstrate(w, "weak_clutch"); for (int i = 0; i < 40; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("힘없음-훌쩍", (p, w) => { FriendData.Current.Satiety = 8; p.Demonstrate(w, "weak_sob"); for (int i = 0; i < 40; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("힘없음-쓰러짐", (p, w) => { FriendData.Current.Satiety = 3; p.Demonstrate(w, "weak_collapse"); for (int i = 0; i < 120; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
+                K("힘없음-멍", (p, w) => { FriendData.Current.Satiety = 3; p.Demonstrate(w, "weak_gaze"); for (int i = 0; i < 40; i++) { w.Now += .02; p.Update(w, .02, null, 0); } }),
                 K("폴짝", (p, w) => { p.Demonstrate(w, "hop"); p.Update(w, .25, null, 0); }),
                 K("슬라이딩", (p, w) => p.Demonstrate(w, "slide")),
                 K("어질어질", (p, w) => p.Demonstrate(w, "dizzy")),
@@ -189,8 +194,8 @@ namespace Bugi
                         pet.SetState(PetState.Pause, w);
                         pet.X = 640; pet.Y = 720;
                         PlayOptions.Current.Outfit = false; PlayOptions.Current.OutfitStyle = OutfitStyle.Vest; PlayOptions.Current.AccBag = PlayOptions.Current.AccVisor = PlayOptions.Current.AccSunglasses = false;
-                        states[i].Value(pet, w);
                         FriendData.Current.Satiety = 100;
+                        states[i].Value(pet, w);
                         PointF origin; using (Bitmap b = Pet.Render(pet.GetLook(w.Now), out origin))
                         {
                             int cx = (i % cols) * cell, cy = (i / cols) * cell;
@@ -225,6 +230,8 @@ namespace Bugi
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("ㅋㅋ", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Laugh"); }, 4.2, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("여행", (p, w) => { p.Y = 720; p.Demonstrate(w, "skit:Travel"); }, 5.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("간식", (p, w) => { p.Y = 720; FriendData.Current.Satiety = 40; p.Feed(w); }, 3.4, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("힘없는걷기", (p, w) => { p.Y = 720; FriendData.Current.Satiety = 8; p.SetState(PetState.Walk, w); }, 1.2, 0),
+                    Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("탈진쓰러짐", (p, w) => { p.Y = 720; FriendData.Current.Satiety = 3; p.Demonstrate(w, "weak_collapse"); }, 4.0, 0),
                     Tuple.Create<string, Action<Pet, FakeWorld>, double, double>("도망", (p, w) => { p.Y = 720; p.Demonstrate(w, "slide"); }, 0.8, 0),
                 };
                 int cw = (int)Math.Round(100 * scale), ch = (int)Math.Round(92 * scale), frameCols = 12;
@@ -238,6 +245,7 @@ namespace Bugi
                         var w = new FakeWorld { Rng = new Random(5) };
                         var pet = new Pet(w, c, 640, 720) { Area = w.Areas[0] };
                         pet.SetState(PetState.Pause, w); pet.X = 640; pet.Y = 720;
+                        FriendData.Current.Satiety = 100;
                         rowDefs[r].Item2(pet, w);
                         g.DrawString(rowDefs[r].Item1, font, Brushes.Black, 2, r * ch + 2);
                         double dt = rowDefs[r].Item3 / frameCols;
@@ -609,7 +617,10 @@ namespace Bugi
                 check(!d.TrySnack(), "배가 꽉 차면 간식 거절");
                 d.Satiety = 80; check(!d.TrySnack(), "포만감 80 이상이면 간식 거절");
                 d.Affinity = 250; d.CelebratedHundreds = 1; check(d.TakeMilestone() && d.CelebratedHundreds == 2 && !d.TakeMilestone(), "100 단위 꽃다발 한 번씩");
-                d.Satiety = 10; check(d.Hungry, "포만감 20 이하 = 배고픔");
+                d.Satiety = 10; check(d.Hungry && d.VeryHungry && !d.Starving && Math.Abs(d.HungerSpeedScale - .42) < 1e-6, "포만감 10 이하 = 매우 배고픔(속도 42%)");
+                d.Satiety = 15; check(d.Hungry && !d.VeryHungry && Math.Abs(d.HungerSpeedScale - .75) < 1e-6, "포만감 20 이하 = 배고픔(속도 75%)");
+                d.Satiety = 5; check(d.Hungry && d.VeryHungry && d.Starving && d.HungerSpeedScale == 0, "포만감 5 이하 = 탈진(속도 0)");
+                d.Satiety = 100; check(!d.Hungry && !d.VeryHungry && !d.Starving && d.HungerSpeedScale == 1, "포만감 충분 = 정상 속도");
                 PlayOptions.Current.HungerMinutes = 0; d.Satiety = 100; check(d.Hungry, "0분 = 항상 우는 표정");
                 PlayOptions.Current.HungerMinutes = 60;
                 d.Todos.Add(new TodoItem { Text = "첫 할 일", Done = true }); d.Todos.Add(new TodoItem { Text = "둘째", Done = false });
@@ -660,6 +671,41 @@ namespace Bugi
                 for (double t = 0; t < 600; t += .03) { w2.Now += .03; p2.Update(w2, .03, all2, 0); seen2.Add(p2.State); }
                 check(seen2.Contains(PetState.Walk) && seen2.Contains(PetState.Pause) && seen2.Contains(PetState.Wall) && seen2.Contains(PetState.Ceiling) && seen2.Contains(PetState.Resting), "10분 시뮬레이션: 걷기·쉬기·벽·천장·앉기 모두 등장");
                 check(p2.X >= -50 && p2.X <= 1330 && p2.Y >= -50 && p2.Y <= 770, "화면 밖으로 나가지 않음");
+
+                // 포만감 매우 낮음(10 이하 / 5 이하): 속도 감소 · 벽타기 금지 · 제자리 정지 · 힘없는 액션
+                PlayOptions.Current = new PlayOptions { Walls = true, Ceiling = true, Windows = true, Escape = true, Idle = true };
+                var wl = new FakeWorld { Rng = new Random(7) };
+                var pl = new Pet(wl, 0, 640, 720) { Area = wl.Areas[0], Dir = 1 };
+                FriendData.Current.Satiety = 100; pl.SetState(PetState.Walk, wl);
+                double xStart = pl.X; for (double t = 0; t < 1.0; t += .02) { wl.Now += .02; pl.Update(wl, .02, null, 0); }
+                double distFull = Math.Abs(pl.X - xStart);
+                FriendData.Current.Satiety = 15; pl.X = 640; pl.Dir = 1; pl.SetState(PetState.Walk, wl);
+                for (double t = 0; t < 1.0; t += .02) { wl.Now += .02; pl.Update(wl, .02, null, 0); }
+                double distHungry = Math.Abs(pl.X - 640);
+                FriendData.Current.Satiety = 10; pl.X = 640; pl.Dir = 1; pl.SetState(PetState.Walk, wl);
+                for (double t = 0; t < 1.0; t += .02) { wl.Now += .02; pl.Update(wl, .02, null, 0); }
+                double distWeak = Math.Abs(pl.X - 640);
+                check(distHungry < distFull * .82 && distWeak < distHungry * .65 && distWeak > 2, "포만감 단계별 이동 속도 감소 (20 이하→10 이하)");
+                pl.X = wl.Areas[0].Right - 40; pl.Dir = 1; pl.SetState(PetState.Walk, wl);
+                var seenLow = new HashSet<PetState>(); var seenWeakRests = new HashSet<Pet.RestPose>();
+                for (double t = 0; t < 40; t += .05) { wl.Now += .05; pl.Update(wl, .05, null, 0); seenLow.Add(pl.State); if (pl.State == PetState.Resting) seenWeakRests.Add(pl.restPose); }
+                check(!seenLow.Contains(PetState.Wall) && !seenLow.Contains(PetState.Ceiling) && !seenLow.Contains(PetState.WindowClimb), "포만감 10 이하: 벽·천장·창 타기 안 함");
+                check(seenWeakRests.Count > 0 && seenWeakRests.All(Pet.IsWeakRestPose), "포만감 10 이하: 힘없는 쉬기 동작만 선택");
+                pl.Demonstrate(wl, "wall");
+                check(pl.State != PetState.Wall, "포만감 10 이하: 벽 타기 시범도 거절");
+                FriendData.Current.Satiety = 100; pl.Demonstrate(wl, "wall"); check(pl.State == PetState.Wall, "벽 타던 중 포만감 떨어지면 낙하 준비");
+                FriendData.Current.Satiety = 8; wl.Now += .05; pl.Update(wl, .05, null, 0);
+                check(pl.State == PetState.Falling, "벽 타던 중 포만감 10 이하가 되면 떨어짐");
+                pl.Y = 720; pl.SetState(PetState.Pause, wl);
+                FriendData.Current.Satiety = 5; pl.X = 500; pl.SetState(PetState.Walk, wl);
+                check(pl.State == PetState.Pause, "포만감 5 이하: 걷기 진입 시 제자리에 멈춤");
+                var seenStarv = new HashSet<PetState>(); var seenStarvRests = new HashSet<Pet.RestPose>();
+                for (double t = 0; t < 45; t += .05) { wl.Now += .05; pl.Update(wl, .05, null, 0); seenStarv.Add(pl.State); if (pl.State == PetState.Resting) seenStarvRests.Add(pl.restPose); }
+                check(Math.Abs(pl.X - 500) < 1e-6 && !seenStarv.Contains(PetState.Walk) && !seenStarv.Contains(PetState.Wall) && seenStarvRests.Count > 0 && seenStarvRests.All(Pet.IsWeakRestPose), "포만감 5 이하: 한 곳에 멈춰 힘없는 동작만 반복");
+                pl.Feed(wl); check(pl.State == PetState.Eating && FriendData.Current.Satiety == 30, "간식 주면 먹고 포만감 회복");
+                for (double t = 0; t < 4; t += .05) { wl.Now += .05; pl.Update(wl, .05, null, 0); }
+                check(pl.State == PetState.Walk, "포만감 회복 후 다시 걷기");
+                FriendData.Current = new FriendData();
 
                 // 근무복: 설정 저장 · 동작 4가지 · 규격 가드
                 PlayOptions.Current = new PlayOptions { Outfit = true };
