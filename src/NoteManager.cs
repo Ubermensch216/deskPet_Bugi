@@ -139,6 +139,50 @@ namespace Bugi
             var w = Show(note); w.FocusEditor(); return note;
         }
 
+        /// <summary>외부 연동 API 에서 본문과 함께 메모를 만든다. 기본은 포커스를 뺏지 않고 바탕화면에만 띄운다.</summary>
+        internal Note CreateNoteFromApi(string content, NoteSizePreset? preset = null, string colorKey = null, bool open = true, bool focus = false, bool? pinned = null)
+        {
+            var p = preset ?? DefaultSize;
+            var geometry = NotePlacement.PlaceNew(p, NotePlacement.Primary(), cascade++, NotePlacement.CurrentMonitors());
+            var note = store.Create(geometry, colorKey ?? DefaultColor, content ?? "", open);
+            if (pinned.HasValue) { store.SetAppearance(note.Id, note.ColorKey, note.Opacity, pinned.Value); store.FlushDirty(); }
+            if (open)
+            {
+                var w = Show(note);
+                if (focus) w.FocusEditor();
+            }
+            return note;
+        }
+
+        internal void SetOpenFromApi(Guid id, bool open, bool focus = false)
+        {
+            var note = store.Get(id); if (note == null) return;
+            if (open)
+            {
+                store.SetOpen(id, true); store.FlushDirty();
+                var w = Show(note);
+                if (focus) w.FocusEditor();
+            }
+            else
+            {
+                NoteWindow w;
+                if (windows.TryGetValue(id, out w)) w.Close();
+                else { store.SetOpen(id, false); store.FlushDirty(); }
+            }
+        }
+
+        internal void SetAppearanceFromApi(Guid id, string color, double? opacity, bool? pinned)
+        {
+            var note = store.Get(id); if (note == null) return;
+            NoteWindow w;
+            if (windows.TryGetValue(id, out w)) { w.SetAppearanceFromApi(color, opacity, pinned); store.FlushDirty(); }
+            else
+            {
+                store.SetAppearance(id, string.IsNullOrEmpty(color) ? note.ColorKey : color, opacity ?? note.Opacity, pinned ?? note.AlwaysOnTop);
+                store.FlushDirty();
+            }
+        }
+
         /// <summary>떠 있으면 앞으로, 닫혀 있으면 다시 연다.</summary>
         internal void Focus(Guid id)
         {

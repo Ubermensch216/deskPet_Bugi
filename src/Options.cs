@@ -32,6 +32,8 @@ namespace Bugi
         public bool EdgeGlow = true; public int EdgeGlowTheme = 0, EdgeGlowWidth = 1, EdgeGlowStrength = 1;
         public bool QuietWeekdays; public int QuietStart = 9, QuietEnd = 18;
         public string Roster = "";   // 마지막에 불러 둔 친구들(캐릭터 번호, 쉼표 구분)
+        public const int DefaultApiPort = 19480;
+        public bool ApiOn = true; public int ApiPort = DefaultApiPort;   // 로컬 외부 연동 API (127.0.0.1)
 
         internal static string FilePath { get { return Path.Combine(Paths.Dir, FileName); } }
 
@@ -74,6 +76,8 @@ namespace Bugi
                 if (d.TryGetValue("QuietStart", out v) && int.TryParse(v, out n)) s.QuietStart = Math.Max(0, Math.Min(23, n));
                 if (d.TryGetValue("QuietEnd", out v) && int.TryParse(v, out n)) s.QuietEnd = Math.Max(0, Math.Min(23, n));
                 if (d.TryGetValue("Roster", out v)) s.Roster = v;
+                if (d.TryGetValue("ApiOn", out v)) s.ApiOn = v != "0";
+                if (d.TryGetValue("ApiPort", out v) && int.TryParse(v, out n) && n >= 1024 && n <= 65535) s.ApiPort = n;
                 for (int i = 1; i <= MaxAlarms; i++)   // Alarm1=켜짐(1/0)|HH:mm|내용
                 {
                     if (!d.TryGetValue("Alarm" + i, out v)) continue;
@@ -108,6 +112,7 @@ namespace Bugi
             b.AppendLine("[내 알람]");
             for (int i = 0; i < Alarms.Count && i < MaxAlarms; i++) b.AppendLine("Alarm" + (i + 1) + "=" + (Alarms[i].On ? "1" : "0") + "|" + (Alarms[i].Repeat ? "1" : "0") + "|" + Alarms[i].Time + "|" + OneLine(Alarms[i].Msg));
             b.AppendLine("[친구]"); b.AppendLine("Roster=" + Roster);
+            b.AppendLine("[연동]"); b.AppendLine("ApiOn=" + (ApiOn ? "1" : "0")); b.AppendLine("ApiPort=" + ApiPort);
             b.AppendLine("[언어]"); b.AppendLine("Language=" + Loc.Code);
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, b.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }

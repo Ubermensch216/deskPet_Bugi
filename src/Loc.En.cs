@@ -813,6 +813,8 @@ namespace Bugi
             { "부기가 이미 실행 중이야.\n작업표시줄 알림 영역의 친구 아이콘을 우클릭해서 ‘화면 가운데로 다시 부르기’를 눌러줘.", "Boogi is already running.\nRight-click the friend icon in the taskbar notification area and click 'Call back to screen center'." },
             { "친구를 화면에 표시하지 못했어.\n\n", "Couldn't show your friend on the screen.\n\n" },
             { "\n\n기록: ", "\n\nLog:" },
+            // ApiServer.cs
+            { "음... 생각 중이야!", "Hmm... let me think!" },
         };
     }
 }

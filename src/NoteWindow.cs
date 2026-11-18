@@ -306,6 +306,14 @@ namespace Bugi
 
         internal void ToggleAlwaysOnTop() { pinned = !pinned; TopMost = pinned; mgr.AppearanceChanged(this); }
 
+        internal void SetAppearanceFromApi(string newColor, double? newOpacity, bool? newPinned)
+        {
+            if (!string.IsNullOrEmpty(newColor)) { colorKey = NoteColors.Normalize(newColor); ApplyPaper(); }
+            if (newOpacity.HasValue) { opacityValue = Math.Max(Note.MinOpacity, Math.Min(1.0, newOpacity.Value)); Opacity = opacityValue; }
+            if (newPinned.HasValue) { pinned = newPinned.Value; TopMost = pinned; }
+            mgr.AppearanceChanged(this);
+        }
+
         // ───────── 첨부(끌어다 놓기) ─────────
 
         private void OnDragEnter(object sender, DragEventArgs e) { e.Effect = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; }

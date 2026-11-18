@@ -129,11 +129,59 @@ namespace Bugi
             if (pet == null) return;
             lastActivity = app.Now;
             if (request != null) request.Abort();
-            input.ClearChips(); chipsWanted = false;
-            input.Echo(text);
+            if (input != null) { input.ClearChips(); input.Echo(text); }
+            chipsWanted = false;
             history.Add(new ChatMessage("user", text));
             pet.ChatThink();
             StartStream(ChatPersona.Build(history, DateTime.Now, pet.Art.Id), false);
+        }
+
+        /// <summary>외부 API 에서 대화창(알약 입력칸)을 열고 바로 말을 보낼 때.</summary>
+        internal bool SendFromUiApi(string text, Pet target = null, bool openInput = true)
+        {
+            Pet p = target ?? pet ?? app.LiveWindows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden && x.CanChat)
+                ?? app.LiveWindows.Select(w => w.Pet).FirstOrDefault();
+            if (p == null) return false;
+            if (openInput)
+            {
+                Begin(p);
+                if (pet == null) return false;
+                if (!string.IsNullOrWhiteSpace(text)) Send(text.Trim());
+                return true;
+            }
+            if (pet != null && pet != p) End();
+            if (pet == null)
+            {
+                if (!p.CanChat || !p.BeginChat(app, p.ChatSide)) return false;
+                pet = p;
+                p.OnChatChar = ch => ChatSound.Char(ch, pet != null ? pet.Mood : ChatMood.Neutral);
+            }
+            if (!string.IsNullOrWhiteSpace(text)) Send(text.Trim());
+            return true;
+        }
+
+        /// <summary>외부 API 가 직접 응답을 기다릴 때: 현재 기억·대화 맥락이 반영된 프롬프트 목록을 만든다.</summary>
+        internal List<ChatMessage> BuildPromptForApi(string userText, int charId = 0)
+        {
+            var temp = new List<ChatMessage>(history);
+            temp.Add(new ChatMessage("user", userText));
+            return ChatPersona.Build(temp, DateTime.Now, charId);
+        }
+
+        /// <summary>외부 API 대화가 끝났을 때 대화 기록에 남기고, 화면 표시가 켜져 있으면 부기가 말풍선과 감정 몸짓으로 말하게 한다.</summary>
+        internal void RecordApiTurn(string userText, ChatMood mood, string replyText, bool showOnScreen, Pet target = null)
+        {
+            history.Add(new ChatMessage("user", userText));
+            history.Add(new ChatMessage("assistant", "[" + ChatPersona.TagOf(mood) + "] " + replyText));
+            while (history.Count > 40) { history.RemoveAt(0); extractedUpTo = Math.Max(0, extractedUpTo - 1); }
+            if (!showOnScreen) return;
+            Pet p = target ?? pet ?? app.LiveWindows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden && x.CanChat)
+                ?? app.LiveWindows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden);
+            if (p == null) return;
+            Skit sk;
+            if (Pet.MoodSkit(mood, out sk) && p.CanChat) p.BeginSkit(app, sk);
+            p.Bubble = replyText;
+            p.BubbleUntil = app.Now + Math.Max(5.0, Math.Min(12.0, 3.0 + replyText.Length * 0.12));
         }
 
         private void StartStream(List<ChatMessage> msgs, bool proactive)

@@ -45,6 +45,8 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--note-shots") { Environment.Exit(DevTools.NoteShots(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--chat-live") { Environment.Exit(DevTools.ChatLive(args[1])); return; }
             Loc.Load();   // 저장된 언어 → 없으면 Windows 표시 언어 (--lang 이 있으면 그쪽이 우선)
+            int cliExit;
+            if (ApiServer.TryForwardCliCommand(args, out cliExit)) { Environment.Exit(cliExit); return; }
             bool created;
             using (var mutex = new Mutex(true, "Bugi_DeskFriend_single_instance", out created))
             {
@@ -59,7 +61,7 @@ namespace Bugi
                 {
                     PlayOptions.Load(); FriendData.Load();
                     CharacterArt.Reset(Native.SystemDpiScale(), PlayOptions.Current.PetSize);
-                    var app = new App(); app.Notes = new NoteManager(app); app.Notes.Start();
+                    var app = new App(); app.Notes = new NoteManager(app); app.Notes.Start(); app.StartApi();
                     Application.Run(app);
                 }
                 catch (Exception error)
@@ -862,12 +864,105 @@ namespace Bugi
                 NoteSelfTests(check, dir);
                 OvertimeState.SelfTests(check);
                 OvertimeUiTests.Run(check);
+                ApiSelfTests(check);
             }
             catch (Exception e) { log.AppendLine("EXCEPTION " + e); failures++; }
             log.AppendLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");
             File.WriteAllText(Path.Combine(dir, "selftest_result.txt"), log.ToString(), new UTF8Encoding(true));
             Console.Write(log.ToString());
             return failures == 0 ? 0 : 1;
+        }
+
+        private static void ApiSelfTests(Action<bool, string> check)
+        {
+            check(ApiServer.IsAllowedOrigin(null) && ApiServer.IsAllowedOrigin(""), "API Origin: 데스크톱 앱(Origin 없음) 허용");
+            check(ApiServer.IsAllowedOrigin("chrome-extension://abcdefghijklmnop") && ApiServer.IsAllowedOrigin("edge-extension://123456"), "API Origin: 브라우저 확장(*.sAIde) 허용");
+            check(!ApiServer.IsAllowedOrigin("https://evil.example.com") && !ApiServer.IsAllowedOrigin("http://localhost:3000"), "API Origin: 일반 웹페이지 차단");
+
+            var app = new App(true);
+            app.Notes = new NoteManager(app);
+            app.Notes.Start(false);
+            app.Settings.ApiPort = 19485;
+            app.StartApi();
+            // 테스트 중 HTTP 요청이 오면 백그라운드에서 UI 큐를 비워 준다
+            bool pump = true;
+            var pumper = new Thread(delegate () { while (pump) { try { app.Api.Tick(); } catch { } Thread.Sleep(5); } }) { IsBackground = true };
+            pumper.Start();
+            try
+            {
+                check(app.Api != null && app.Api.IsRunning && app.Api.Port >= 1024, "API 서버 시작 (127.0.0.1:" + (app.Api != null ? app.Api.Port : 0) + ")");
+                string baseUrl = "http://127.0.0.1:" + app.Api.Port;
+
+                Func<string, string, string, string, KeyValuePair<int, string>> call = (method, path, body, origin) =>
+                {
+                    var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(baseUrl + path);
+                    req.Method = method; req.Timeout = 5000; req.Proxy = null;
+                    if (!string.IsNullOrEmpty(origin)) req.Headers["Origin"] = origin;
+                    if (body != null)
+                    {
+                        byte[] b = new UTF8Encoding(false).GetBytes(body);
+                        req.ContentType = "application/json; charset=utf-8"; req.ContentLength = b.Length;
+                        using (var s = req.GetRequestStream()) s.Write(b, 0, b.Length);
+                    }
+                    try
+                    {
+                        using (var resp = (System.Net.HttpWebResponse)req.GetResponse())
+                        using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                            return new KeyValuePair<int, string>((int)resp.StatusCode, sr.ReadToEnd());
+                    }
+                    catch (System.Net.WebException wex)
+                    {
+                        var r = wex.Response as System.Net.HttpWebResponse;
+                        if (r != null) using (var sr = new StreamReader(r.GetResponseStream(), Encoding.UTF8)) return new KeyValuePair<int, string>((int)r.StatusCode, sr.ReadToEnd());
+                        throw;
+                    }
+                };
+
+                var h = call("GET", "/api/health", null, null);
+                check(h.Key == 200 && Json.Flag(Json.Parse(h.Value), "ok"), "GET /api/health 응답 확인");
+
+                var forbidden = call("POST", "/api/alert", "{\"message\":\"침입\"}", "https://malicious.example.com");
+                check(forbidden.Key == 403, "일반 웹 Origin 403 차단 확인");
+
+                var extOk = call("POST", "/api/alert", "{\"message\":\"공문 도착!\",\"style\":\"bubble\",\"seconds\":5}", "chrome-extension://onnara-saide-ext");
+                object extJson = Json.Parse(extOk.Value);
+                string alertId = Json.Str(extJson, "alertId");
+                check(extOk.Key == 200 && Json.Flag(extJson, "ok") && !string.IsNullOrEmpty(alertId), "POST /api/alert (브라우저 확장 Origin) 성공");
+
+                var alertGet = call("GET", "/api/alert/" + alertId, null, null);
+                check(alertGet.Key == 200 && Json.Str(Json.Parse(alertGet.Value), "message") == "공문 도착!", "GET /api/alert/{id} 상태 조회");
+
+                var noteCreate = call("POST", "/api/notes", "{\"content\":\"# 회의 메모\\n- [ ] 안건 정리 #업무\",\"color\":\"yellow\",\"open\":false}", null);
+                object ncJson = Json.Parse(noteCreate.Value);
+                string noteId = Json.Str(Json.Get(ncJson, "note"), "id");
+                check(noteCreate.Key == 201 && !string.IsNullOrEmpty(noteId), "POST /api/notes 메모 생성 성공");
+
+                var noteList = call("GET", "/api/notes?tag=업무", null, null);
+                check(noteList.Key == 200 && noteList.Value.Contains("회의 메모"), "GET /api/notes 태그 검색 확인");
+
+                var notePatch = call("PATCH", "/api/notes/" + noteId, "{\"append\":\"- [ ] 추가 항목\"}", null);
+                check(notePatch.Key == 200 && notePatch.Value.Contains("추가 항목"), "PATCH /api/notes/{id} 본문 덧붙이기 확인");
+
+                var noteRemind = call("POST", "/api/notes/" + noteId + "/remind", "{\"minutes\":30}", null);
+                check(noteRemind.Key == 200 && Json.Flag(Json.Parse(noteRemind.Value), "ok"), "POST /api/notes/{id}/remind 알림 설정 확인");
+
+                var noteDel = call("DELETE", "/api/notes/" + noteId, null, null);
+                check(noteDel.Key == 200 && Json.Flag(Json.Parse(noteDel.Value), "ok"), "DELETE /api/notes/{id} 메모 삭제 확인");
+
+                var actList = call("GET", "/api/pet/actions", null, null);
+                check(actList.Key == 200 && actList.Value.Contains("Cheer") && actList.Value.Contains("mine"), "GET /api/pet/actions 동작 목록 조회");
+
+                var actRun = call("POST", "/api/pet/action", "{\"action\":\"skit:Cheer\",\"say\":\"결재 완료!\"}", null);
+                check(actRun.Key == 200 && Json.Flag(Json.Parse(actRun.Value), "ok") && app.LiveWindows[0].Pet.Bubble == "결재 완료!", "POST /api/pet/action 캐릭터 동작·말풍선 유도 확인");
+            }
+            finally
+            {
+                pump = false;
+                try { pumper.Join(200); } catch { }
+                try { if (app.Api != null) app.Api.Dispose(); } catch { }
+                try { if (app.Notes != null) app.Notes.Suspend(); } catch { }
+                foreach (var w in app.LiveWindows.ToArray()) { try { w.Close(); w.Dispose(); } catch { } }
+            }
         }
     }
 }

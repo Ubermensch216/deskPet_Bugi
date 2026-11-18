@@ -110,6 +110,13 @@ namespace Bugi
         }
         internal ChatController Chat;
         internal OvertimeState Overtime;   // 초과근무 알림(부기_초과근무.ini)
+        internal ApiServer Api;            // 로컬 외부 연동 API 서버 (127.0.0.1)
+
+        internal void StartApi()
+        {
+            if (Api == null) Api = new ApiServer(this);
+            Api.Start();
+        }
 
         public App(bool testMode = false)
         {
@@ -939,6 +946,7 @@ namespace Bugi
             if (dt > .1) dt = .1; if (dt < 0) dt = 0;
             if (now - lastSlow >= 1) { lastSlow = now; SlowTick(now); }
             CompanionTick(now, !paused);
+            if (Api != null) { try { Api.Tick(); } catch (Exception error) { FeatureLog.Write(error); } }
             try { Chat.Tick(now); } catch (Exception error) { FeatureLog.Write(error); }
             if (paused || hidden) return;
             CheckAlarms(now);
@@ -1087,6 +1095,7 @@ namespace Bugi
 
         public void Quit()
         {
+            if (Api != null) { Api.Dispose(); Api = null; }
             Chat.Dispose();
             if (Notes != null) Notes.Suspend();
             CloseFeatureWindows(); ClearHourly(); ActivityInput.Stop();
