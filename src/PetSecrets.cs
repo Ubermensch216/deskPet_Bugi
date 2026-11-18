@@ -11,7 +11,9 @@ namespace Bugi
         private Point orbitMouse;
         private bool orbitMotionSeen, orbitSeen, pilotFlight;
         private int orbitDirection, throwCount;
-        private double throwSequenceStarted, danceStarted, contactReactionUntil;
+        private double throwSequenceStarted, danceStarted, contactReactionUntil, avoidUntil;
+        private double contactChainStart = -1, lastContactAt = -99, ghostUntil;
+        private int avoidDir;
 
         internal bool IsCompanionFloorPose
         { get { return State == PetState.Walk || State == PetState.Pause || State == PetState.Resting || State == PetState.IdleCry || State == PetState.Squish; } }
@@ -144,10 +146,19 @@ namespace Bugi
             return new RectangleF((float)X - bw / 2, (float)Y - bh, Math.Max(8, bw), Math.Max(8, bh));
         }
 
+        internal bool CanBeShoved { get { return State != PetState.Drag && State != PetState.Wall && State != PetState.WindowClimb; } }
+
+        /// <summary>부딪힌 직후 잠시 상대 쪽으로 다시 걸어가지 않도록 피하는 방향을 기억한다.</summary>
+        private bool AvoidingPartner(IWorld w) { return w.Now < avoidUntil; }
+
         internal void Bump(IWorld w, int direction)
         {
             if (PlayOptions.Current.PositionFixed) return;
-            Dir = direction;
+            // 1.2초 넘게 끊기지 않고 계속 부딪히고 있으면 벽·구석·다른 친구에 끼어 서로 못 비키는 상태 → 아래 BreakFree 로 빠져나온다
+            if (w.Now - lastContactAt > 1.2) contactChainStart = w.Now;
+            lastContactAt = w.Now;
+            if (w.Now - contactChainStart > StuckSeconds && (State == PetState.Walk || State == PetState.Squish || State == PetState.Pause)) { BreakFree(w); return; }
+            Dir = direction; avoidDir = direction; avoidUntil = w.Now + 2.5;
             if (State == PetState.Wall) { wallDescending = direction > 0; return; }
             if (State == PetState.Thrown) { throwVx = direction * Math.Max(110 * S, Math.Abs(throwVx) * .65); return; }
             if (State == PetState.Falling) { flutterDrift = direction * 70 * S; return; }
@@ -155,6 +166,18 @@ namespace Bugi
             if (w.Now < contactReactionUntil) return;
             contactReactionUntil = w.Now + .45;
             StartSquish(w, .22, .12, PetState.Walk, false); mouseGrace = w.Now + .6;
+        }
+
+        /// <summary>서로 엉켜 오래 못 비킨 친구는 잠시 몸이 겹쳐도 되게(부딪힘 무시) 화면 안쪽으로 걸어 나와 빠져나간다.</summary>
+        internal const double StuckSeconds = 2.5, GhostSeconds = 4;
+        internal bool IsGhost(double now) { return now < ghostUntil; }
+
+        private void BreakFree(IWorld w)
+        {
+            ghostUntil = w.Now + GhostSeconds; contactChainStart = w.Now; avoidUntil = 0;
+            Dir = X < (Area.Left + Area.Right) / 2.0 ? 1 : -1;   // 구석·벽에서 멀어지는 쪽(화면 안쪽)으로
+            contactReactionUntil = w.Now + GhostSeconds; mouseGrace = w.Now + GhostSeconds;
+            if (State != PetState.Walk) SetState(PetState.Walk, w);
         }
 
         internal void ClampContact()

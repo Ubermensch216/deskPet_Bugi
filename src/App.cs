@@ -1059,6 +1059,7 @@ namespace Bugi
                 for (int i = 0; i < live.Length; i++)
                     for (int j = i + 1; j < live.Length; j++)
                     {
+                        if (live[i].IsGhost(world.Now) || live[j].IsGhost(world.Now)) continue;   // 엉켜서 빠져나오는 중인 친구는 잠시 겹쳐도 그냥 지나간다
                         Pet a = live[i], b = live[j]; RectangleF ra = a.ContactBody(world.Now), rb = b.ContactBody(world.Now);
                         bool touching = ra.IntersectsWith(rb);
                         PointF oa, ob;
@@ -1085,6 +1086,14 @@ namespace Bugi
                             else if (b.State == PetState.Drag || wallB) a.X = b.X + sign * needed;
                             else { a.X = mid + sign * needed / 2; b.X = mid - sign * needed / 2; }
                             a.ClampContact(); b.ClampContact();
+                            // 한쪽이 화면 끝에 막혀 못 밀려났으면 남은 간격을 반대쪽이 마저 물러난다(끝에 낀 채 계속 엉키는 것 방지)
+                            Pet left = sign < 0 ? a : b, right = sign < 0 ? b : a;
+                            double shortfall = needed - (right.X - left.X);
+                            if (shortfall > .5)
+                            {
+                                if (right.CanBeShoved) { right.X += shortfall; right.ClampContact(); shortfall = needed - (right.X - left.X); }
+                                if (shortfall > .5 && left.CanBeShoved) { left.X -= shortfall; left.ClampContact(); }
+                            }
                         }
                         if (pass == 0) { if (a.State != PetState.Drag) a.Bump(world, sign); if (b.State != PetState.Drag) b.Bump(world, -sign); }
                         moved = true;

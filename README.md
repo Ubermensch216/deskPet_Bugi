@@ -98,6 +98,19 @@ Ollama 나 모델이 없는 PC 에서는 설정 → AI 대화의 **AI 자동 설
 * Ollama 가 꺼져 있으면 부기가 졸린 얼굴로 “아직 못 일어나겠어” 하고 알려 줘요.
 * 설정 → **AI 대화**: 사용 여부 · 모델 이름 · 서버 주소(연결 확인) · 대화 모드 · 단축키(직접 눌러 바꾸기, 3키 이상) · 답장 칩 · 말소리 · 선톡 · 기억 · 일기장. 설정은 `부기_대화.ini` 에 저장돼요.
 
+## 다른 프로그램과 연동 (내장 로컬 API · CLI)
+부기가 트레이에서 실행되는 동안 별도 서버 설치 없이 `http://127.0.0.1:19480`(`%AppData%\부기\부기_api.json` 에 실제 포트·PID 기록, `부기_설정.ini` 의 `[연동]` `ApiOn=1` · `ApiPort=19480`)으로 로컬 데스크톱 앱(`M-deskcal` · `M-Dir` · `M-Finder`)과 브라우저 확장(`onNara.sAIde` · `onTalk.sAIde` 등 `*-extension://`)의 호출을 받습니다(일반 웹페이지 `Origin` 은 `403` 으로 차단). 구조: `ApiServer.cs`.
+
+| 엔드포인트 / 명령 | 설명 |
+|---|---|
+| `GET /api/health` | 실행 상태 · 펫 수 · 친밀도 · 메모 수 · AI 대화 설정 확인 |
+| `POST /api/alert` | `{ "message": "...", "style": "big\|bubble\|window", "seconds": 8 }` 알림 표시(`GET /api/alert/{id}` 로 왼쪽 클릭 확인 여부 조회, `DELETE /api/alert` 로 닫기) |
+| `GET /api/notes` · `POST /api/notes` | 메모 검색(`?q=...&tag=...`) 및 새 메모 생성(`content`, `title`, `color`, `size`, `open`, `focus`, `remindMinutes`) |
+| `PATCH /api/notes/{id}` · `DELETE /api/notes/{id}` | 메모 본문 수정/덧붙이기(`append`) · 색상/고정 변경 · 삭제 · 알림 추가(`POST /api/notes/{id}/remind`) |
+| `GET /api/pet/actions` · `POST /api/pet/action` | 동작 목록 조회 및 캐릭터 액션/응용동작(`skit:Cheer`, `mine`, `feed`, `recover` 등)과 말풍선(`say`) 유도 |
+| `POST /api/chat` | `{ "message": "...", "showOnScreen": true, "waitReply": true }` 부기 AI 대화 호출 및 `{ "reply", "mood", "tag" }` 응답 반환 |
+| `bugi.exe --alert \| --note \| --action \| --chat` | 이미 실행 중인 트레이 부기에게 명령줄로 알림 · 메모 · 동작 · 대화를 전달하고 즉시 종료 |
+
 ### EXAONE API 로 이야기하기 (선택)
 Ollama 대신 LG AI연구원의 [EXAONE API](https://docs.exaone.ai/ko/docs/overview)(모델 `k-exaone_v2.5`)와 이야기할 수도 있어요. 설정 → AI 대화 → **대화 상대**를 `EXAONE` 으로 바꾸고 **API 키**를 넣은 뒤 연결 확인(플러그 단추)을 누르세요.
 

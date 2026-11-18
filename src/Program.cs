@@ -767,6 +767,47 @@ namespace Bugi
                 App.ResolveCompanionContacts(w4, new List<Pet> { a1, a2 }, null);
                 check(a2.ContactBody(0).Left - a1.ContactBody(0).Right > -1 || Math.Abs(a1.X - a2.X) > a1.Art.W * .6, "겹친 친구는 서로 떨어짐");
 
+                // 여러 마리가 오래 돌아다니며 마주쳐도 서로 엉킨 채 오래 머물지 않음 (마우스 없음 · 마우스를 피해 도망 · 마우스를 따라감)
+                {
+                    double worst = 0; string worstInfo = "";
+                    foreach (int mode in new[] { 0, 1, 2 })
+                        foreach (int count in new[] { 2, 3, 5 })
+                            foreach (int seed in new[] { 1, 2, 3, 4 })
+                            {
+                                PlayOptions.Current = new PlayOptions { Escape = mode == 1, Follow = mode == 2, Idle = true, Windows = false, Walls = seed % 2 == 0 };
+                                int mouseX = 200 + seed * 170; double clock = 0;
+                                DesktopSurfaces.TestMouse = mode == 0 ? (Func<Point>)(() => new Point(-9999, -9999)) : () => new Point(mouseX + (int)(Math.Sin(clock / 9) * (seed % 2 == 0 ? 250 : 0)), 690);
+                                var wt = new FakeWorld { Rng = new Random(seed) };
+                                if (count == 5) wt.Areas[0] = new Rectangle(0, 0, 900, 720);
+                                var tall = new List<Pet>();
+                                for (int k = 0; k < count; k++) tall.Add(new Pet(wt, k % CharacterArt.Count, 100 + k * 130, 720) { Area = wt.Areas[0] });
+                                var stuck = new double[count, count];
+                                for (double t = 0; t < 1800; t += .03)
+                                {
+                                    wt.Now += .03; clock = wt.Now;
+                                    var old = tall.ToDictionary(q => q, q => new PointF((float)q.X, (float)q.Y));
+                                    var before = tall.Select(q => q.X).ToArray();
+                                    foreach (Pet q in tall) q.Update(wt, .03, tall, 0);
+                                    App.ResolveCompanionContacts(wt, tall, old);
+                                    for (int i = 0; i < count; i++)
+                                        for (int j2 = i + 1; j2 < count; j2++)
+                                        {
+                                            Pet pa = tall[i], pb = tall[j2];
+                                            bool skip = pa.IsGhost(wt.Now) || pb.IsGhost(wt.Now) || pa.State == PetState.Falling || pb.State == PetState.Falling || pa.State == PetState.Wall || pb.State == PetState.Wall || pa.State == PetState.WindowClimb || pb.State == PetState.WindowClimb;
+                                            double near = (pa.Art.W + pb.Art.W) * .85 * .5 * 1.3 + 6;
+                                            bool moved = Math.Abs(pa.X - before[i]) + Math.Abs(pb.X - before[j2]) > .3;
+                                            bool ovl = pa.ContactBody(wt.Now).IntersectsWith(pb.ContactBody(wt.Now));
+                                            bool jam = !skip && Math.Abs(pa.X - pb.X) < near && (ovl || (!moved && (pa.State == PetState.Walk || pb.State == PetState.Walk)));
+                                            stuck[i, j2] = jam ? stuck[i, j2] + .03 : 0;
+                                            if (stuck[i, j2] > worst) { worst = stuck[i, j2]; worstInfo = "모드" + mode + " " + count + "마리 seed " + seed + " [" + pa.Art.Id + "(" + pa.State + ")+" + pb.Art.Id + "(" + pb.State + ")]"; }
+                                        }
+                                }
+                            }
+                    DesktopSurfaces.TestMouse = null;
+                    log.AppendLine("  [정보] 붙은 채 정지 최장 " + worst.ToString("F1") + "초 " + worstInfo);
+                    check(worst < 4, "여러 마리가 붙은 채 오래 정지하지 않음 (최장 " + worst.ToString("F1") + "초)");
+                }
+
                 // ── AI 대화 ──
                 var j = Json.Parse("{\"message\":{\"role\":\"assistant\",\"content\":\"[기쁨] \\\"안녕\\\"\\n\\u0041\"},\"done\":false,\"n\":-1.5e2}");
                 check(Json.Str(Json.Get(j, "message"), "content") == "[기쁨] \"안녕\"\nA" && !Json.Flag(j, "done") && (double)Json.Get(j, "n") == -150, "JSON 읽기(이스케이프·숫자)");
