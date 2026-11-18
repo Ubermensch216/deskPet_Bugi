@@ -75,11 +75,14 @@ namespace Bugi
             catch { }
         }
 
+        /// <summary>모델이 사용자 역할까지 이어 쓰지 않게 하는 멈춤 말(대화 기록의 화자 이름과 같다).</summary>
+        private static string StopJson { get { return Loc.IsEn ? ",\"stop\":[\"\\n\",\"User:\",\"Boogi:\"]" : ",\"stop\":[\"\\n\",\"사용자:\",\"부기:\"]"; } }
+
         private static string Body(ChatOptions o, List<ChatMessage> msgs, bool stream, int numPredict, double temperature)
         {
             var b = new StringBuilder("{\"model\":" + Json.Quote(o.Model) + ",\"stream\":" + (stream ? "true" : "false") + ",\"think\":false,\"keep_alive\":" + Json.Quote(o.KeepAlive));
             b.Append(",\"options\":{\"num_predict\":" + numPredict + ",\"temperature\":" + temperature.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)
-                + ",\"top_p\":0.9,\"repeat_penalty\":1.12,\"num_ctx\":3072,\"stop\":[\"\\n\",\"사용자:\",\"부기:\"]}");
+                + ",\"top_p\":0.9,\"repeat_penalty\":1.12,\"num_ctx\":3072" + StopJson + "}");
             b.Append(",\"messages\":[");
             for (int i = 0; i < msgs.Count; i++)
             { if (i > 0) b.Append(','); b.Append("{\"role\":" + Json.Quote(msgs[i].Role) + ",\"content\":" + Json.Quote(msgs[i].Content) + "}"); }
@@ -120,7 +123,7 @@ namespace Bugi
             try
             {
                 var r = Make(o, "/api/chat", "POST", 60000);
-                WriteBody(r, Body(o, msgs, false, numPredict, temperature).Replace(",\"stop\":[\"\\n\",\"사용자:\",\"부기:\"]", ""));
+                WriteBody(r, Body(o, msgs, false, numPredict, temperature).Replace(StopJson, ""));
                 using (var resp = (HttpWebResponse)r.GetResponse())
                 using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                     return Json.Str(Json.Get(Json.Parse(sr.ReadToEnd()), "message"), "content");

@@ -219,7 +219,7 @@ namespace Bugi
                     P.WingLA = Lerp(P.WingLA, 150, e); P.WingLB = Lerp(P.WingLB, 128 + Math.Sin(u * 12) * 30, e);
                     P.Eyes = EyeStyle.Dot; P.OpenL = P.OpenR = 1; P.FootRY = F(-15 * e); P.FootRX = F(-6 * e); P.FootRRot = F(-38 * e);
                     P.Beak = F(.18 * (.5 + .5 * Math.Sin(u * 8)) * e); P.Look = Lerp(P.Look, .2, e); P.HeadTilt += 5 * ef; P.Lean += 4 * ef;
-                    P.Sfx = e > .3 ? "안녕" : null; P.SfxAt = new PointF(92, 66); P.SfxSize = 24; P.SfxT = F(u);
+                    P.Sfx = e > .3 ? Loc.T("안녕") : null; P.SfxAt = new PointF(92, 66); P.SfxSize = 24; P.SfxT = F(u);
                     break;
             }
         }
@@ -379,7 +379,7 @@ namespace Bugi
             P.HeadTilt = F(-5 + Math.Sin(t * .7) * 1.5); P.HeadY = -1;
             P.Beak = 0; P.Tuft = F(Math.Sin(t * .9) * 3); P.TuftWave = 3; P.TuftPhase = F(t * 1.4);
             P.WingLA = F(26 + Math.Sin(t * .6) * 2); P.WingRA = F(26 - Math.Sin(t * .6) * 2); P.WingLB = 12; P.WingRB = 12;
-            P.Sfx = "멍..."; P.SfxAt = new PointF(212, -4); P.SfxSize = 22; P.SfxT = F(t * .5);
+            P.Sfx = Loc.T("멍..."); P.SfxAt = new PointF(212, -4); P.SfxSize = 22; P.SfxT = F(t * .5);
             P.TailWag = F(Math.Sin(t * .8) * 3);
         }
 

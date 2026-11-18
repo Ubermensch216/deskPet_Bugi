@@ -46,16 +46,16 @@ namespace Bugi
         internal HourlyNotice(Icon icon)
         {
             scale = Math.Max(1, Native.SystemDpiScale()); AutoScaleMode = AutoScaleMode.None;
-            Text = "부기 · 정각 알림"; FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.Manual;
+            Text = Loc.T("부기 · 정각 알림"); FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = true; TopMost = true; MaximizeBox = false; MinimizeBox = false; DoubleBuffered = true;
             BackColor = Paper; ForeColor = Ink; if (icon != null) Icon = icon;
-            header = LabelAt("부기", 178, 24, 120, 22, 9.5f, Color.White, Blue, FontStyle.Bold);
-            caption = LabelAt("정각 알림", 178, 49, 150, 19, 9, OnBlueSoft, Blue, FontStyle.Regular);
+            header = LabelAt(Loc.T("부기"), 178, 24, 120, 22, 9.5f, Color.White, Blue, FontStyle.Bold);
+            caption = LabelAt(Loc.T("정각 알림"), 178, 49, 150, 19, 9, OnBlueSoft, Blue, FontStyle.Regular);
             clock = LabelAt("00:00", 172, 68, 180, 72, 38, Color.White, Blue, FontStyle.Regular); clock.Font = OwnFont("Segoe UI", 38, FontStyle.Regular);
             message = LabelAt("", 24, HeaderHeight + 18, 312, 46, 10.5f, Ink, Paper, FontStyle.Regular);
-            close = new CardButton(true, Blue, BlueHover, Blue) { Text = "×", Name = "close", AccessibleName = "알림 닫기", Bounds = Rect(311, 15, 32, 32), Font = OwnFont("Segoe UI", 14, FontStyle.Regular) };
+            close = new CardButton(true, Blue, BlueHover, Blue) { Text = "×", Name = "close", AccessibleName = Loc.T("알림 닫기"), Bounds = Rect(311, 15, 32, 32), Font = OwnFont("Segoe UI", 14, FontStyle.Regular) };
             close.Click += delegate { Close(); }; Controls.Add(close);
-            confirm = new CardButton(false, Blue, BlueHover, Paper) { Text = "확인했어", Name = "confirm", Bounds = Rect(239, 218, 97, 38), Font = OwnFont("Malgun Gothic", 9.5f, FontStyle.Regular) };
+            confirm = new CardButton(false, Blue, BlueHover, Paper) { Text = Loc.T("확인했어"), Name = "confirm", Bounds = Rect(239, 218, 97, 38), Font = OwnFont("Malgun Gothic", 9.5f, FontStyle.Regular) };
             confirm.Click += delegate { Close(); }; Controls.Add(confirm); AcceptButton = confirm; CancelButton = close;
             ClientSize = new Size(Pixel(360), Pixel(277));
             header.MouseDown += DragCard; caption.MouseDown += DragCard; clock.MouseDown += DragCard; MouseDown += DragCard;

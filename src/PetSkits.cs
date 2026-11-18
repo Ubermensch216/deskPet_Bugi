@@ -16,20 +16,20 @@ namespace Bugi
         {
             switch (s)
             {
-                case Skit.Hello: return "안녕 (p27)";
-                case Skit.Laugh: return "ㅋㅋ 웃음 (p27)";
-                case Skit.HeartHug: return "하트 안기 (p29)";
-                case Skit.Hero: return "두두 등장 (p29)";
-                case Skit.Cheer: return "응원 (p30)";
-                case Skit.Proud: return "뿌듯 반짝 (p30)";
-                case Skit.Present: return "발표 (p31)";
-                case Skit.Blank: return "네..? (p31)";
+                case Skit.Hello: return Loc.T("안녕 (p27)");
+                case Skit.Laugh: return Loc.T("ㅋㅋ 웃음 (p27)");
+                case Skit.HeartHug: return Loc.T("하트 안기 (p29)");
+                case Skit.Hero: return Loc.T("두두 등장 (p29)");
+                case Skit.Cheer: return Loc.T("응원 (p30)");
+                case Skit.Proud: return Loc.T("뿌듯 반짝 (p30)");
+                case Skit.Present: return Loc.T("발표 (p31)");
+                case Skit.Blank: return Loc.T("네..? (p31)");
                 case Skit.Good: return "Good! (p32)";
                 case Skit.Okay: return "OKAY! (p33)";
-                case Skit.Busy: return "분주분주 (p33)";
+                case Skit.Busy: return Loc.T("분주분주 (p33)");
                 case Skit.Busan: return "Busan is good (p34)";
-                case Skit.Travel: return "여행 (p34)";
-                default: return "토닥토닥 (p35)";
+                case Skit.Travel: return Loc.T("여행 (p34)");
+                default: return Loc.T("토닥토닥 (p35)");
             }
         }
 
@@ -77,7 +77,7 @@ namespace Bugi
                     P.WingLA = Lerp(P.WingLA, 150, e); P.WingLB = Lerp(P.WingLB, 128 + Math.Sin(t * 12) * 30, e);
                     P.FootRY = F(-15 * e); P.FootRX = F(-6 * e); P.FootRRot = F(-38 * e);
                     P.Lean = F(P.Lean + 4 * e); P.HeadTilt += 5 * f; P.Look = Lerp(P.Look, .2, e);
-                    P.Sfx = "안녕"; P.SfxAt = Pt(92, 66); P.SfxSize = 24;
+                    P.Sfx = Loc.T("안녕"); P.SfxAt = Pt(92, 66); P.SfxSize = 24;
                     L.HopY = F(-Math.Abs(sw) * 3 * S * e);
                     break;
                 case Skit.Laugh: // p27: 몸을 앞으로 접고 흔들며 눈을 감고 깔깔(ㅋ 표시가 둘러쌈)
@@ -105,7 +105,7 @@ namespace Bugi
                     P.WingLTo = Pt(Lerp(138, 150, e), Lerp(214, 226, e)); P.WingRTo = Pt(Lerp(262, 250, e), Lerp(214, 226, e));
                     P.FootLX = F(-8 * e); P.FootRX = F(8 * e); P.Brow = F(.22 * e); P.Look = 0;
                     P.Lean = F(P.Lean - 2 * e); P.Tuft = F(P.Tuft + 14 * e); P.TuftWave = 6;
-                    P.Sfx = "두두 등장"; P.SfxAt = Pt(200, -22); P.SfxSize = 20;
+                    P.Sfx = Loc.T("두두 등장"); P.SfxAt = Pt(200, -22); P.SfxSize = 20;
                     break;
                 case Skit.Cheer: // p30: 노란 응원 술을 흔들며 다리를 번갈아 차올리고 반짝반짝
                 {
@@ -135,7 +135,7 @@ namespace Bugi
                     SkitFace(P, EyeStyle.Dot);
                     P.Gray = true; P.WingLA = 14; P.WingRA = 14; P.WingLB = 8; P.WingRB = 8;
                     P.HeadTilt += F(5 * e); P.Look = Lerp(0, .15, e); P.Gy = F(.1 * e);
-                    P.Sfx = "네.. ?"; P.SfxAt = Pt(200, -30); P.SfxSize = 18;
+                    P.Sfx = Loc.T("네.. ?"); P.SfxAt = Pt(200, -30); P.SfxSize = 18;
                     break;
                 case Skit.Good: // p32: 날개를 부리 옆으로 올려 엄지척, "Good!"
                     SkitFace(P, EyeStyle.Dot, .22f * f);
@@ -158,7 +158,7 @@ namespace Bugi
                     P.Prop = PropKind.Laptop; P.Gy = .9f; P.Gx = 0;
                     P.WingRTo = Pt(F(Lerp(262, 230, e) + Math.Sin(t * 13) * 4 * e), F(Lerp(214, 214, e) + Math.Cos(t * 13) * 3 * e)); P.WingLTo = Pt(Lerp(138, 168, e), Lerp(214, 218, e));
                     P.HeadTilt = F(-3 + Math.Sin(t * 13) * 1.2); P.HeadY += F(3 * e);
-                    P.Sfx = "분주분주분주분주분주\n분주분주분주분주분주"; P.SfxAt = Pt(200, -34); P.SfxSize = 14;
+                    P.Sfx = Loc.T("분주분주분주분주분주\n분주분주분주분주분주"); P.SfxAt = Pt(200, -34); P.SfxSize = 14;
                     break;
                 case Skit.Busan: // p34: 목걸이 명찰을 걸고 "Busan is good" 표지판 옆을 신나게 걷는다
                 {
@@ -188,7 +188,7 @@ namespace Bugi
                     SkitFace(P, EyeStyle.Happy, .1f * f);
                     P.WingRTo = Pt(Lerp(262, 238, e), F(Lerp(214, 176, e) + Math.Sin(t * 8) * 10 * e));
                     P.HeadTilt += F(6 * e); P.Blush = F(.35 * e); P.Hearts = F(t * .6);
-                    P.Sfx = "토닥토닥"; P.SfxAt = Pt(300, 60); P.SfxSize = 22;
+                    P.Sfx = Loc.T("토닥토닥"); P.SfxAt = Pt(300, 60); P.SfxSize = 22;
                     break;
             }
             // 처음엔 소품 없이 짧게 서 있다가 시작하도록 효과(글자·하트)는 동작이 본격적으로 나올 때만 보인다

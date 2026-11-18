@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -69,9 +69,9 @@ namespace Bugi
     /// </summary>
     internal sealed class PowerBar : Control
     {
-        private static readonly string[] LightNames = { "시간대 확인", "기록 알림" };
+        private static string[] LightNames { get { return new[] { Loc.T("시간대 확인"), Loc.T("기록 알림") }; } }
         private static readonly string[] Glyphs = { "", "" };   // 시계 · 종 (Segoe MDL2 Assets)
-        private static readonly string[] Fallback = { "시", "알" };
+        private static string[] Fallback { get { return new[] { Loc.T("시"), Loc.T("알") }; } }
         private static bool? hasGlyphFont;
         private readonly ToolTip tips; private bool on; private string detail = ""; private bool[] lit = new bool[2]; private int hotLight = -1; private bool hotButton;
         internal event EventHandler Toggled;
@@ -80,7 +80,7 @@ namespace Bugi
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
             this.tips = tips; Size = new Size(500, 66); TabStop = true; Margin = new Padding(0, 6, 0, 6);
-            AccessibleName = "오늘 초과근무 알림"; AccessibleRole = AccessibleRole.CheckButton;
+            AccessibleName = Loc.T("오늘 초과근무 알림"); AccessibleRole = AccessibleRole.CheckButton;
         }
 
         private static bool GlyphFont { get { if (hasGlyphFont == null) hasGlyphFont = FontFamily.Families.Any(f => f.Name == "Segoe MDL2 Assets"); return hasGlyphFont.Value; } }
@@ -95,7 +95,7 @@ namespace Bugi
             bool same = on == isOn && detail == text && lit.SequenceEqual(isLit);
             if (same) return;
             on = isOn; detail = text; lit = (bool[])isLit.Clone(); Invalidate();
-            AccessibleDefaultActionDescription = on ? "끄기" : "켜기";
+            AccessibleDefaultActionDescription = on ? Loc.T("끄기") : Loc.T("켜기");
         }
 
         private bool InButton(Point p) { var c = ButtonCenter; float dx = p.X - c.X, dy = p.Y - c.Y; return dx * dx + dy * dy <= ButtonRadius * ButtonRadius; }
@@ -105,11 +105,11 @@ namespace Bugi
         {
             bool hb = InButton(e.Location); int hl = LightAt(e.Location);
             Cursor = hb ? Cursors.Hand : Cursors.Default;
-            if (hb != hotButton) { hotButton = hb; Invalidate(); tips.SetToolTip(this, hb ? (on ? "오늘 초과근무 알림 — 끄기" : "오늘 초과근무 알림 — 켜기\n초과근무하는 날에만 켜세요. 다음 날이 되면 저절로 꺼져요.") : ""); }
+            if (hb != hotButton) { hotButton = hb; Invalidate(); tips.SetToolTip(this, hb ? (on ? Loc.T("오늘 초과근무 알림 — 끄기") : Loc.T("오늘 초과근무 알림 — 켜기\n초과근무하는 날에만 켜세요. 다음 날이 되면 저절로 꺼져요.")) : ""); }
             if (hl != hotLight)
             {
                 hotLight = hl;
-                if (hl >= 0) tips.SetToolTip(this, LightNames[hl] + " · " + (!on ? "꺼짐" : lit[hl] ? "작동 중" : "쉬는 중"));
+                if (hl >= 0) tips.SetToolTip(this, LightNames[hl] + " · " + (!on ? Loc.T("꺼짐") : lit[hl] ? Loc.T("작동 중") : Loc.T("쉬는 중")));
                 else if (!hb) tips.SetToolTip(this, "");
             }
             base.OnMouseMove(e);
@@ -153,7 +153,7 @@ namespace Bugi
             }
             // 상태 줄
             using (var f = new Font("Malgun Gothic", 9.5f, FontStyle.Bold))
-                TextRenderer.DrawText(g, on ? "작동 중 · " + detail : "꺼짐", f, new Rectangle((int)(70 * s), (int)(9 * s), Width - (int)(80 * s), (int)(22 * s)), on ? Color.White : Color.FromArgb(82, 96, 121), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(g, on ? Loc.T("작동 중 · ") + detail : Loc.T("꺼짐"), f, new Rectangle((int)(70 * s), (int)(9 * s), Width - (int)(80 * s), (int)(22 * s)), on ? Color.White : Color.FromArgb(82, 96, 121), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             // 기능 표시등
             for (int i = 0; i < 2; i++)
             {
@@ -387,10 +387,10 @@ namespace Bugi
             using (var fs = new Font("Malgun Gothic", 8.5f, FontStyle.Bold)) using (var ff = new Font("Malgun Gothic", 8f))
             {
                 var top = new Rectangle(0, 0, Width, hdr - (int)(4 * s));
-                TextRenderer.DrawText(g, "초근", fb, new Rectangle(0, 0, band, top.Height), grey, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-                TextRenderer.DrawText(g, "근무시간", fb, new Rectangle(xTime, 0, xStat - xTime, top.Height), grey, flags);
-                TextRenderer.DrawText(g, "상태", fb, new Rectangle(xStat, 0, xRec - xStat, top.Height), grey, flags);
-                TextRenderer.DrawText(g, "기록시각", fb, new Rectangle(xRec, 0, Width - xRec, top.Height), grey, flags);
+                TextRenderer.DrawText(g, Loc.T("초근"), fb, new Rectangle(0, 0, band, top.Height), grey, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(g, Loc.T("근무시간"), fb, new Rectangle(xTime, 0, xStat - xTime, top.Height), grey, flags);
+                TextRenderer.DrawText(g, Loc.T("상태"), fb, new Rectangle(xStat, 0, xRec - xStat, top.Height), grey, flags);
+                TextRenderer.DrawText(g, Loc.T("기록시각"), fb, new Rectangle(xRec, 0, Width - xRec, top.Height), grey, flags);
                 using (var pen = new Pen(Color.FromArgb(206, 218, 240))) g.DrawLine(pen, 0, hdr - 1, Width, hdr - 1);
 
                 chips.Clear();
@@ -413,10 +413,10 @@ namespace Bugi
                         Color bg, fg; string text;
                         switch (x.Status)
                         {
-                            case SlotStatus.Recorded: bg = RecBg; fg = RecFg; text = "기록됨"; break;
-                            case SlotStatus.Pending: bg = PenBg; fg = PenFg; text = "기록 전"; break;
-                            case SlotStatus.Missed: bg = MisBg; fg = MisFg; text = "미기록"; break;
-                            default: bg = UpBg; fg = UpFg; text = "미도래"; break;
+                            case SlotStatus.Recorded: bg = RecBg; fg = RecFg; text = Loc.T("기록됨"); break;
+                            case SlotStatus.Pending: bg = PenBg; fg = PenFg; text = Loc.T("기록 전"); break;
+                            case SlotStatus.Missed: bg = MisBg; fg = MisFg; text = Loc.T("미기록"); break;
+                            default: bg = UpBg; fg = UpFg; text = Loc.T("미도래"); break;
                         }
                         Size ts = TextRenderer.MeasureText(text, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
                         var chip = new Rectangle(xStat, y + (row - (int)(20 * s)) / 2, ts.Width + (int)(14 * s), (int)(20 * s)); chips.Add(chip);
@@ -444,7 +444,7 @@ namespace Bugi
                             g.DrawLine(pen, bx, y + 2, bx, y + fh - 2);
 
                         // 배지: [근무시간] 또는 [미사용]
-                        string tagText = isBasic ? "근무시간" : "미사용";
+                        string tagText = isBasic ? Loc.T("근무시간") : Loc.T("미사용");
                         Size tagSz = TextRenderer.MeasureText(tagText, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
                         var tagRc = new Rectangle(xTime, y + (fh - (int)(18 * s)) / 2, tagSz.Width + (int)(10 * s), (int)(18 * s));
                         Color tagBg = isBasic ? (overlapsOt ? Color.FromArgb(245, 222, 188) : Color.FromArgb(219, 228, 240)) : Color.FromArgb(225, 230, 238);
@@ -453,12 +453,12 @@ namespace Bugi
                         TextRenderer.DrawText(g, tagText, fs, tagRc, tagFg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
                         // 시간 범위 · 안내 문구
-                        string rangeLabel = OvertimeState.HourText(it.StartHour) + " ~ " + OvertimeState.HourText(it.EndHour) + " (" + hours + "시간)";
+                        string rangeLabel = OvertimeState.HourText(it.StartHour) + " ~ " + OvertimeState.HourText(it.EndHour) + " " + Loc.TF("({0}시간)", hours);
                         string desc = isBasic
-                            ? (overlapsOt ? " · 초근 범위와 겹침(기록 제외 중)" : " · 정규 근무시간(기록 제외)")
-                            : " · 미사용 숨김(알림 없음)";
+                            ? (overlapsOt ? Loc.T(" · 초근 범위와 겹침(기록 제외 중)") : Loc.T(" · 정규 근무시간(기록 제외)"))
+                            : Loc.T(" · 미사용 숨김(알림 없음)");
                         int xDesc = tagRc.Right + (int)(8 * s);
-                        string actText = isBasic ? "휴일·해제 ✕" : "숨김 해제 ✕";
+                        string actText = isBasic ? Loc.T("휴일·해제 ✕") : Loc.T("숨김 해제 ✕");
                         Size actSz = TextRenderer.MeasureText(actText, fs, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPadding);
                         int actW = actSz.Width + (int)(14 * s), actH = (int)(18 * s);
                         it.ActionRect = new Rectangle(Width - actW - (int)(8 * s), y + (fh - actH) / 2, actW, actH);
@@ -491,7 +491,7 @@ namespace Bugi
                         using (var br = new SolidBrush(bandOn)) using (var p = ChoiceStrip.RoundRect(Rectangle.Round(bar), (int)bw)) g.FillPath(br, p);
                         i = k;
                     }
-                    DrawHandle(g, Edge.Start, "시작"); DrawHandle(g, Edge.End, "끝");
+                    DrawHandle(g, Edge.Start, Loc.T("시작")); DrawHandle(g, Edge.End, Loc.T("끝"));
                 }
             }
         }
@@ -568,8 +568,8 @@ namespace Bugi
             banner.Paint += delegate(object o, PaintEventArgs e)
             { e.Graphics.SmoothingMode = SmoothingMode.AntiAlias; using (var p = ChoiceStrip.RoundRect(new Rectangle(0, 0, banner.Width - 1, banner.Height - 1), 9)) using (var br = new SolidBrush(Color.FromArgb(251, 240, 221))) e.Graphics.FillPath(br, p); };
             bannerText = new Label { Left = 14, Top = 0, Width = 340, Height = 42, ForeColor = Color.FromArgb(154, 91, 0), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Malgun Gothic", 9f, FontStyle.Bold) };
-            bRecord = new Button { Text = "기록했어요", Left = 380, Top = 7, Width = 106, Height = 28 }; bRecord.Click += delegate { RecordPending(); };
-            tips.SetToolTip(bRecord, "인사랑에서 이 시간대를 기록했으면 눌러서 표시해요.\n(부기는 인사랑에 접속하지 않아요)");
+            bRecord = new Button { Text = Loc.T("기록했어요"), Left = 380, Top = 7, Width = 106, Height = 28 }; bRecord.Click += delegate { RecordPending(); };
+            tips.SetToolTip(bRecord, Loc.T("인사랑에서 이 시간대를 기록했으면 눌러서 표시해요.\n(부기는 인사랑에 접속하지 않아요)"));
             banner.Controls.AddRange(new Control[] { bannerText, bRecord });
             Controls.Add(banner);
 
@@ -580,35 +580,35 @@ namespace Bugi
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias; bool active = IsActive(DateTime.Now);
                 using (var p = ChoiceStrip.RoundRect(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 9)) using (var br = new SolidBrush(active ? Color.FromArgb(232, 241, 253) : Color.FromArgb(241, 244, 248))) e.Graphics.FillPath(br, p);
             };
-            basicTag = MakeTag("근무시간", 10, 8, Color.White, Color.FromArgb(82, 96, 121));
+            basicTag = MakeTag(Loc.T("근무시간"), 10, 8, Color.White, Color.FromArgb(82, 96, 121));
             basicTag.Cursor = Cursors.Hand; basicTag.Click += delegate { ToggleBasic(); };
-            tips.SetToolTip(basicTag, "누르면 정규 근무시간 제외(평일) ↔ 근무시간 없음(휴일·연차)을 바로 전환해요.");
+            tips.SetToolTip(basicTag, Loc.T("누르면 정규 근무시간 제외(평일) ↔ 근무시간 없음(휴일·연차)을 바로 전환해요."));
             basicFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 80, Top = 6, Width = 62 };
             basicTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 160, Top = 6, Width = 62 };
             basicFrom.Value = now.Date.AddMinutes(st.BasicStartMin); basicTo.Value = now.Date.AddMinutes(st.BasicEndMin);
             basicFrom.ValueChanged += delegate { BasicChanged(); }; basicTo.ValueChanged += delegate { BasicChanged(); };
-            tips.SetToolTip(basicFrom, "근무시간 시작 시각\n시작과 끝을 모두 00:00으로 두면 근무시간이 없어요(휴일 근무 등)."); tips.SetToolTip(basicTo, "근무시간 끝 시각\n근무시간은 초과근무 기록 대상이 아니라서 시간표에서 접혀요.");
+            tips.SetToolTip(basicFrom, Loc.T("근무시간 시작 시각\n시작과 끝을 모두 00:00으로 두면 근무시간이 없어요(휴일 근무 등).")); tips.SetToolTip(basicTo, Loc.T("근무시간 끝 시각\n근무시간은 초과근무 기록 대상이 아니라서 시간표에서 접혀요."));
             card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 145, Top = 10, BackColor = Color.Transparent, ForeColor = Ink });
             basicQuick = MakeQuickPill(228, 8, delegate { ToggleBasic(); });
-            tips.SetToolTip(basicQuick, "휴일·연차일 때 근무시간을 없애거나(00:00~00:00), 평일 근무시간(09:00~18:00)을 한 번에 복원해요.");
-            basicHint = new Label { Text = "기록 대상 아님", AutoSize = true, Left = 316, Top = 11, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
+            tips.SetToolTip(basicQuick, Loc.T("휴일·연차일 때 근무시간을 없애거나(00:00~00:00), 평일 근무시간(09:00~18:00)을 한 번에 복원해요."));
+            basicHint = new Label { Text = Loc.T("기록 대상 아님"), AutoSize = true, Left = 316, Top = 11, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
 
             // 미사용 시간대: 표에서 접히고 알리지도 않는다. 시작과 끝을 같게 하면 없음, 시작이 끝보다 늦으면 자정을 넘긴다.
-            unusedTag = MakeTag("미사용", 10, 44, Color.White, Color.FromArgb(82, 96, 121));
+            unusedTag = MakeTag(Loc.T("미사용"), 10, 44, Color.White, Color.FromArgb(82, 96, 121));
             unusedTag.Cursor = Cursors.Hand; unusedTag.Click += delegate { ToggleUnused(); };
-            tips.SetToolTip(unusedTag, "누르면 심야·미사용 시간대 숨김 ↔ 전체 시간대 표시를 바로 전환해요.");
+            tips.SetToolTip(unusedTag, Loc.T("누르면 심야·미사용 시간대 숨김 ↔ 전체 시간대 표시를 바로 전환해요."));
             unusedFrom = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 80, Top = 42, Width = 62 };
             unusedTo = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Left = 160, Top = 42, Width = 62 };
             unusedFrom.Value = now.Date.AddMinutes(st.UnusedStartMin); unusedTo.Value = now.Date.AddMinutes(st.UnusedEndMin);
             unusedFrom.ValueChanged += delegate { UnusedChanged(); }; unusedTo.ValueChanged += delegate { UnusedChanged(); };
-            tips.SetToolTip(unusedFrom, "미사용 시간대 시작 시각\n시작과 끝을 같게 두면 미사용 시간이 없어요.\n시작이 끝보다 늦으면 자정을 넘겨요(예: 23:00 ~ 07:00).");
-            tips.SetToolTip(unusedTo, "미사용 시간대 끝 시각\n이 시간대는 시간표에서 접혀 있고 알리지도 않아요.");
+            tips.SetToolTip(unusedFrom, Loc.T("미사용 시간대 시작 시각\n시작과 끝을 같게 두면 미사용 시간이 없어요.\n시작이 끝보다 늦으면 자정을 넘겨요(예: 23:00 ~ 07:00)."));
+            tips.SetToolTip(unusedTo, Loc.T("미사용 시간대 끝 시각\n이 시간대는 시간표에서 접혀 있고 알리지도 않아요."));
             card.Controls.Add(new Label { Text = "~", AutoSize = true, Left = 145, Top = 46, BackColor = Color.Transparent, ForeColor = Ink });
             unusedQuick = MakeQuickPill(228, 44, delegate { ToggleUnused(); });
-            tips.SetToolTip(unusedQuick, "자주 쓰지 않는 새벽 시간대(00:00~08:00)를 한 번에 숨기거나 다시 펼쳐요.");
+            tips.SetToolTip(unusedQuick, Loc.T("자주 쓰지 않는 새벽 시간대(00:00~08:00)를 한 번에 숨기거나 다시 펼쳐요."));
             unusedHint = new Label { Text = "", AutoSize = true, Left = 316, Top = 47, ForeColor = Color.FromArgb(123, 135, 152), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
 
-            otTag = MakeTag("초근", 10, 80, FriendUI.Blue, Color.White);
+            otTag = MakeTag(Loc.T("초근"), 10, 80, FriendUI.Blue, Color.White);
             otText = new Label { AutoSize = true, Left = 80, Top = 82, Font = new Font("Malgun Gothic", 9.5f, FontStyle.Bold), ForeColor = Ink, BackColor = Color.Transparent };
             otHours = new Label { AutoSize = true, Left = 196, Top = 84, ForeColor = Color.FromArgb(82, 96, 121), BackColor = Color.Transparent, Font = new Font("Malgun Gothic", 8.5f) };
             card.Controls.AddRange(new Control[] { basicTag, basicFrom, basicTo, basicQuick, basicHint, unusedTag, unusedFrom, unusedTo, unusedQuick, unusedHint, otTag, otText, otHours });
@@ -636,11 +636,11 @@ namespace Bugi
                     if (target.Enabled) target.Focus();
                 }
             };
-            tips.SetToolTip(board, "왼쪽 띠의 시작 · 끝 손잡이를 위아래로 끌면 초근 시간이 바뀌어요.\n띠 밖의 줄을 누르면 그 줄까지 넓어져요.\n접힌 [근무시간] · [미사용] 줄의 오른쪽 단추를 누르면 즉시 펼쳐져요.\n상태 알약을 누르면 그 시간대를 기록함 ↔ 기록 전으로 바꿔요.");
+            tips.SetToolTip(board, Loc.T("왼쪽 띠의 시작 · 끝 손잡이를 위아래로 끌면 초근 시간이 바뀌어요.\n띠 밖의 줄을 누르면 그 줄까지 넓어져요.\n접힌 [근무시간] · [미사용] 줄의 오른쪽 단추를 누르면 즉시 펼쳐져요.\n상태 알약을 누르면 그 시간대를 기록함 ↔ 기록 전으로 바꿔요."));
             Controls.Add(board);
 
             howTo = new Label { AutoSize = true, MaximumSize = new Size(488, 0), ForeColor = Color.DimGray, Margin = new Padding(3, 4, 3, 3),
-                Text = "알림이 오면 인사랑에서 직접 기록한 뒤 알림 속 부기를 누르거나 '기록했어요'를 눌러 표시하면, 그 시간대는 더 알리지 않아요.\n한 시간에 두 번(정각 뒤 3~10분 사이 · 45분) 알려 주고, 초근 시간 밖에는 알리지 않아요." };
+                Text = Loc.T("알림이 오면 인사랑에서 직접 기록한 뒤 알림 속 부기를 누르거나 '기록했어요'를 눌러 표시하면, 그 시간대는 더 알리지 않아요.\n한 시간에 두 번(정각 뒤 3~10분 사이 · 45분) 알려 주고, 초근 시간 밖에는 알리지 않아요.") };
             Controls.Add(howTo);
 
             live = new System.Windows.Forms.Timer { Interval = 1000 }; live.Tick += delegate { if (Visible && IsHandleCreated) Refresh(); };
@@ -751,12 +751,12 @@ namespace Bugi
             power.Set(watch, OvertimeState.HourText(st.StartHour) + " ~ " + OvertimeState.HourText(st.EndHour), new[] { active && now.Hour < st.EndHour, active && now.Hour < st.EndHour });
 
             // 마지막 확인 · 지금 기록할 시간대
-            if (!watch) SetText(checkLine, "오늘 초과근무 알림이 꺼져 있어요. 왼쪽 위 전원 단추를 눌러 켜세요.");
-            else if (st.LastCheckAt == DateTime.MinValue) SetText(checkLine, "아직 확인 전이에요. 초근 시간(" + OvertimeState.HourText(st.StartHour) + " ~ " + OvertimeState.HourText(st.EndHour) + ")에 시간대마다 알려 줄게요.");
-            else SetText(checkLine, "마지막 확인 " + st.LastCheckAt.ToString("HH:mm") + " · " + st.LastCheckMsg);
+            if (!watch) SetText(checkLine, Loc.T("오늘 초과근무 알림이 꺼져 있어요. 왼쪽 위 전원 단추를 눌러 켜세요."));
+            else if (st.LastCheckAt == DateTime.MinValue) SetText(checkLine, Loc.TF("아직 확인 전이에요. 초근 시간({0} ~ {1})에 시간대마다 알려 줄게요.", OvertimeState.HourText(st.StartHour), OvertimeState.HourText(st.EndHour)));
+            else SetText(checkLine, Loc.T("마지막 확인 ") + st.LastCheckAt.ToString("HH:mm") + " · " + st.LastCheckMsg);
             int pend = st.PendingHour(now);
             SetVisible(banner, pend >= 0);
-            if (pend >= 0) SetText(bannerText, OvertimeState.HourLabel(pend) + " 기록이 아직입니다.");
+            if (pend >= 0) SetText(bannerText, Loc.TF("{0} 기록이 아직입니다.", OvertimeState.HourLabel(pend)));
 
             // 근무시간 · 미사용 · 초근 카드
             if (!syncing && !basicFrom.Focused && !basicTo.Focused)
@@ -776,29 +776,29 @@ namespace Bugi
 
             bool hasBasic = st.BasicStartMin < st.BasicEndMin;
             bool hasUnused = st.UnusedStartMin != st.UnusedEndMin;
-            SetText(basicTag, "근무시간");
+            SetText(basicTag, Loc.T("근무시간"));
             basicTag.BackColor = hasBasic ? Color.FromArgb(68, 84, 106) : Color.White;
             basicTag.ForeColor = hasBasic ? Color.White : Color.FromArgb(123, 135, 152);
-            SetText(basicQuick, hasBasic ? "휴일·해제 ✕" : "평일 09~18");
-            SetText(basicHint, !hasBasic ? (OvertimeState.IsHoliday(now) ? "휴일 · 근무시간 없음" : "없음 · 전 시간대 표시") : "표에서 접힘 · 기록 제외");
+            SetText(basicQuick, hasBasic ? Loc.T("휴일·해제 ✕") : Loc.T("평일 09~18"));
+            SetText(basicHint, !hasBasic ? (OvertimeState.IsHoliday(now) ? Loc.T("휴일 · 근무시간 없음") : Loc.T("없음 · 전 시간대 표시")) : Loc.T("표에서 접힘 · 기록 제외"));
 
-            SetText(unusedTag, "미사용");
+            SetText(unusedTag, Loc.T("미사용"));
             unusedTag.BackColor = hasUnused ? Color.FromArgb(68, 84, 106) : Color.White;
             unusedTag.ForeColor = hasUnused ? Color.White : Color.FromArgb(123, 135, 152);
-            SetText(unusedQuick, hasUnused ? "숨김 해제 ✕" : "00~08 숨김");
-            SetText(unusedHint, !hasUnused ? "없음 · 전 시간대 표시" : st.UnusedStartMin > st.UnusedEndMin ? "표에서 접힘 · 자정 넘김" : "표에서 접힘 · 알림 없음");
+            SetText(unusedQuick, hasUnused ? Loc.T("숨김 해제 ✕") : Loc.T("00~08 숨김"));
+            SetText(unusedHint, !hasUnused ? Loc.T("없음 · 전 시간대 표시") : st.UnusedStartMin > st.UnusedEndMin ? Loc.T("표에서 접힘 · 자정 넘김") : Loc.T("표에서 접힘 · 알림 없음"));
 
             SetText(otText, OvertimeState.HourText(st.StartHour) + " ~ " + OvertimeState.HourText(st.EndHour));
             int span = Math.Max(0, st.EndHour - st.StartHour);
             int actual = Enumerable.Range(st.StartHour, span).Count(h => !st.IsHiddenHour(h));
             if (actual < span)
             {
-                SetText(otHours, "실제 " + actual + "시간 (전체 " + span + "시간 중 근무·미사용 " + (span - actual) + "시간 제외)");
+                SetText(otHours, Loc.TF("실제 {0}시간 (전체 {1}시간 중 근무·미사용 {2}시간 제외)", actual, span, span - actual));
                 otHours.ForeColor = Color.FromArgb(154, 91, 0);
             }
             else
             {
-                SetText(otHours, span + "시간");
+                SetText(otHours, Loc.TF("{0}시간", span));
                 otHours.ForeColor = Color.FromArgb(82, 96, 121);
             }
             Color tagBg = active ? FriendUI.Blue : Color.FromArgb(170, 181, 196); if (otTag.BackColor != tagBg) otTag.BackColor = tagBg;

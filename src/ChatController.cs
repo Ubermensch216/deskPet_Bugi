@@ -66,12 +66,12 @@ namespace Bugi
         {
             var o = ChatOptions.Current; double now = app.Now;
             if (p == null) return;
-            if (!o.Enabled) { Say(p, "AI 대화가 꺼져 있어. 설정 → AI 대화에서 켤 수 있어!"); return; }
+            if (!o.Enabled) { Say(p, Loc.T("AI 대화가 꺼져 있어. 설정 → AI 대화에서 켤 수 있어!")); return; }
             if (pet == p && input != null) { input.Focus(); return; }
             if (pet != null && pet != p) End();
             if (pet == null)
             {
-                if (!p.CanChat) { Say(p, "잠깐, 땅에 내려가서 얘기하자!"); return; }
+                if (!p.CanChat) { Say(p, Loc.T("잠깐, 땅에 내려가서 얘기하자!")); return; }
                 if (!p.BeginChat(app, p.ChatSide)) return;
                 pet = p; streaming = false; chipsWanted = true;
                 ChatMood mood; string hello = ChatPersona.Greeting(rng, DateTime.Now, out mood);
@@ -207,10 +207,10 @@ namespace Bugi
             {
                 case Kind.Probe:
                     if (e.Probe == ProbeResult.Offline)
-                        pet.ChatSayInstant(ChatMood.Sleepy, ChatOptions.Current.IsExaone ? "...zzz EXAONE 서버에 닿지 않아. 인터넷이 연결돼 있는지 봐 줄래?" : "...zzz 아직 못 일어나겠어. Ollama가 꺼져 있나 봐!");
-                    else if (e.Probe == ProbeResult.ModelMissing) pet.ChatSayInstant(ChatMood.Think, "내가 쓸 모델(" + ChatOptions.Current.ActiveModel + ")이 안 보여. 설정에서 이름을 확인해 줘!");
-                    else if (e.Probe == ProbeResult.NoKey) pet.ChatSayInstant(ChatMood.Think, "EXAONE API 키가 없어. 설정 → AI 대화에 키를 넣어 줘!");
-                    else if (e.Probe == ProbeResult.AuthFailed) pet.ChatSayInstant(ChatMood.Pout, "EXAONE이 키가 틀렸대. 설정에서 API 키를 확인해 줘!");
+                        pet.ChatSayInstant(ChatMood.Sleepy, ChatOptions.Current.IsExaone ? Loc.T("...zzz EXAONE 서버에 닿지 않아. 인터넷이 연결돼 있는지 봐 줄래?") : Loc.T("...zzz 아직 못 일어나겠어. Ollama가 꺼져 있나 봐!"));
+                    else if (e.Probe == ProbeResult.ModelMissing) pet.ChatSayInstant(ChatMood.Think, Loc.TF("내가 쓸 모델({0})이 안 보여. 설정에서 이름을 확인해 줘!", ChatOptions.Current.ActiveModel));
+                    else if (e.Probe == ProbeResult.NoKey) pet.ChatSayInstant(ChatMood.Think, Loc.T("EXAONE API 키가 없어. 설정 → AI 대화에 키를 넣어 줘!"));
+                    else if (e.Probe == ProbeResult.AuthFailed) pet.ChatSayInstant(ChatMood.Pout, Loc.T("EXAONE이 키가 틀렸대. 설정에서 API 키를 확인해 줘!"));
                     break;
                 case Kind.Token:
                     if (parser != null && parser.Feed(e.Text)) pet.ChatSay(parser.Mood, parser.Text, false);
@@ -219,7 +219,7 @@ namespace Bugi
                 {
                     streaming = false; lastActivity = now; chipsWanted = true;
                     ChatMood mood = parser.Mood; string text = parser.Text;
-                    if (string.IsNullOrEmpty(text)) { mood = ChatMood.Think; text = "음... 뭐라고 해야 할지 모르겠어."; }
+                    if (string.IsNullOrEmpty(text)) { mood = ChatMood.Think; text = Loc.T("음... 뭐라고 해야 할지 모르겠어."); }
                     pet.ChatSay(mood, text, true);
                     history.Add(new ChatMessage("assistant", "[" + ChatPersona.TagOf(mood) + "] " + text));
                     while (history.Count > 40) { history.RemoveAt(0); extractedUpTo = Math.Max(0, extractedUpTo - 1); }
@@ -230,10 +230,10 @@ namespace Bugi
                     if (history.Count > 0 && history[history.Count - 1].Role == "user") history.RemoveAt(history.Count - 1);
                     bool timeout = e.Text != null && (e.Text.Contains("초과") || e.Text.ToLowerInvariant().Contains("timeout"));
                     pet.ChatSayInstant(ChatMood.Sleepy, timeout
-                        ? "으음... 답변이 너무 늦어졌어. 모델을 불러오는 중일 수 있으니 잠시 뒤에 다시 말해 줄래?"
+                        ? Loc.T("으음... 답변이 너무 늦어졌어. 모델을 불러오는 중일 수 있으니 잠시 뒤에 다시 말해 줄래?")
                         : ChatOptions.Current.IsExaone
-                            ? (e.Text != null && e.Text.Contains("429") ? "으음... 지금 너무 많이 물어봤대. 조금 있다가 다시 말해 줄래?" : "으음... EXAONE 쪽에서 대답이 안 왔어. 인터넷이랑 API 키를 확인해 줄래?")
-                            : "으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?");
+                            ? (e.Text != null && e.Text.Contains("429") ? Loc.T("으음... 지금 너무 많이 물어봤대. 조금 있다가 다시 말해 줄래?") : Loc.T("으음... EXAONE 쪽에서 대답이 안 왔어. 인터넷이랑 API 키를 확인해 줄래?"))
+                            : Loc.T("으음... 잘 안 들렸어. Ollama가 켜져 있는지 확인해 줄래?"));
                     break;
                 case Kind.Silent:
                     streaming = false; End(); nextProactive = now + 600;
@@ -268,11 +268,11 @@ namespace Bugi
         private string ProactiveReason()
         {
             DateTime n = DateTime.Now; bool weekday = n.DayOfWeek != DayOfWeek.Saturday && n.DayOfWeek != DayOfWeek.Sunday;
-            if (FriendData.Current.Satiety <= 30) return "네가 출출해서 간식이 먹고 싶어";
-            if (n.Hour >= 23 || n.Hour < 5) return "사용자가 밤늦게까지 안 자고 있어";
-            if (n.Hour == 11 || n.Hour == 12) return "점심시간 무렵이야";
-            if (weekday && n.Hour >= 17 && n.Hour < 19) return "퇴근할 시간이 다가와";
-            string[] pool = { "그냥 심심하고 사용자가 뭘 하는지 궁금해", "사용자에게 잠깐 쉬어 가자고 말하고 싶어", "사용자의 오늘 하루가 어땠는지 궁금해" };
+            if (FriendData.Current.Satiety <= 30) return Loc.T("네가 출출해서 간식이 먹고 싶어");
+            if (n.Hour >= 23 || n.Hour < 5) return Loc.T("사용자가 밤늦게까지 안 자고 있어");
+            if (n.Hour == 11 || n.Hour == 12) return Loc.T("점심시간 무렵이야");
+            if (weekday && n.Hour >= 17 && n.Hour < 19) return Loc.T("퇴근할 시간이 다가와");
+            string[] pool = { Loc.T("그냥 심심하고 사용자가 뭘 하는지 궁금해"), Loc.T("사용자에게 잠깐 쉬어 가자고 말하고 싶어"), Loc.T("사용자의 오늘 하루가 어땠는지 궁금해") };
             return pool[rng.Next(pool.Length)];
         }
 
@@ -285,13 +285,13 @@ namespace Bugi
         {
             var o = ChatOptions.Current;
             var fresh = history.Skip(extractedUpTo).ToList(); extractedUpTo = history.Count;
-            if ((!o.Memory && !o.Diary) || fresh.Count(m => m.Role == "user" && !m.Content.StartsWith("(상황")) < 2) return;
+            if ((!o.Memory && !o.Diary) || fresh.Count(m => m.Role == "user" && !ChatPersona.IsSituation(m.Content)) < 2) return;
             var sb = new StringBuilder();
-            string speaker = charId == 1 ? "부캉이: " : "부기: ";
+            string speaker = charId == 1 ? Loc.T("부캉이: ") : Loc.T("부기: ");
             foreach (var m in fresh)
             {
-                if (m.Role == "user" && m.Content.StartsWith("(상황")) continue;
-                sb.Append(m.Role == "user" ? "사용자: " : speaker).Append(m.Content).Append('\n');
+                if (m.Role == "user" && ChatPersona.IsSituation(m.Content)) continue;
+                sb.Append(m.Role == "user" ? Loc.T("사용자: ") : speaker).Append(m.Content).Append('\n');
             }
             string transcript = sb.ToString(); DateTime when = DateTime.Now;
             new Thread(delegate ()

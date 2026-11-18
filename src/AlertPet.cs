@@ -213,7 +213,7 @@ namespace Bugi
         {
             this.app = app;
             AutoScaleMode = AutoScaleMode.None; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; TopMost = true;
-            Text = "부기 · 알림"; Size = new Size(1, 1); Location = new Point(-32000, -32000);
+            Text = Loc.T("부기 · 알림"); Size = new Size(1, 1); Location = new Point(-32000, -32000);
             area = Screen.FromPoint(Cursor.Position).WorkingArea;
             art = CharacterArt.Zoomed(character, Zoom / CharacterArt.SizeFactor);   // 캐릭터 크기 설정과 상관없이 화면 배율의 Zoom 배
             // 발바닥 위치: 몸통의 한가운데가 화면 한가운데에 오도록

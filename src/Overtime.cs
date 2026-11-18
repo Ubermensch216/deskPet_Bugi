@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -247,15 +247,15 @@ namespace Bugi
                 LastCheckAt = now; Touch();
                 if (PendingHour(now) < 0)
                 {
-                    LastCheckMsg = IsHiddenHour(now.Hour) ? "지금은 기본근무 · 미사용 시간대라 기록할 것이 없습니다." : HourLabel(now.Hour) + "은 이미 기록돼 있습니다.";
+                    LastCheckMsg = IsHiddenHour(now.Hour) ? Loc.T("지금은 기본근무 · 미사용 시간대라 기록할 것이 없습니다.") : Loc.TF("{0}은 이미 기록돼 있습니다.", HourLabel(now.Hour));
                     continue;
                 }
                 string label = HourLabel(now.Hour);
                 bool last = minute == LastCallMinute;
-                LastCheckMsg = label + (last ? " 마지막 알림을 보냈습니다." : " 기록 알림을 보냈습니다.");
+                LastCheckMsg = last ? Loc.TF("{0} 마지막 알림을 보냈습니다.", label) : Loc.TF("{0} 기록 알림을 보냈습니다.", label);
                 events.Add(new OvertimeEvent { Hour = now.Hour, Message = last
-                    ? label + " 시간대가 15분 남았어!\n아직 초과근무 기록 안 했지? 인사랑에서 기록하고 나를 눌러 줘~"
-                    : label + " 초과근무 기록할 시간이야!\n인사랑에 기록하고 나를 눌러 줘. '기록됨'으로 표시할게!" });
+                    ? Loc.TF("{0} 시간대가 15분 남았어!\n아직 초과근무 기록 안 했지? 인사랑에서 기록하고 나를 눌러 줘~", label)
+                    : Loc.TF("{0} 초과근무 기록할 시간이야!\n인사랑에 기록하고 나를 눌러 줘. '기록됨'으로 표시할게!", label) });
             }
             return events;
         }

@@ -310,7 +310,7 @@ namespace Bugi
                 lookJitterX = Math.Sin(animT * 21) * .45 * S;
             }
             if (hungry && (IsCompanionFloorPose || State == PetState.TouchCry) && string.IsNullOrEmpty(look.Bubble) && now >= flowerUntil)
-                look.Bubble = "배고파! 간식줘 ㅠㅠ";
+                look.Bubble = Loc.T("배고파! 간식줘 ㅠㅠ");
             if (now < flowerUntil && IsCompanionFloorPose && !previewIdleCry)
             {
                 look.Pose = new Pose(); FlowerPose(look.Pose, now);

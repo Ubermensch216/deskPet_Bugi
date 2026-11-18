@@ -153,13 +153,13 @@ namespace Bugi
         internal void Feed(IWorld w)
         {
             if (State == PetState.Drag || State == PetState.Falling || State == PetState.Thrown || State == PetState.PilotRise)
-            { Bubble = "내려가면 간식 먹자!"; BubbleUntil = w.Now + 3; return; }
+            { Bubble = Loc.T("내려가면 간식 먹자!"); BubbleUntil = w.Now + 3; return; }
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb)
             { ClearAttachments(); SetState(PetState.Falling, w); return; }
             if (!FriendData.Current.TrySnack())
-            { Bubble = "배가 꽉 찼어! 조금 출출해지면 먹자"; BubbleUntil = w.Now + 3; return; }
+            { Bubble = Loc.T("배가 꽉 찼어! 조금 출출해지면 먹자"); BubbleUntil = w.Now + 3; return; }
             AfterReaction = PetState.Walk; extraDuration = 3;
-            SetState(PetState.Eating, w); Bubble = "냠냠! 고마워"; BubbleUntil = w.Now + 3;
+            SetState(PetState.Eating, w); Bubble = Loc.T("냠냠! 고마워"); BubbleUntil = w.Now + 3;
             mouseGrace = w.Now + 5; DelayIdle(w);
         }
 
@@ -186,7 +186,7 @@ namespace Bugi
                     X = approachSide == 1 ? WallX(win.Bounds.Right, win.Bounds.Right, -1, false) : WallX(win.Bounds.Left, win.Bounds.Left, 1, false);
                     Y = Math.Min(Area.Bottom, win.Bounds.Bottom) - BottomExt(false); SetState(PetState.WindowClimb, w);
                 }
-                else { Bubble = "창 크기를 줄여서 띄워줘!"; BubbleUntil = w.Now + 4; }
+                else { Bubble = Loc.T("창 크기를 줄여서 띄워줘!"); BubbleUntil = w.Now + 4; }
                 return;
             }
             if (State == PetState.Falling || State == PetState.Drag || State == PetState.Thrown) return;
@@ -497,12 +497,12 @@ namespace Bugi
                 case RestPose.Daydream: extraDuration = baseSeconds * .75; break;
                 case RestPose.Stretch: extraDuration = 4.2; break;
                 case RestPose.Lie: extraDuration = Math.Max(7, baseSeconds * 1.2); break;
-                case RestPose.Selfie: extraDuration = 4.6; Bubble = "찰칵! 셀카 찍자~"; BubbleUntil = w.Now + 3.4; break;
+                case RestPose.Selfie: extraDuration = 4.6; Bubble = Loc.T("찰칵! 셀카 찍자~"); BubbleUntil = w.Now + 3.4; break;
                 case RestPose.Cool: extraDuration = 7.4; break;
-                case RestPose.Guide: extraDuration = 5.6; Bubble = Art.Id == 1 ? "이쪽으로 안내할게요! 부캉캉캉~" : "이쪽으로 안내할게요!"; BubbleUntil = w.Now + 4.2; break;
-                case RestPose.Bow: extraDuration = 4.6; Bubble = Art.Id == 1 ? "안녕하세요! 부캉이입니다" : "안녕하세요! 부기입니다"; BubbleUntil = w.Now + 3.8; break;
-                case RestPose.IdCard: extraDuration = 5.2; Bubble = "부산 최고!"; BubbleUntil = w.Now + 4.0; break;
-                case RestPose.Flag: extraDuration = 5.6; Bubble = "부산 파이팅!"; BubbleUntil = w.Now + 4.4; break;
+                case RestPose.Guide: extraDuration = 5.6; Bubble = Art.Id == 1 ? Loc.T("이쪽으로 안내할게요! 부캉캉캉~") : Loc.T("이쪽으로 안내할게요!"); BubbleUntil = w.Now + 4.2; break;
+                case RestPose.Bow: extraDuration = 4.6; Bubble = Art.Id == 1 ? Loc.T("안녕하세요! 부캉이입니다") : Loc.T("안녕하세요! 부기입니다"); BubbleUntil = w.Now + 3.8; break;
+                case RestPose.IdCard: extraDuration = 5.2; Bubble = Loc.T("부산 최고!"); BubbleUntil = w.Now + 4.0; break;
+                case RestPose.Flag: extraDuration = 5.6; Bubble = Loc.T("부산 파이팅!"); BubbleUntil = w.Now + 4.4; break;
                 case RestPose.Skit: extraDuration = SkitSeconds(skit); break;
                 case RestPose.Mine: extraDuration = Math.Max(6.8, Math.Min(14, baseSeconds * .8)); break;
                 case RestPose.Search: extraDuration = Math.Max(8, Math.Min(16, baseSeconds * .8)); break;

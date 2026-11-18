@@ -57,8 +57,9 @@ namespace Bugi
 
         internal string Describe()
         {
-            string unit; switch (Frequency) { case RecurrenceFrequency.Daily: unit = "일"; break; case RecurrenceFrequency.Weekly: unit = "주"; break; case RecurrenceFrequency.Monthly: unit = "개월"; break; default: unit = "년"; break; }
-            return Interval == 1 ? "매" + (Frequency == RecurrenceFrequency.Daily ? "일" : Frequency == RecurrenceFrequency.Weekly ? "주" : Frequency == RecurrenceFrequency.Monthly ? "달" : "년") + " 반복" : Interval + unit + "마다 반복";
+            // 간격이 1이면 "매일·매주·매달·매년 반복", 아니면 "N일·N주·N개월·N년마다 반복"
+            if (Interval == 1) { switch (Frequency) { case RecurrenceFrequency.Daily: return Loc.T("매일 반복"); case RecurrenceFrequency.Weekly: return Loc.T("매주 반복"); case RecurrenceFrequency.Monthly: return Loc.T("매달 반복"); default: return Loc.T("매년 반복"); } }
+            switch (Frequency) { case RecurrenceFrequency.Daily: return Loc.TF("{0}일마다 반복", Interval); case RecurrenceFrequency.Weekly: return Loc.TF("{0}주마다 반복", Interval); case RecurrenceFrequency.Monthly: return Loc.TF("{0}개월마다 반복", Interval); default: return Loc.TF("{0}년마다 반복", Interval); }
         }
     }
 

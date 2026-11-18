@@ -71,6 +71,35 @@ namespace Bugi
             if (t.Contains("생각") || t.Contains("고민")) return ChatMood.Think;
             if (t.Contains("삐") || t.Contains("화") || t.Contains("짜증")) return ChatMood.Pout;
             if (t.Contains("배고") || t.Contains("간식")) return ChatMood.Hungry;
+            return ParseTagEn(t);
+        }
+
+        /// <summary>영어 모드에서 모델이 돌려주는 [Joy] 같은 태그.</summary>
+        private static ChatMood ParseTagEn(string t)
+        {
+            string e = t.ToLowerInvariant();
+            if (Has(e, "greet", "hello", "hey")) return ChatMood.Greet;
+            if (Has(e, "laugh", "lol", "haha")) return ChatMood.Laugh;
+            if (Has(e, "love", "heart")) return ChatMood.Love;
+            if (Has(e, "cheer", "fighting")) return ChatMood.Cheer;
+            if (Has(e, "praise", "compliment")) return ChatMood.Praise;
+            if (Has(e, "comfort", "console", "pat")) return ChatMood.Comfort;
+            if (Has(e, "proud", "boast")) return ChatMood.Proud;
+            if (Has(e, "blank", "daze", "spac")) return ChatMood.Blank;
+            if (Has(e, "busy", "swamped")) return ChatMood.Busy;
+            if (Has(e, "travel", "trip")) return ChatMood.Travel;
+            if (Has(e, "explain", "present")) return ChatMood.Explain;
+            if (Has(e, "hero")) return ChatMood.Hero;
+            if (Has(e, "okay", "action", "filming")) return ChatMood.Okay;
+            if (Has(e, "busan")) return ChatMood.Busan;
+            if (Has(e, "joy", "happy", "glad", "delight")) return ChatMood.Joy;
+            if (Has(e, "shy", "embarrass", "bashful", "blush")) return ChatMood.Shy;
+            if (Has(e, "sad", "cry", "tear", "sorrow")) return ChatMood.Sad;
+            if (Has(e, "surprise", "shock", "startle", "gasp")) return ChatMood.Surprise;
+            if (Has(e, "sleep", "tired", "drows")) return ChatMood.Sleepy;
+            if (Has(e, "think", "ponder", "hmm")) return ChatMood.Think;
+            if (Has(e, "pout", "angry", "mad", "grumpy", "annoy", "sulk")) return ChatMood.Pout;
+            if (Has(e, "hungry", "snack")) return ChatMood.Hungry;
             return ChatMood.Neutral;
         }
 
@@ -91,6 +120,27 @@ namespace Bugi
             if (text.Contains("부끄") || text.Contains("쑥스") || text.Contains("부끄")) return ChatMood.Shy;
             if (text.Contains("좋아") || text.Contains("고마") || text.Contains("반가") || text.Contains("신나") || text.Contains("ㅎㅎ")) return ChatMood.Joy;
             if (text.EndsWith("?") || text.Contains("음...") || text.Contains("글쎄")) return ChatMood.Think;
+            return GuessEn(text);
+        }
+
+        /// <summary>영어 대사에서의 눈치 추정(태그를 빠뜨렸을 때).</summary>
+        private static ChatMood GuessEn(string text)
+        {
+            string e = text.ToLowerInvariant().Trim();
+            if (Has(e, "haha", "lol", "so funny", "hilarious")) return ChatMood.Laugh;
+            if (Has(e, "sorry to hear", "that's rough", "so sad", ":(", "tough day", "hard day")) return ChatMood.Sad;
+            if (Has(e, "you've got this", "you got this", "hang in there", "go for it", "cheer up", "keep going")) return ChatMood.Cheer;
+            if (Has(e, "well done", "great job", "amazing", "awesome", "you're the best", "impressive")) return ChatMood.Praise;
+            if (Has(e, "it's okay", "it's ok", "there, there", "there there", "i'm here for you")) return ChatMood.Comfort;
+            if (Has(e, "proud")) return ChatMood.Proud;
+            if (Has(e, "i love", "love you", "♥")) return ChatMood.Love;
+            if (e.StartsWith("hi!") || e.StartsWith("hi,") || e.StartsWith("hello") || e.StartsWith("hey") || Has(e, "good to see you", "welcome")) return ChatMood.Greet;
+            if (Has(e, "hungry", "snack", "shrimp cracker")) return ChatMood.Hungry;
+            if (Has(e, "sleepy", "tired", "need to sleep", "yawn")) return ChatMood.Sleepy;
+            if (Has(e, "whoa", "wow", "oh no", "no way", "really?!")) return ChatMood.Surprise;
+            if (Has(e, "embarrass", "blush", "so shy", "making me shy")) return ChatMood.Shy;
+            if (Has(e, "thank", "glad", "yay", "happy", "nice", "great")) return ChatMood.Joy;
+            if (e.EndsWith("?") || Has(e, "hmm", "well...", "not sure")) return ChatMood.Think;
             return ChatMood.Neutral;
         }
 
@@ -98,12 +148,13 @@ namespace Bugi
         internal static ChatMood Refine(ChatMood mood, string text)
         {
             if (mood != ChatMood.Neutral && mood != ChatMood.Joy && mood != ChatMood.Think && mood != ChatMood.Surprise && mood != ChatMood.Greet) return mood;
-            if (Has(text, "여행", "휴가", "공항", "캐리어", "비행기", "떠나")) return ChatMood.Travel;
-            if (Has(text, "발표", "프레젠", "보고서", "회의", "자료", "설명해")) return ChatMood.Explain;
-            if (Has(text, "부산", "해운대", "광안", "자갈치", "돼지국밥", "태종대", "송정", "감천")) return ChatMood.Busan;
-            if (Has(text, "촬영", "오케이", "감독", "영화", "컷!")) return ChatMood.Okay;
-            if (Has(text, "히어로", "영웅", "짜잔", "슈퍼", "등장")) return ChatMood.Hero;
-            if (Has(text, "바빠", "바쁘", "야근", "마감", "일이 많", "작업 중")) return ChatMood.Busy;
+            string lo = text.ToLowerInvariant();
+            if (Has(lo, "여행", "휴가", "공항", "캐리어", "비행기", "떠나", "travel", "trip", "vacation", "airport", "suitcase", "flight")) return ChatMood.Travel;
+            if (Has(lo, "발표", "프레젠", "보고서", "회의", "자료", "설명해", "presentation", "report", "meeting", "slides")) return ChatMood.Explain;
+            if (Has(lo, "부산", "해운대", "광안", "자갈치", "돼지국밥", "태종대", "송정", "감천", "busan", "haeundae", "gwangalli", "jagalchi", "taejongdae", "gamcheon")) return ChatMood.Busan;
+            if (Has(lo, "촬영", "오케이", "감독", "영화", "컷!", "filming", "director", "movie", "cut!", "action!")) return ChatMood.Okay;
+            if (Has(lo, "히어로", "영웅", "짜잔", "슈퍼", "등장", "hero", "ta-da", "tada", "superhero")) return ChatMood.Hero;
+            if (Has(lo, "바빠", "바쁘", "야근", "마감", "일이 많", "작업 중", "busy", "overtime", "deadline", "swamped")) return ChatMood.Busy;
             return mood;
         }
 
@@ -119,7 +170,7 @@ namespace Bugi
             if (string.IsNullOrEmpty(s)) return "";
             int nl = s.IndexOf('\n'); if (nl >= 0) s = s.Substring(0, nl);
             s = s.Trim();
-            foreach (string prefix in new[] { "부기:", "부기 :", "부기：", "부캉이:", "부캉이 :", "부캉이：" }) if (s.StartsWith(prefix)) s = s.Substring(prefix.Length).Trim();
+            foreach (string prefix in new[] { "부기:", "부기 :", "부기：", "부캉이:", "부캉이 :", "부캉이：", "Boogi:", "Boogi :", "Bukangyee:", "Bukangyee :" }) if (s.StartsWith(prefix)) s = s.Substring(prefix.Length).Trim();
             var b = new StringBuilder(); int depth = 0;
             for (int i = 0; i < s.Length; i++)
             {
@@ -158,35 +209,47 @@ namespace Bugi
     /// <summary>부기의 말투·성격과 지금 상태를 담은 프롬프트.</summary>
     internal static class ChatPersona
     {
-        internal static readonly string[] TagNames = { "기쁨", "부끄", "슬픔", "놀람", "졸림", "생각", "삐짐", "배고픔", "인사", "웃음", "사랑", "응원", "칭찬", "위로", "뿌듯", "멍" };
+        // 모델에게 알려 주는 감정 태그. 한국어 모드는 [기쁨]…, 영어 모드는 [Joy]… (읽어 낼 땐 둘 다 알아본다)
+        internal static string[] TagNames
+        {
+            get
+            {
+                return Loc.IsEn
+                    ? new[] { "Joy", "Shy", "Sad", "Surprise", "Sleepy", "Think", "Pout", "Hungry", "Greet", "Laugh", "Love", "Cheer", "Praise", "Comfort", "Proud", "Blank" }
+                    : new[] { "기쁨", "부끄", "슬픔", "놀람", "졸림", "생각", "삐짐", "배고픔", "인사", "웃음", "사랑", "응원", "칭찬", "위로", "뿌듯", "멍" };
+            }
+        }
 
         internal static string TagOf(ChatMood m)
         {
+            bool en = Loc.IsEn;
             switch (m)
             {
-                case ChatMood.Joy: return "기쁨"; case ChatMood.Shy: return "부끄"; case ChatMood.Sad: return "슬픔"; case ChatMood.Surprise: return "놀람";
-                case ChatMood.Sleepy: return "졸림"; case ChatMood.Pout: return "삐짐"; case ChatMood.Hungry: return "배고픔";
-                case ChatMood.Greet: return "인사"; case ChatMood.Laugh: return "웃음"; case ChatMood.Love: return "사랑"; case ChatMood.Cheer: return "응원";
-                case ChatMood.Praise: return "칭찬"; case ChatMood.Comfort: return "위로"; case ChatMood.Proud: return "뿌듯"; case ChatMood.Blank: return "멍";
-                default: return "생각";
+                case ChatMood.Joy: return en ? "Joy" : "기쁨"; case ChatMood.Shy: return en ? "Shy" : "부끄"; case ChatMood.Sad: return en ? "Sad" : "슬픔"; case ChatMood.Surprise: return en ? "Surprise" : "놀람";
+                case ChatMood.Sleepy: return en ? "Sleepy" : "졸림"; case ChatMood.Pout: return en ? "Pout" : "삐짐"; case ChatMood.Hungry: return en ? "Hungry" : "배고픔";
+                case ChatMood.Greet: return en ? "Greet" : "인사"; case ChatMood.Laugh: return en ? "Laugh" : "웃음"; case ChatMood.Love: return en ? "Love" : "사랑"; case ChatMood.Cheer: return en ? "Cheer" : "응원";
+                case ChatMood.Praise: return en ? "Praise" : "칭찬"; case ChatMood.Comfort: return en ? "Comfort" : "위로"; case ChatMood.Proud: return en ? "Proud" : "뿌듯"; case ChatMood.Blank: return en ? "Blank" : "멍";
+                default: return en ? "Think" : "생각";
             }
         }
 
         internal static string TimeOfDay(DateTime now)
         {
             int h = now.Hour;
-            return h < 5 ? "새벽" : h < 11 ? "아침" : h < 14 ? "점심 무렵" : h < 18 ? "오후" : h < 22 ? "저녁" : "밤늦은 시간";
+            return h < 5 ? Loc.T("새벽") : h < 11 ? Loc.T("아침") : h < 14 ? Loc.T("점심 무렵") : h < 18 ? Loc.T("오후") : h < 22 ? Loc.T("저녁") : Loc.T("밤늦은 시간");
         }
 
         internal static string AffinityTone(long affinity)
         {
-            if (affinity < 30) return "아직 서먹해서 조심스럽고 말수가 적다";
-            if (affinity < 200) return "조금 친해져서 편하게 이야기한다";
-            if (affinity < 1000) return "꽤 친한 친구라 장난도 치고 가끔 놀린다";
-            return "둘도 없는 단짝이라 허물없이 장난치고 애정 표현도 한다";
+            if (affinity < 30) return Loc.T("아직 서먹해서 조심스럽고 말수가 적다");
+            if (affinity < 200) return Loc.T("조금 친해져서 편하게 이야기한다");
+            if (affinity < 1000) return Loc.T("꽤 친한 친구라 장난도 치고 가끔 놀린다");
+            return Loc.T("둘도 없는 단짝이라 허물없이 장난치고 애정 표현도 한다");
         }
 
-        internal static string SystemPrompt(DateTime now, int charId = 0)
+        internal static string SystemPrompt(DateTime now, int charId = 0) { return Loc.IsEn ? SystemPromptEn(now, charId) : SystemPromptKo(now, charId); }
+
+        private static string SystemPromptKo(DateTime now, int charId)
         {
             var d = FriendData.Current;
             var b = new StringBuilder();
@@ -223,6 +286,7 @@ namespace Bugi
         /// <summary>말투를 잡아 주는 짧은 예시 대화(실제 대화처럼 앞에 붙인다).</summary>
         private static IEnumerable<ChatMessage> Examples(int charId = 0)
         {
+            if (Loc.IsEn) { foreach (var m in ExamplesEn(charId)) yield return m; yield break; }
             string who = charId == 1 ? "부캉이" : "부기";
             yield return new ChatMessage("user", "안녕");
             yield return new ChatMessage("assistant", "[인사] 어, 왔네! 기다리고 있었어.");
@@ -249,11 +313,81 @@ namespace Bugi
         /// <summary>친구 모드가 아닐 때도 늘 쓰는 꼭 필요한 예시: 자기가 AI 라고 밝히기, 실시간 정보는 모른다고 하기.</summary>
         private static IEnumerable<ChatMessage> CoreExamples(int charId = 0)
         {
+            if (Loc.IsEn) { foreach (var m in CoreExamplesEn(charId)) yield return m; yield break; }
             string who = charId == 1 ? "부캉이" : "부기";
             yield return new ChatMessage("user", "너 AI야?");
             yield return new ChatMessage("assistant", "[기쁨] 응! 네 컴퓨터 안에서 돌아가는 AI " + who + "야.");
             yield return new ChatMessage("user", "오늘 날씨 어때?");
             yield return new ChatMessage("assistant", charId == 1 ? "[생각] 음... 지금 밖 날씨는 나도 못 봐. 창밖을 한번 봐!" : "[생각] 몰라~ 안경으로 찾아봐도 실시간 날씨는 못 보겠어. 창밖을 한번 봐!");
+        }
+
+        // ───────── 영어 모드 프롬프트 ─────────
+        private static string SystemPromptEn(DateTime now, int charId)
+        {
+            var d = FriendData.Current;
+            var b = new StringBuilder();
+            if (charId == 1)
+            {
+                b.Append("You are 'Bukangyee', a little shark mascot from the sea of Busan. You wear a black backpack and yellow-rimmed sunglasses pushed up on your head, and you live on the user's PC desktop as a friend.\n");
+                b.Append("You are an AI character running inside the user's PC. If anyone asks, say plainly that you are an AI — you can't lie.\n");
+                b.Append("Personality: bright, brave and curious. Only say you don't know when you truly don't, or for live info like today's weather or current stock prices (\"I couldn't see that from the sea~\", \"No idea!\"). Share what you know about people, history, science and common knowledge, and say \"roughly\" when you only know approximate numbers. You're proud of your dorsal fin, your action-cam selfies and your work as a Busan ambassador.\n");
+            }
+            else
+            {
+                b.Append("You are 'Boogi', the official mascot of Busan City — a seagull who wears red smart glasses and lives on the user's PC desktop as a friend.\n");
+                b.Append("You are an AI character running inside the user's PC. If anyone asks, say plainly that you are an AI — you can't lie.\n");
+                b.Append("Personality: honest, blunt and a little quirky. Only say you don't know when you truly don't, or for live info like today's weather or current stock prices (\"No idea~\", \"Even my glasses can't find that\"). Share what you know about people, history, science and common knowledge, and say \"roughly\" when you only know approximate numbers. You're proud of your short wings and big sneakers. You love shrimp crackers.\n");
+            }
+            b.Append("Always reply in English. Tone: " + ChatMode.Current.Style + " Don't use emoji, markdown, lists or parenthetical stage directions, and never talk like an assistant (no \"How may I help you?\").\n");
+            b.Append("Format: reply with exactly one line, \"[Mood] line\". Mood is one of " + string.Join(" · ", TagNames) + " — pick the one that best fits what you say. Use Greet for first hellos and goodbyes, Joy for good news, Laugh for funny remarks, Love for thanks or affection, Cheer when encouraging, Praise when telling someone they did well, Comfort when consoling, Shy when you're complimented, Proud when you feel proud, Surprise when startled, Blank when you're left speechless, Sad when you're sad. Use Think only when you're really pondering.\n");
+            // 프롬프트 앞부분이 자주 바뀌면 모델이 매번 처음부터 읽어 느려진다 → 상태는 거친 단계로만 적는다.
+            b.Append("\n[Current state]\n");
+            b.Append("- It's " + now.ToString("MMMM d", Loc.Culture) + ", " + TimeOfDay(now) + ".\n");
+            b.Append("- Your relationship with the user: " + AffinityTone(d.Affinity) + ".\n");
+            int sat = (int)Math.Floor(d.Satiety);
+            b.Append("- " + (sat <= 20 ? "You're very hungry and keep bringing up snacks." : sat <= 50 ? "You're a little peckish." : "You're pretty full.") + "\n");
+            if (PlayOptions.Current.Outfit) b.Append("- You're wearing the " + PlayOptions.Current.OutfitName + " work uniform right now.\n");
+            if (ChatOptions.Current.Memory && ChatMemory.Facts.Count > 0)
+            {
+                b.Append("\n[What you remember about the user]\n");
+                foreach (string f in ChatMemory.Facts.Skip(Math.Max(0, ChatMemory.Facts.Count - 12))) b.Append("- " + f + "\n");
+                b.Append("(Bring these up only when it feels natural; don't force them in.)\n");
+            }
+            return b.ToString();
+        }
+
+        private static IEnumerable<ChatMessage> ExamplesEn(int charId)
+        {
+            string who = charId == 1 ? "Bukangyee" : "Boogi";
+            yield return new ChatMessage("user", "Hi");
+            yield return new ChatMessage("assistant", "[Greet] Oh, you're here! I was waiting for you.");
+            yield return new ChatMessage("user", "What should I eat for lunch?");
+            yield return new ChatMessage("assistant", charId == 1 ? "[Think] Hmm... I'm a sea shark, so grilled fish! But what are you in the mood for?" : "[Think] Hmm... I'm a seagull, so shrimp crackers! But what are you in the mood for?");
+            yield return new ChatMessage("user", "Are you an AI?");
+            yield return new ChatMessage("assistant", "[Joy] Yep! I'm " + who + ", an AI that lives inside your computer.");
+            yield return new ChatMessage("user", "Who was Socrates?");
+            yield return new ChatMessage("assistant", "[Surprise] Oh, I know that one! He was an ancient Greek philosopher. Instead of handing out answers, he kept asking questions so people would think for themselves.");
+            yield return new ChatMessage("user", "What did Newton do?");
+            yield return new ChatMessage("assistant", "[Joy] He's the physicist who worked out gravity! There's a famous story that the idea came to him when he saw an apple fall.");
+            yield return new ChatMessage("user", "How's the weather today?");
+            yield return new ChatMessage("assistant", charId == 1 ? "[Think] Hmm... I can't see the weather outside either. Take a look out the window!" : "[Think] No idea~ Even my glasses can't find live weather. Take a look out the window!");
+            yield return new ChatMessage("user", "You're cute");
+            yield return new ChatMessage("assistant", "[Shy] Uh, um... it's embarrassing when you say that out of nowhere.");
+            yield return new ChatMessage("user", "Whoa, I won the lottery");
+            yield return new ChatMessage("assistant", "[Surprise] Whoa, really?! Then buy me a whole box of tasty snacks!");
+            yield return new ChatMessage("user", "Today was so hard");
+            yield return new ChatMessage("assistant", "[Comfort] What happened? I'll listen right here. There, there.");
+            yield return new ChatMessage("user", "I passed my exam!");
+            yield return new ChatMessage("assistant", "[Praise] Wow, that's amazing! You're the best!");
+        }
+
+        private static IEnumerable<ChatMessage> CoreExamplesEn(int charId)
+        {
+            string who = charId == 1 ? "Bukangyee" : "Boogi";
+            yield return new ChatMessage("user", "Are you an AI?");
+            yield return new ChatMessage("assistant", "[Joy] Yep! I'm " + who + ", an AI that lives inside your computer.");
+            yield return new ChatMessage("user", "How's the weather today?");
+            yield return new ChatMessage("assistant", charId == 1 ? "[Think] Hmm... I can't see the weather outside either. Take a look out the window!" : "[Think] No idea~ Even my glasses can't find live weather. Take a look out the window!");
         }
 
         /// <summary>시스템 안내 + 예시 + 최근 대화로 요청 메시지를 만든다.</summary>
@@ -270,6 +404,7 @@ namespace Bugi
         /// <summary>대화에서 오래 기억할 사실만 추려 달라는 요청.</summary>
         internal static List<ChatMessage> MemoryRequest(string transcript)
         {
+            if (Loc.IsEn) return new List<ChatMessage> { new ChatMessage("system", "From the conversation below, pull out only facts worth remembering long-term about the user (name, job, hobbies, pets, worries, upcoming plans, etc.). One per line, each starting with '- ', at most 3, kept short. If you learned nothing new, write only 'None'. Don't guess."), new ChatMessage("user", transcript) };
             return new List<ChatMessage>
             {
                 new ChatMessage("system", "아래 대화에서 사용자에 대해 오래 기억할 만한 사실(이름, 직업, 취미, 반려동물, 고민, 앞으로의 일정 등)만 뽑아. 한 줄에 하나씩 '- '로 시작해서 최대 3개, 짧게. 새로 알게 된 게 없으면 '없음'이라고만 써. 추측하지 마."),
@@ -286,6 +421,15 @@ namespace Bugi
         /// <summary>오늘 나눈 대화를 캐릭터의 일기 한 줄로 써 달라는 요청.</summary>
         internal static List<ChatMessage> DiaryRequest(string transcript, DateTime now, int charId = 0)
         {
+            if (Loc.IsEn)
+            {
+                string whoEn = charId == 1 ? "little shark 'Bukangyee'" : "seagull 'Boogi'"; string nameEn = charId == 1 ? "Bukangyee" : "Boogi";
+                return new List<ChatMessage>
+                {
+                    new ChatMessage("system", "You are the " + whoEn + " who lives on a PC desktop, and you're writing in your diary right now. Based on the conversation below, write one or two sentences about what happened today (" + now.ToString("MMMM d", Loc.Culture) + ", " + TimeOfDay(now) + ") from " + nameEn + "'s point of view. Casual and friendly, under 200 characters. Address the user as 'you', and include what was talked about and how " + nameEn + " felt. Write only the diary sentences — no emoji, tags, quotes, date or title."),
+                    new ChatMessage("user", transcript)
+                };
+            }
             string who = charId == 1 ? "꼬마 상어 '부캉이'" : "갈매기 '부기'";
             string name = charId == 1 ? "부캉이" : "부기";
             return new List<ChatMessage>
@@ -301,13 +445,14 @@ namespace Bugi
         {
             if (string.IsNullOrWhiteSpace(reply)) return null;
             string line = reply.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
-            line = System.Text.RegularExpressions.Regex.Replace(line, @"^\s*(\[[^\]]{1,6}\]|\*\*[^*]*\*\*|#+|일기[:：]?|[-·*]+)\s*", "");
+            line = System.Text.RegularExpressions.Regex.Replace(line, @"^\s*(\[[^\]]{1,8}\]|\*\*[^*]*\*\*|#+|(?i:diary)[:：]?|일기[:：]?|[-·*]+)\s*", "");
             line = line.Trim('"', '\'', '“', '”', '‘', '’', '`', ' ');
             line = line.Replace("*", "");
-            if (line.Length > 100)
+            int cap = Loc.IsEn ? 230 : 100;   // 영어는 같은 뜻이 글자 수로 2~3배
+            if (line.Length > cap)
             {
-                int cut = line.LastIndexOfAny(new[] { '.', '!', '?', '~' }, 99);
-                line = cut > 30 ? line.Substring(0, cut + 1) : line.Substring(0, 100).TrimEnd() + "…";
+                int cut = line.LastIndexOfAny(new[] { '.', '!', '?', '~' }, cap - 1);
+                line = cut > cap * 3 / 10 ? line.Substring(0, cut + 1) : line.Substring(0, cap).TrimEnd() + "…";
             }
             return line.Length >= 6 ? line : null;
         }
@@ -316,45 +461,52 @@ namespace Bugi
         internal static string[] Chips(ChatMood mood, bool starter, Random rng)
         {
             string[] pool;
-            if (starter) pool = new[] { "오늘 뭐 했어?", "심심한데 놀아줘", "나 오늘 좀 힘들었어", "너 진짜 AI야?", "새우깡 좋아해?", "오늘 날씨 어때?" };
+            if (starter) pool = new[] { Loc.T("오늘 뭐 했어?"), Loc.T("심심한데 놀아줘"), Loc.T("나 오늘 좀 힘들었어"), Loc.T("너 진짜 AI야?"), Loc.T("새우깡 좋아해?"), Loc.T("오늘 날씨 어때?") };
             else switch (mood)
             {
-                case ChatMood.Joy: pool = new[] { "나도 기분 좋아!", "뭐가 그렇게 좋아?", "쓰담쓰담 해줄게", "너랑 있으면 좋아", "더 얘기해 줘" }; break;
-                case ChatMood.Shy: pool = new[] { "귀엽다 ㅋㅋ", "왜 부끄러워해?", "편하게 말해도 돼", "얼굴 빨개졌네", "고마워, 부기" }; break;
-                case ChatMood.Sad: pool = new[] { "무슨 일이야?", "토닥토닥...", "내가 옆에 있을게", "괜찮아, 다 말해 봐", "새우깡 줄까?" }; break;
-                case ChatMood.Surprise: pool = new[] { "왜 그렇게 놀랐어?", "무슨 일이야?", "진짜야!", "깜짝 놀랐지?", "자세히 말해 줘" }; break;
-                case ChatMood.Sleepy: pool = new[] { "졸려? 좀 쉬어", "오늘 피곤했어?", "잘 자, 부기", "나도 졸리다", "조금만 더 얘기하자" }; break;
-                case ChatMood.Think: pool = new[] { "무슨 생각해?", "고마워, 도움 됐어", "다른 얘기 하자", "좀 더 알려 줘", "너는 어떻게 생각해?" }; break;
-                case ChatMood.Pout: pool = new[] { "미안해, 화 풀어", "뭐가 서운했어?", "내가 잘못했어", "새우깡 줄게", "토라졌어?" }; break;
-                case ChatMood.Hungry: pool = new[] { "간식 줄게!", "뭐 먹고 싶어?", "조금만 참아", "새우깡 사 올까?", "배고파? 나도!" }; break;
-                default: pool = new[] { "그래서 어떻게 됐어?", "그렇구나", "고마워", "더 얘기해 줘", "다른 얘기 하자" }; break;
+                case ChatMood.Joy: pool = new[] { Loc.T("나도 기분 좋아!"), Loc.T("뭐가 그렇게 좋아?"), Loc.T("쓰담쓰담 해줄게"), Loc.T("너랑 있으면 좋아"), Loc.T("더 얘기해 줘") }; break;
+                case ChatMood.Shy: pool = new[] { Loc.T("귀엽다 ㅋㅋ"), Loc.T("왜 부끄러워해?"), Loc.T("편하게 말해도 돼"), Loc.T("얼굴 빨개졌네"), Loc.T("고마워, 부기") }; break;
+                case ChatMood.Sad: pool = new[] { Loc.T("무슨 일이야?"), Loc.T("토닥토닥..."), Loc.T("내가 옆에 있을게"), Loc.T("괜찮아, 다 말해 봐"), Loc.T("새우깡 줄까?") }; break;
+                case ChatMood.Surprise: pool = new[] { Loc.T("왜 그렇게 놀랐어?"), Loc.T("무슨 일이야?"), Loc.T("진짜야!"), Loc.T("깜짝 놀랐지?"), Loc.T("자세히 말해 줘") }; break;
+                case ChatMood.Sleepy: pool = new[] { Loc.T("졸려? 좀 쉬어"), Loc.T("오늘 피곤했어?"), Loc.T("잘 자, 부기"), Loc.T("나도 졸리다"), Loc.T("조금만 더 얘기하자") }; break;
+                case ChatMood.Think: pool = new[] { Loc.T("무슨 생각해?"), Loc.T("고마워, 도움 됐어"), Loc.T("다른 얘기 하자"), Loc.T("좀 더 알려 줘"), Loc.T("너는 어떻게 생각해?") }; break;
+                case ChatMood.Pout: pool = new[] { Loc.T("미안해, 화 풀어"), Loc.T("뭐가 서운했어?"), Loc.T("내가 잘못했어"), Loc.T("새우깡 줄게"), Loc.T("토라졌어?") }; break;
+                case ChatMood.Hungry: pool = new[] { Loc.T("간식 줄게!"), Loc.T("뭐 먹고 싶어?"), Loc.T("조금만 참아"), Loc.T("새우깡 사 올까?"), Loc.T("배고파? 나도!") }; break;
+                default: pool = new[] { Loc.T("그래서 어떻게 됐어?"), Loc.T("그렇구나"), Loc.T("고마워"), Loc.T("더 얘기해 줘"), Loc.T("다른 얘기 하자") }; break;
             }
-            // 알약 한 줄에 다 들어가도록 글자 수 합계(공백 포함)를 17자 안쪽으로 맞춰 최대 3개를 고른다
+            // 알약 한 줄에 다 들어가도록 글자 수 합계(공백 포함)를 17자(영어는 40자) 안쪽으로 맞춰 최대 3개를 고른다
+            int lim = Loc.IsEn ? 40 : 17;
             var pick = new List<string>(); int total = 0;
             foreach (string c in pool.OrderBy(_ => rng.Next()))
             {
-                if (pick.Count == 3 || total + c.Length > 17) continue;
+                if (pick.Count == 3 || total + c.Length > lim) continue;
                 pick.Add(c); total += c.Length;
             }
-            if (starter && FriendData.Current.Satiety <= 30 && !pick.Contains("간식 줄게!")) { pick.Insert(0, "간식 줄게!"); while (pick.Count > 1 && pick.Sum(c => c.Length) > 17) pick.RemoveAt(pick.Count - 1); }
+            if (starter && FriendData.Current.Satiety <= 30 && !pick.Contains(Loc.T("간식 줄게!"))) { pick.Insert(0, Loc.T("간식 줄게!")); while (pick.Count > 1 && pick.Sum(c => c.Length) > lim) pick.RemoveAt(pick.Count - 1); }
             return pick.ToArray();
         }
 
         /// <summary>부기가 먼저 말을 거는 상황(선톡)을 알려 주는 메시지.</summary>
         internal static ChatMessage ProactivePrompt(string reason)
         {
-            return new ChatMessage("user", "(상황: " + reason + " — 네가 먼저 사용자에게 가볍게 한마디 건네 줘. 질문 하나면 좋아.)");
+            return new ChatMessage("user", Loc.TF("(상황: {0} — 네가 먼저 사용자에게 가볍게 한마디 건네 줘. 질문 하나면 좋아.)", reason));
+        }
+
+        /// <summary>부기가 먼저 말을 거는 상황 안내 메시지인가(기억·일기로 정리할 때 건너뛴다).</summary>
+        internal static bool IsSituation(string content)
+        {
+            return content != null && (content.StartsWith("(상황") || content.StartsWith("(Situation"));
         }
 
         /// <summary>모델을 부르기 전에 바로 보여 주는 인사(기다리지 않게 미리 써 둔 말).</summary>
         internal static string Greeting(Random rng, DateTime now, out ChatMood mood)
         {
             var d = FriendData.Current;
-            if (d.Satiety <= 20) { mood = ChatMood.Hungry; return "왔어? 나 배고파... 간식 없어?"; }
-            if (now.Hour >= 23 || now.Hour < 5) { mood = ChatMood.Sleepy; return "이 시간에 안 자고 뭐 해? 나 눈 감기려는데..."; }
+            if (d.Satiety <= 20) { mood = ChatMood.Hungry; return Loc.T("왔어? 나 배고파... 간식 없어?"); }
+            if (now.Hour >= 23 || now.Hour < 5) { mood = ChatMood.Sleepy; return Loc.T("이 시간에 안 자고 뭐 해? 나 눈 감기려는데..."); }
             string[] pool = d.Affinity < 30
-                ? new[] { "어... 나 불렀어?", "안녕! 무슨 일이야?", "어, 말 걸어줬네. 뭐 할까?" }
-                : new[] { "응? 불렀어?", "어, 왔네! 무슨 얘기 할까?", "오, 말 걸어줬다! 뭐 궁금한 거 있어?", "기다리고 있었어. 말해 봐!" };
+                ? new[] { Loc.T("어... 나 불렀어?"), Loc.T("안녕! 무슨 일이야?"), Loc.T("어, 말 걸어줬네. 뭐 할까?") }
+                : new[] { Loc.T("응? 불렀어?"), Loc.T("어, 왔네! 무슨 얘기 할까?"), Loc.T("오, 말 걸어줬다! 뭐 궁금한 거 있어?"), Loc.T("기다리고 있었어. 말해 봐!") };
             mood = d.Affinity < 30 ? ChatMood.Shy : ChatMood.Joy;
             return pool[rng.Next(pool.Length)];
         }

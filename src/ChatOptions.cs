@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -126,7 +126,7 @@ namespace Bugi
             foreach (string raw in newFacts)
             {
                 string f = (raw ?? "").Trim().TrimStart('-', '*', '·', ' ').Trim();
-                if (f.Length < 3 || f.Length > 80 || f == "없음") continue;
+                if (f.Length < 3 || f.Length > (Loc.IsEn ? 200 : 80) || f == "없음" || f.TrimEnd('.').Equals("none", StringComparison.OrdinalIgnoreCase)) continue;
                 if (Facts.Any(x => x == f || x.Contains(f) || f.Contains(x))) continue;
                 Facts.Add(f); added++;
             }

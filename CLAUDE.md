@@ -9,5 +9,8 @@
 4. 변경 후에는 `build.ps1` 이 돌려 주는 가이드 점검(경고는 노란색)과 `bugi.exe --guide-test`, `--selftest`, `--render-test` 결과 그림을 확인하고, 경고가 남으면 사용자에게 알린다.
 5. 가이드북 저작권 조건: 출처표시 · 비상업적 이용 · 변형 등 2차적 저작물 작성 금지.
 
+## 화면 언어 (한국어 · English)
+사용자에게 보이는 글은 `Loc.T("한국어 원문")` / `Loc.TF("… {0}", 값)` 으로 감싸고 영어를 `src/Loc.En.cs` 에 더한다(한국어 원문이 키). 글을 이어 붙이지 않는다(어순이 다르다). 정적 필드에는 글을 넣지 않는다(속성으로). 파일 · 폴더 이름(`부기_*.ini`, `%AppData%\부기`)과 모델이 읽는 키워드는 감싸지 않는다. 영어 이름은 가이드북 p22 대로 Boogi(부캉이는 Bukangyee). 글을 바꾸거나 더한 뒤에는 `bugi.exe --i18n-test C:\bt_i18n` 을 돌려 ALL OK 와 `i18n_*.png`(영어에서 글이 잘리지 않는지)를 확인한다. 자세한 내용은 README "화면 언어".
+
 ## 빌드
 `powershell -ExecutionPolicy Bypass -File build.ps1` (출력 `output\bugi.exe`). 점검 모드는 README 의 "점검 모드" 참고. `--selftest` 의 폴더는 경로가 짧아야 한다(예: `C:\bt`).

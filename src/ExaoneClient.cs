@@ -84,12 +84,12 @@ namespace Bugi
                 {
                     object j = Json.Parse(sr.ReadToEnd());
                     string m = Json.Str(Json.Get(j, "error"), "message") ?? Json.Str(j, "description") ?? Json.Str(j, "error") ?? Json.Str(j, "message");
-                    if (status == 429) return "HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요";
+                    if (status == 429) return Loc.T("HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요");
                     if (!string.IsNullOrEmpty(m)) return "HTTP " + status + ": " + m;
                 }
             }
             catch { }
-            if (status == 429) return "HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요";
+            if (status == 429) return Loc.T("HTTP 429: EXAONE 서버가 지금 너무 바빠요(요청이 몰렸어요). 잠시 뒤에 다시 해 보세요");
             return "HTTP " + status + ": " + e.Message;
         }
 
@@ -151,7 +151,7 @@ namespace Bugi
 
         private static string StreamOnce(ChatOptions o, List<ChatMessage> msgs, Action<string> onToken, ChatRequest handle, int numPredict, double temperature)
         {
-            if (string.IsNullOrEmpty(o.ExaoneKeyEffective)) return "EXAONE API 키가 없어요";
+            if (string.IsNullOrEmpty(o.ExaoneKeyEffective)) return Loc.T("EXAONE API 키가 없어요");
             HttpWebRequest r = null; bool cutShort = false;
             try
             {
@@ -180,7 +180,7 @@ namespace Bugi
                         if (cut.Ended) { cutShort = true; try { r.Abort(); } catch { } break; }   // 한 줄 다 들었다 — 나머지는 받지 않는다
                     }
                 }
-                if (!any && finish == "length") return "추론하다가 토큰이 모자랐어요(추론 강도를 낮춰 보세요)";
+                if (!any && finish == "length") return Loc.T("추론하다가 토큰이 모자랐어요(추론 강도를 낮춰 보세요)");
                 return null;
             }
             catch (WebException e)

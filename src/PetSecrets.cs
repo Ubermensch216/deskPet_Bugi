@@ -30,13 +30,13 @@ namespace Bugi
             if (throwCount == 0 || w.Now - throwSequenceStarted > 10) { throwCount = 0; throwSequenceStarted = w.Now; }
             throwCount++;
             if (throwCount >= 3)
-            { throwCount = 0; pilotFlight = true; FriendData.Current.Discover("pilot"); Bubble = "비밀 조종사! 천장으로 출발!"; BubbleUntil = w.Now + 4; }
+            { throwCount = 0; pilotFlight = true; FriendData.Current.Discover("pilot"); Bubble = Loc.T("비밀 조종사! 천장으로 출발!"); BubbleUntil = w.Now + 4; }
         }
 
         internal void StartFlower(IWorld w, long milestone)
         {
             flowerStarted = w.Now; flowerUntil = w.Now + 6; mouseGrace = flowerUntil + 1;
-            Bubble = "친밀도 " + milestone.ToString("N0") + " 달성!\n꽃다발 받아줘 ♥"; BubbleUntil = flowerUntil;
+            Bubble = Loc.TF("친밀도 {0} 달성!\n꽃다발 받아줘 ♥", milestone.ToString("N0")); BubbleUntil = flowerUntil;
             SetState(PetState.Pause, w);
         }
 
@@ -46,7 +46,7 @@ namespace Bugi
         internal void StartDizzy(IWorld w)
         {
             dizzyCooldown = w.Now + 20; orbitTotal = 0; orbitSeen = false;
-            extraDuration = 4; mouseGrace = w.Now + 5; Bubble = "빙글빙글… 어질어질!"; BubbleUntil = w.Now + 3.5;
+            extraDuration = 4; mouseGrace = w.Now + 5; Bubble = Loc.T("빙글빙글… 어질어질!"); BubbleUntil = w.Now + 3.5;
             SetState(PetState.Dizzy, w); FriendData.Current.Discover("dizzy");
         }
 
@@ -72,7 +72,7 @@ namespace Bugi
                     X = Math.Max(Area.Left + half + 1, Math.Min(Area.Right - half - 1, X));
                     if (X > Area.Right - Art.W * 2) Dir = -1; else if (X < Area.Left + Art.W * 2) Dir = 1;
                     Y = Area.Top + Art.H; mouseGrace = w.Now + 1; SetState(PetState.Ceiling, w);
-                    Bubble = "천장 도착! 살금살금…"; BubbleUntil = w.Now + 2.5;
+                    Bubble = Loc.T("천장 도착! 살금살금…"); BubbleUntil = w.Now + 2.5;
                 }
                 return true;
             }

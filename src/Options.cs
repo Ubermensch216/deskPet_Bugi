@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
@@ -16,7 +16,7 @@ namespace Bugi
         public bool Repeat = true;                    // true: 매일 반복 · false: 다음 그 시각에 한 번만 울리고 스스로 꺼진다
         internal DateTime Done = DateTime.MinValue;   // 오늘 이미 울렸는지(저장하지 않음)
         internal bool FiredOff;                       // 한 번만 울리고 꺼졌음을 설정창에 알리는 표시(저장하지 않음)
-        internal string Text { get { return string.IsNullOrWhiteSpace(Msg) ? "알람 시간이야!" : Msg; } }
+        internal string Text { get { return string.IsNullOrWhiteSpace(Msg) ? Loc.T("알람 시간이야!") : Msg; } }
     }
 
     /// <summary>알림·낮잠·정각 알림 설정 (부기_설정.ini).</summary>
@@ -25,8 +25,8 @@ namespace Bugi
         internal const int MaxAlarms = 12;
         public List<UserAlarm> Alarms = new List<UserAlarm>();
         internal const string FileName = "부기_설정.ini";
-        public bool LunchOn = true; public string LunchTime = "12:00"; public string LunchMsg = "점심 먹으러 가자!";
-        public bool LeaveOn = true; public string LeaveTime = "18:00"; public string LeaveMsg = "퇴근이다! 오늘도 수고했어";
+        public bool LunchOn = true; public string LunchTime = "12:00"; public string LunchMsg = Loc.T("점심 먹으러 가자!");
+        public bool LeaveOn = true; public string LeaveTime = "18:00"; public string LeaveMsg = Loc.T("퇴근이다! 오늘도 수고했어");
         public bool NapOn = true; public int NapMinutes = 10;
         public bool HourlyOn = true, HourlyWindow = true, AlertPet = true;
         public bool EdgeGlow = true; public int EdgeGlowTheme = 0, EdgeGlowWidth = 1, EdgeGlowStrength = 1;
@@ -56,10 +56,10 @@ namespace Bugi
                 var d = ReadIni(FilePath); string v;
                 if (d.TryGetValue("LunchOn", out v)) s.LunchOn = v != "0";
                 if (d.TryGetValue("LunchTime", out v) && ParseTime(v).HasValue) s.LunchTime = v;
-                if (d.TryGetValue("LunchMsg", out v)) s.LunchMsg = v;
+                if (d.TryGetValue("LunchMsg", out v)) s.LunchMsg = Loc.Retarget(v, "점심 먹으러 가자!");   // 기본 문구면 지금 언어의 기본 문구로
                 if (d.TryGetValue("LeaveOn", out v)) s.LeaveOn = v != "0";
                 if (d.TryGetValue("LeaveTime", out v) && ParseTime(v).HasValue) s.LeaveTime = v;
-                if (d.TryGetValue("LeaveMsg", out v)) s.LeaveMsg = v;
+                if (d.TryGetValue("LeaveMsg", out v)) s.LeaveMsg = Loc.Retarget(v, "퇴근이다! 오늘도 수고했어");
                 if (d.TryGetValue("NapOn", out v)) s.NapOn = v != "0";
                 int n;
                 if (d.TryGetValue("NapMinutes", out v) && int.TryParse(v, out n)) s.NapMinutes = Math.Max(1, Math.Min(600, n));
@@ -108,6 +108,7 @@ namespace Bugi
             b.AppendLine("[내 알람]");
             for (int i = 0; i < Alarms.Count && i < MaxAlarms; i++) b.AppendLine("Alarm" + (i + 1) + "=" + (Alarms[i].On ? "1" : "0") + "|" + (Alarms[i].Repeat ? "1" : "0") + "|" + Alarms[i].Time + "|" + OneLine(Alarms[i].Msg));
             b.AppendLine("[친구]"); b.AppendLine("Roster=" + Roster);
+            b.AppendLine("[언어]"); b.AppendLine("Language=" + Loc.Code);
             try { Directory.CreateDirectory(Paths.Dir); File.WriteAllText(FilePath, b.ToString(), new UTF8Encoding(true)); return true; }
             catch { return false; }
         }
@@ -145,7 +146,7 @@ namespace Bugi
         internal bool Outfit = false;        // 근무복(기본은 하늘색 조끼 + 명찰)을 입고 지내기
         internal OutfitStyle OutfitStyle = OutfitStyle.Vest;           // 근무복 종류(가이드북 p18)
         internal bool AccBag = false, AccVisor = false, AccSunglasses = false;   // 아이템(가이드북 p20)
-        internal static readonly string[] OutfitNames = { "하늘색 조끼 · 명찰", "제복 (파란 셔츠 · 남색 바지)", "구조복 (주황 조끼)", "정장 (남색 재킷 · 빨간 넥타이)", "안전복 (안전모 · 노란 반사 조끼)", "구명조끼 (빨강)" };
+        internal static string[] OutfitNames { get { return new[] { Loc.T("하늘색 조끼 · 명찰"), Loc.T("제복 (파란 셔츠 · 남색 바지)"), Loc.T("구조복 (주황 조끼)"), Loc.T("정장 (남색 재킷 · 빨간 넥타이)"), Loc.T("안전복 (안전모 · 노란 반사 조끼)"), Loc.T("구명조끼 (빨강)") }; } }
         internal string OutfitName { get { return OutfitNames[(int)OutfitStyle]; } }
         internal double Speed = 1.0, FallSpeed = 1.2, SlideSpeed = 1.0, EscapeDelay = .12;
         internal int HungerMinutes = 60;
@@ -352,7 +353,7 @@ namespace Bugi
         internal static string FormatTogether(double seconds)
         {
             long total = Math.Max(0, (long)(seconds / 60));
-            return (total / 60).ToString("N0") + "시간 " + (total % 60) + "분";
+            return Loc.TF("{0}시간 {1}분", (total / 60).ToString("N0"), total % 60);
         }
     }
 }

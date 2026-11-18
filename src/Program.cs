@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -21,8 +21,19 @@ namespace Bugi
         private static void Main(string[] args)
         {
             try { Native.SetProcessDPIAware(); } catch { }
+            // --lang ko|en : 화면 언어를 고정한다(점검용). 나머지 인자 번호가 밀리지 않게 여기서 뺀다.
+            string lang = null; var rest = new System.Collections.Generic.List<string>();
+            for (int a = 0; a < args.Length; a++)
+            {
+                if (args[a] == "--lang" && a + 1 < args.Length) { lang = args[++a]; continue; }
+                if (args[a].StartsWith("--lang=")) { lang = args[a].Substring(7); continue; }
+                rest.Add(args[a]);
+            }
+            args = rest.ToArray();
+            if (lang != null) Loc.Force(lang);
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             if (args.Length >= 2 && args[0] == "--make-icon") { DevTools.MakeIcon(args[1]); return; }
+            if (args.Length >= 2 && args[0] == "--i18n-test") { Environment.Exit(DevTools.I18nTest(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--render-test") { DevTools.RenderSheet(args[1], args.Length >= 3 ? float.Parse(args[2]) : Native.SystemDpiScale()); return; }
             if (args.Length >= 2 && args[0] == "--spec-test") { CharacterArt.Reset(1f); SpecTools.Render(args[1]); return; }
             if (args.Length >= 1 && args[0] == "--guide-test") { CharacterArt.Reset(1f); Environment.Exit(BugiGuide.Run(args.Length >= 2 ? args[1] : null)); return; }
@@ -33,12 +44,13 @@ namespace Bugi
             if (args.Length >= 2 && args[0] == "--alert-test") { Environment.Exit(DevTools.AlertTest(args[1], args.Length >= 3 ? args[2].Replace("\\n", "\n") : null)); return; }
             if (args.Length >= 2 && args[0] == "--note-shots") { Environment.Exit(DevTools.NoteShots(args[1])); return; }
             if (args.Length >= 2 && args[0] == "--chat-live") { Environment.Exit(DevTools.ChatLive(args[1])); return; }
+            Loc.Load();   // 저장된 언어 → 없으면 Windows 표시 언어 (--lang 이 있으면 그쪽이 우선)
             bool created;
             using (var mutex = new Mutex(true, "Bugi_DeskFriend_single_instance", out created))
             {
                 if (!created)
                 {
-                    MessageBox.Show("부기가 이미 실행 중이야.\n작업표시줄 알림 영역의 친구 아이콘을 우클릭해서 ‘화면 가운데로 다시 부르기’를 눌러줘.", "부기", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(Loc.T("부기가 이미 실행 중이야.\n작업표시줄 알림 영역의 친구 아이콘을 우클릭해서 ‘화면 가운데로 다시 부르기’를 눌러줘."), Loc.T("부기"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -53,7 +65,7 @@ namespace Bugi
                 catch (Exception error)
                 {
                     FeatureLog.Write(error);
-                    MessageBox.Show("친구를 화면에 표시하지 못했어.\n\n" + error.Message + "\n\n기록: " + Path.Combine(Paths.Dir, "부기_오류기록.txt"), "부기", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(Loc.T("친구를 화면에 표시하지 못했어.\n\n") + error.Message + Loc.T("\n\n기록: ") + Path.Combine(Paths.Dir, "부기_오류기록.txt"), Loc.T("부기"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 GC.KeepAlive(mutex);
             }

@@ -305,7 +305,7 @@ namespace Bugi
             internal Frame()
             {
                 FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; TopMost = true;
-                Text = "부기 · 말 걸기"; Size = new Size(1, 1); Location = new Point(-32000, -32000);
+                Text = Loc.T("부기 · 말 걸기"); Size = new Size(1, 1); Location = new Point(-32000, -32000);
             }
             protected override void OnPaintBackground(PaintEventArgs e) { }
 
@@ -343,7 +343,7 @@ namespace Bugi
             internal readonly TextBox Box;
             internal event Action Submit, Cancel, GotLostFocus;
             internal event Action<int> Chip;
-            private string cue = "부기에게 말 걸기…";
+            private string cue = Loc.T("부기에게 말 걸기…");
             internal void SetCue(string text) { cue = text; if (Box.IsHandleCreated) try { SendMessage(Box.Handle, 0x1501, new IntPtr(1), cue); } catch { } }
 
             protected override bool ShowWithoutActivation { get { return false; } }
@@ -355,7 +355,7 @@ namespace Bugi
             internal Editor(float s)
             {
                 FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; TopMost = true;
-                BackColor = Paper; Text = "부기에게 말 걸기";
+                BackColor = Paper; Text = Loc.T("부기에게 말 걸기");
                 Box = new TextBox
                 {
                     BorderStyle = BorderStyle.None, BackColor = Paper, ForeColor = Color.FromArgb(40, 40, 40), MaxLength = 200, Dock = DockStyle.Fill,

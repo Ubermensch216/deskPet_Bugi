@@ -43,7 +43,7 @@ namespace Bugi
             {
                 using (var k = Registry.CurrentUser.CreateSubKey(KeyPath))
                 {
-                    if (k == null) throw new System.IO.IOException("자동 시작 등록 위치를 열 수 없어요.");
+                    if (k == null) throw new System.IO.IOException(Loc.T("자동 시작 등록 위치를 열 수 없어요."));
                     k.SetValue(ValueName, Command(), RegistryValueKind.String);
                 }
                 return;
@@ -247,18 +247,18 @@ namespace Bugi
             BugiMenuRenderer.Apply(menu);
 
             // 친밀도 (맨 위)
-            menu.Items.Add(new MenuSection(MenuKind.Status, "친밀도 " + FriendData.Current.Affinity.ToString("N0") + "  ·  함께 " + FriendData.FormatTogether(FriendData.Current.TogetherSeconds)));
+            menu.Items.Add(new MenuSection(MenuKind.Status, Loc.TF("친밀도 {0}  ·  함께 {1}", FriendData.Current.Affinity.ToString("N0"), FriendData.FormatTogether(FriendData.Current.TogetherSeconds))));
 
             // 교류: 사용자와 주고받는 것
-            menu.Items.Add(new MenuSection(MenuKind.Social, "교류"));
-            menu.Items.Add(new ToolStripMenuItem("말 걸기  (AI 대화)", null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? ChatOptions.Current.HotkeyText : null });
+            menu.Items.Add(new MenuSection(MenuKind.Social, Loc.T("교류")));
+            menu.Items.Add(new ToolStripMenuItem(Loc.T("말 걸기  (AI 대화)"), null, delegate { BeginInvokeSafe(delegate { StartChat(pet); }); }) { Font = new Font(menu.Font, FontStyle.Bold), Enabled = ChatOptions.Current.Enabled, ShortcutKeyDisplayString = ChatOptions.Current.Hotkey ? ChatOptions.Current.HotkeyText : null });
             menu.Items.Add(ModeMenu());
-            menu.Items.Add("부기의 일기장...", null, delegate { BeginInvokeSafe(ShowDiary); });
-            menu.Items.Add(new ToolStripMenuItem("간식 주기  ·  포만감 " + (int)Math.Floor(FriendData.Current.Satiety) + "/100", null, delegate { FeedFirst(pet); }));
+            menu.Items.Add(Loc.T("부기의 일기장..."), null, delegate { BeginInvokeSafe(ShowDiary); });
+            menu.Items.Add(new ToolStripMenuItem(Loc.TF("간식 주기  ·  포만감 {0}/100", (int)Math.Floor(FriendData.Current.Satiety)), null, delegate { FeedFirst(pet); }));
             menu.Items.Add(FriendsMenu(w));
 
             // 일: 근무복 · 기술 · 메모 · 알람
-            menu.Items.Add(new MenuSection(MenuKind.Work, "일"));
+            menu.Items.Add(new MenuSection(MenuKind.Work, Loc.T("일")));
             menu.Items.Add(OutfitItem()); menu.Items.Add(OutfitStyleMenu()); menu.Items.Add(AccessoryMenu());
             menu.Items.Add(SignatureMenu(pet));
             menu.Items.Add(DemoMenu(pet));
@@ -266,22 +266,22 @@ namespace Bugi
             menu.Items.Add(AlarmMenu());
 
             // 설정
-            menu.Items.Add(new MenuSection(MenuKind.Settings, "설정"));
+            menu.Items.Add(new MenuSection(MenuKind.Settings, Loc.T("설정")));
             menu.Items.Add(QuickMenu());
-            menu.Items.Add("설정...", null, delegate { OpenSettings(); });
+            menu.Items.Add(Loc.T("설정..."), null, delegate { OpenSettings(); });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("종료", null, delegate { Quit(); });
+            menu.Items.Add(Loc.T("종료"), null, delegate { Quit(); });
             return menu;
         }
 
         /// <summary>★ 표시가 붙은 시그니처 기술. 우클릭한 친구의 기술 3가지.</summary>
         private ToolStripMenuItem SignatureMenu(Pet pet)
         {
-            var root = new ToolStripMenuItem("★ 시그니처 기술");
+            var root = new ToolStripMenuItem(Loc.T("★ 시그니처 기술"));
             if (pet != null)
             {
                 var sigs = Signatures.All[pet.Art.Id];
-                root.DropDownItems.Add(new ToolStripMenuItem(pet.Art.Info.Name + "의 대표 동작") { Enabled = false });
+                root.DropDownItems.Add(new ToolStripMenuItem(Loc.TF("{0}의 대표 동작", pet.Art.Info.Name)) { Enabled = false });
                 for (int i = 0; i < sigs.Length; i++)
                 {
                     int idx = i;
@@ -316,7 +316,7 @@ namespace Bugi
 
         private ToolStripMenuItem DemoMenu(Pet pet)
         {
-            var demo = new ToolStripMenuItem("동작 보기");
+            var demo = new ToolStripMenuItem(Loc.T("동작 보기"));
             int cid = pet != null ? pet.Art.Id : -1;
             Action<ToolStripMenuItem, string[][], int> fill = (menu, items, preferChar) =>
             {
@@ -330,23 +330,23 @@ namespace Bugi
                     });
                 }
             };
-            var restList = new List<string[]> { new[] { "앉아서 쉬기", "sit" }, new[] { "잠자기", "sleep" }, new[] { "멍때리기", "daydream" }, new[] { "기지개", "stretch" }, new[] { "누워서 쉬기", "lie" } };
-            if (cid != 0) { restList.Add(new[] { "셀카 찍기", "selfie" }); restList.Add(new[] { "선글라스 두둥", "cool" }); }
-            var rest = new ToolStripMenuItem("쉬는 모습"); fill(rest, restList.ToArray(), cid == 1 || cid < 0 ? -1 : 0);
-            var idleList = new List<string[]> { new[] { "머리 긁적", "scratch" }, new[] { "팔짱", "cross" }, new[] { "안녕! 인사", "wave" } };
-            if (cid != 1) { idleList.Add(new[] { "곡괭이질", "mine" }); idleList.Add(new[] { "스마트 안경 검색", "search" }); }
-            var idle = new ToolStripMenuItem("멈춰 섰을 때 몸짓"); fill(idle, idleList.ToArray(), 0);
-            var workList = new List<string[]> { new[] { "안내하기", "guide" }, new[] { "배꼽인사", "bow" } };
-            if (cid != 0) { workList.Add(new[] { "엄지척 (부산 최고!)", "idcard" }); workList.Add(new[] { "파도 깃발 흔들기", "flag" }); }
-            var work = new ToolStripMenuItem(cid == 1 ? "홍보대사 동작" : "근무복 · 홍보대사 동작"); fill(work, workList.ToArray(), cid == 1 ? 1 : -1);
-            var react = new ToolStripMenuItem("반응"); fill(react, new[] { new[] { "발끈!", "angry" }, new[] { "클릭할 때 달달 떨며 우는 모습", "cry" }, new[] { "배고플 때 우는 모습", "weep" }, new[] { "폴짝 뛰기", "hop" }, new[] { "슬라이딩 (커서 피해 도망)", "slide" } }, -1);
-            var move = new ToolStripMenuItem("이동"); fill(move, new[] { new[] { "날개 퍼덕 낙하", "fall" }, new[] { "벽 타기", "wall" }, new[] { "천장 타기", "ceiling" }, new[] { "창 타기", "window" } }, -1);
-            var secret = new ToolStripMenuItem("숨은 반응");
-            secret.DropDownItems.Add("어질어질", null, delegate { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Demonstrate(this, "dizzy"); });
-            secret.DropDownItems.Add("몰래 하는 군무", null, delegate { DemonstrateSecretDance(pet); });
+            var restList = new List<string[]> { new[] { Loc.T("앉아서 쉬기"), "sit" }, new[] { Loc.T("잠자기"), "sleep" }, new[] { Loc.T("멍때리기"), "daydream" }, new[] { Loc.T("기지개"), "stretch" }, new[] { Loc.T("누워서 쉬기"), "lie" } };
+            if (cid != 0) { restList.Add(new[] { Loc.T("셀카 찍기"), "selfie" }); restList.Add(new[] { Loc.T("선글라스 두둥"), "cool" }); }
+            var rest = new ToolStripMenuItem(Loc.T("쉬는 모습")); fill(rest, restList.ToArray(), cid == 1 || cid < 0 ? -1 : 0);
+            var idleList = new List<string[]> { new[] { Loc.T("머리 긁적"), "scratch" }, new[] { Loc.T("팔짱"), "cross" }, new[] { Loc.T("안녕! 인사"), "wave" } };
+            if (cid != 1) { idleList.Add(new[] { Loc.T("곡괭이질"), "mine" }); idleList.Add(new[] { Loc.T("스마트 안경 검색"), "search" }); }
+            var idle = new ToolStripMenuItem(Loc.T("멈춰 섰을 때 몸짓")); fill(idle, idleList.ToArray(), 0);
+            var workList = new List<string[]> { new[] { Loc.T("안내하기"), "guide" }, new[] { Loc.T("배꼽인사"), "bow" } };
+            if (cid != 0) { workList.Add(new[] { Loc.T("엄지척 (부산 최고!)"), "idcard" }); workList.Add(new[] { Loc.T("파도 깃발 흔들기"), "flag" }); }
+            var work = new ToolStripMenuItem(cid == 1 ? Loc.T("홍보대사 동작") : Loc.T("근무복 · 홍보대사 동작")); fill(work, workList.ToArray(), cid == 1 ? 1 : -1);
+            var react = new ToolStripMenuItem(Loc.T("반응")); fill(react, new[] { new[] { Loc.T("발끈!"), "angry" }, new[] { Loc.T("클릭할 때 달달 떨며 우는 모습"), "cry" }, new[] { Loc.T("배고플 때 우는 모습"), "weep" }, new[] { Loc.T("폴짝 뛰기"), "hop" }, new[] { Loc.T("슬라이딩 (커서 피해 도망)"), "slide" } }, -1);
+            var move = new ToolStripMenuItem(Loc.T("이동")); fill(move, new[] { new[] { Loc.T("날개 퍼덕 낙하"), "fall" }, new[] { Loc.T("벽 타기"), "wall" }, new[] { Loc.T("천장 타기"), "ceiling" }, new[] { Loc.T("창 타기"), "window" } }, -1);
+            var secret = new ToolStripMenuItem(Loc.T("숨은 반응"));
+            secret.DropDownItems.Add(Loc.T("어질어질"), null, delegate { Pet p = pet ?? windows.Select(a => a.Pet).FirstOrDefault(); if (p != null) p.Demonstrate(this, "dizzy"); });
+            secret.DropDownItems.Add(Loc.T("몰래 하는 군무"), null, delegate { DemonstrateSecretDance(pet); });
             if (cid != 1)
             {
-                var skits = new ToolStripMenuItem("가이드북 응용동작");
+                var skits = new ToolStripMenuItem(Loc.T("가이드북 응용동작"));
                 fill(skits, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select((Skit[])Enum.GetValues(typeof(Skit)), s => new[] { Pet.SkitTitle(s), "skit:" + s })), 0);
                 demo.DropDownItems.AddRange(new ToolStripItem[] { rest, idle, skits, work, react, move, secret });
             }
@@ -360,7 +360,7 @@ namespace Bugi
         /// <summary>자주 바꾸는 옵션이라 하위 메뉴 없이 바로 누를 수 있게 첫 단계에 둔다.</summary>
         private ToolStripMenuItem OutfitItem()
         {
-            var item = new ToolStripMenuItem("근무복 입기") { Checked = PlayOptions.Current.Outfit };
+            var item = new ToolStripMenuItem(Loc.T("근무복 입기")) { Checked = PlayOptions.Current.Outfit };
             item.Click += delegate { var o = PlayOptions.Current; o.Outfit = !o.Outfit; o.Save(); ApplyCharacterSettings(); item.Checked = o.Outfit; };
             return item;
         }
@@ -368,7 +368,7 @@ namespace Bugi
         /// <summary>근무복 종류(가이드북 p18): 고르면 바로 입는다.</summary>
         private ToolStripMenuItem OutfitStyleMenu()
         {
-            var menu = new ToolStripMenuItem("근무복 종류");
+            var menu = new ToolStripMenuItem(Loc.T("근무복 종류"));
             for (int i = 0; i < PlayOptions.OutfitNames.Length; i++)
             {
                 OutfitStyle style = (OutfitStyle)i;
@@ -382,33 +382,33 @@ namespace Bugi
         /// <summary>아이템(가이드북 p20): 크로스백 · 바이저 · 선글라스를 각각 장착/해제한다.</summary>
         private ToolStripMenuItem AccessoryMenu()
         {
-            var menu = new ToolStripMenuItem("아이템 장착");
+            var menu = new ToolStripMenuItem(Loc.T("아이템 장착"));
             Action<string, Func<PlayOptions, bool>, Action<PlayOptions, bool>> add = (name, get, set) =>
             {
                 var item = new ToolStripMenuItem(name) { Checked = get(PlayOptions.Current) };
                 item.Click += delegate { var o = PlayOptions.Current; set(o, !get(o)); o.Save(); ApplyCharacterSettings(); item.Checked = get(o); };
                 menu.DropDownItems.Add(item);
             };
-            add("크로스백 (노랑 · 동백꽃)", o => o.AccBag, (o, v) => o.AccBag = v);
-            add("바이저 (노랑)", o => o.AccVisor, (o, v) => o.AccVisor = v);
-            add("선글라스 (노랑 테 · 검은 렌즈)", o => o.AccSunglasses, (o, v) => o.AccSunglasses = v);
+            add(Loc.T("크로스백 (노랑 · 동백꽃)"), o => o.AccBag, (o, v) => o.AccBag = v);
+            add(Loc.T("바이저 (노랑)"), o => o.AccVisor, (o, v) => o.AccVisor = v);
+            add(Loc.T("선글라스 (노랑 테 · 검은 렌즈)"), o => o.AccSunglasses, (o, v) => o.AccSunglasses = v);
             return menu;
         }
 
         private ToolStripMenuItem FriendsMenu(PetWindow w)
         {
-            var friends = new ToolStripMenuItem("친구");
-            friends.DropDownItems.Add(SpawnMenu("한 마리 더 부르기"));
-            if (w != null) friends.DropDownItems.Add("이 친구 보내기", null, delegate { Remove(w); });
-            friends.DropDownItems.Add(PetOff ? "펫 전원 켜기" : "펫 전원 끄기 (알림은 계속)", null, delegate { SetPetPower(PetOff); });
-            friends.DropDownItems.Add(hidden ? "모두 보이기" : "모두 숨기기", null, delegate { ToggleHidden(); });
-            friends.DropDownItems.Add("화면 가운데로 다시 부르기", null, delegate { RecoverVisible(); });
+            var friends = new ToolStripMenuItem(Loc.T("친구"));
+            friends.DropDownItems.Add(SpawnMenu(Loc.T("한 마리 더 부르기")));
+            if (w != null) friends.DropDownItems.Add(Loc.T("이 친구 보내기"), null, delegate { Remove(w); });
+            friends.DropDownItems.Add(PetOff ? Loc.T("펫 전원 켜기") : Loc.T("펫 전원 끄기 (알림은 계속)"), null, delegate { SetPetPower(PetOff); });
+            friends.DropDownItems.Add(hidden ? Loc.T("모두 보이기") : Loc.T("모두 숨기기"), null, delegate { ToggleHidden(); });
+            friends.DropDownItems.Add(Loc.T("화면 가운데로 다시 부르기"), null, delegate { RecoverVisible(); });
             return friends;
         }
 
         private ToolStripMenuItem QuickMenu()
         {
-            var quick = new ToolStripMenuItem("빠른 설정");
+            var quick = new ToolStripMenuItem(Loc.T("빠른 설정"));
             var o = PlayOptions.Current;
             Func<string, Func<bool>, Action<bool>, ToolStripMenuItem> toggle = (text, get, set) =>
             {
@@ -416,10 +416,10 @@ namespace Bugi
                 item.Click += delegate { set(!get()); item.Checked = get(); };
                 return item;
             };
-            quick.DropDownItems.Add(toggle("친구 위치 고정 (자동 이동 멈추기)", () => o.PositionFixed, v => SetPositionFixed(v)));
-            quick.DropDownItems.Add(toggle("얌전 모드 (바닥에서만)", () => o.Focus, v => { o.Focus = v; o.Save(); }));
-            quick.DropDownItems.Add(toggle("★ 시그니처 자동 재생", () => o.SigFreq > 0, v => { o.SigFreq = v ? 2 : 0; o.Save(); }));
-            quick.DropDownItems.Add(toggle("친밀도 숫자 표시", () => o.ShowAffinity, v => { o.ShowAffinity = v; o.Save(); ApplyCharacterSettings(); }));
+            quick.DropDownItems.Add(toggle(Loc.T("친구 위치 고정 (자동 이동 멈추기)"), () => o.PositionFixed, v => SetPositionFixed(v)));
+            quick.DropDownItems.Add(toggle(Loc.T("얌전 모드 (바닥에서만)"), () => o.Focus, v => { o.Focus = v; o.Save(); }));
+            quick.DropDownItems.Add(toggle(Loc.T("★ 시그니처 자동 재생"), () => o.SigFreq > 0, v => { o.SigFreq = v ? 2 : 0; o.Save(); }));
+            quick.DropDownItems.Add(toggle(Loc.T("친밀도 숫자 표시"), () => o.ShowAffinity, v => { o.ShowAffinity = v; o.Save(); ApplyCharacterSettings(); }));
             return quick;
         }
 
@@ -428,7 +428,7 @@ namespace Bugi
             if (CharacterArt.Count == 1)
                 return new ToolStripMenuItem(text, null, delegate { SpawnFromUi(-1); }) { Enabled = windows.Count < MaxPets };
             var item = new ToolStripMenuItem(text) { Enabled = windows.Count < MaxPets };
-            item.DropDownItems.Add("무작위", null, delegate { SpawnFromUi(-1); });
+            item.DropDownItems.Add(Loc.T("무작위"), null, delegate { SpawnFromUi(-1); });
             for (int i = 0; i < CharacterArt.Count; i++)
             { int id = i; item.DropDownItems.Add(CharacterArt.Infos[i].Name, null, delegate { SpawnFromUi(id); }); }
             return item;
@@ -443,7 +443,7 @@ namespace Bugi
                 menu.Items.Clear();
                 foreach (ToolStripItem i in fresh.Items.Cast<ToolStripItem>().ToList()) menu.Items.Add(i);
             };
-            tray = new NotifyIcon { Icon = TrayIconImage, Text = "부기", ContextMenuStrip = menu, Visible = true };
+            tray = new NotifyIcon { Icon = TrayIconImage, Text = Loc.T("부기"), ContextMenuStrip = menu, Visible = true };
             tray.DoubleClick += delegate { ToggleHidden(); };
         }
 
@@ -476,7 +476,7 @@ namespace Bugi
         /// <summary>대화 모드 ▶ 친구 · 공감 · 설명 · 장난 · 간결 (지금 모드에 체크).</summary>
         private ToolStripMenuItem ModeMenu()
         {
-            var root = new ToolStripMenuItem("대화 모드  ·  " + ChatMode.Current.Name) { Enabled = ChatOptions.Current.Enabled };
+            var root = new ToolStripMenuItem(Loc.TF("대화 모드  ·  {0}", ChatMode.Current.Name)) { Enabled = ChatOptions.Current.Enabled };
             for (int i = 0; i < ChatMode.All.Length; i++)
             {
                 int index = i; var mode = ChatMode.All[i];
@@ -490,7 +490,7 @@ namespace Bugi
         {
             var o = ChatOptions.Current; o.Mode = index; o.Save(); Chat.ModeChanged();
             Pet p = Chat.Pet ?? windows.Select(w => w.Pet).FirstOrDefault(x => !x.Hidden);
-            if (p != null) { p.Bubble = ChatMode.At(index).Name + " 모드로 얘기할게!"; p.BubbleUntil = Now + 3.5; }
+            if (p != null) { p.Bubble = Loc.TF("{0} 모드로 얘기할게!", ChatMode.At(index).Name); p.BubbleUntil = Now + 3.5; }
         }
 
         // ───────── 알람 (우클릭 메뉴에서 등록) ─────────
@@ -499,21 +499,21 @@ namespace Bugi
         /// <summary>알람 ▶ 10분 뒤 · 30분 뒤 · 1시간 뒤 · 직접 정하기… · (다음 알람) · 알람 목록(설정)</summary>
         private ToolStripMenuItem AlarmMenu()
         {
-            var root = new ToolStripMenuItem("알람");
+            var root = new ToolStripMenuItem(Loc.T("알람"));
             foreach (int minutes in new[] { 10, 30, 60 })
             {
                 int m = minutes;
-                root.DropDownItems.Add(m < 60 ? m + "분 뒤" : "1시간 뒤", null, delegate
+                root.DropDownItems.Add(m < 60 ? Loc.TF("{0}분 뒤", m) : Loc.T("1시간 뒤"), null, delegate
                 {
                     DateTime at = DateTime.Now.AddMinutes(m).AddSeconds(30);   // 분 단위로 반올림
-                    RegisterAlarm(new UserAlarm { On = true, Repeat = false, Time = at.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), Msg = (m < 60 ? m + "분" : "1시간") + "이 지났어!" });
+                    RegisterAlarm(new UserAlarm { On = true, Repeat = false, Time = at.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), Msg = (m < 60 ? Loc.TF("{0}분이 지났어!", m) : Loc.T("1시간이 지났어!")) });
                 });
             }
-            root.DropDownItems.Add("직접 정하기…", null, delegate { BeginInvokeSafe(ShowAlarmComposer); });
+            root.DropDownItems.Add(Loc.T("직접 정하기…"), null, delegate { BeginInvokeSafe(ShowAlarmComposer); });
             root.DropDownItems.Add(new ToolStripSeparator());
             string next = NextAlarmLabel(DateTime.Now);
-            root.DropDownItems.Add(new ToolStripMenuItem(next ?? "켜 둔 알람이 없어요") { Enabled = false });
-            root.DropDownItems.Add("알람 목록 · 설정…", null, delegate { OpenSettingsPage(2); });
+            root.DropDownItems.Add(new ToolStripMenuItem(next ?? Loc.T("켜 둔 알람이 없어요")) { Enabled = false });
+            root.DropDownItems.Add(Loc.T("알람 목록 · 설정…"), null, delegate { OpenSettingsPage(2); });
             root.DropDownItems.Add(new ToolStripSeparator());
             BuildOvertimeMenu(root);
             return root;
@@ -524,19 +524,19 @@ namespace Bugi
         {
             DateTime now = DateTime.Now; Overtime.EnsureToday(now);
             bool on = Overtime.WatchOn(now); int pending = Overtime.PendingHour(now);
-            root.DropDownItems.Add(on ? "오늘 초과근무 알림 끄기" : "오늘 초과근무 알림 켜기", null, delegate
+            root.DropDownItems.Add(on ? Loc.T("오늘 초과근무 알림 끄기") : Loc.T("오늘 초과근무 알림 켜기"), null, delegate
             {
                 DateTime n = DateTime.Now; Overtime.SetWatch(!Overtime.WatchOn(n), n); Overtime.SaveIfDirty();
-                Announce(Overtime.WatchOn(n) ? "오늘 초과근무 알림을 켰어! " + OvertimeState.HourText(Overtime.StartHour) + " ~ " + OvertimeState.HourText(Overtime.EndHour) + "에 챙겨 줄게" : "오늘 초과근무 알림을 껐어");
+                Announce(Overtime.WatchOn(n) ? Loc.TF("오늘 초과근무 알림을 켰어! {0} ~ {1}에 챙겨 줄게", OvertimeState.HourText(Overtime.StartHour), OvertimeState.HourText(Overtime.EndHour)) : Loc.T("오늘 초과근무 알림을 껐어"));
             });
-            var rec = new ToolStripMenuItem(pending >= 0 ? "초과근무 기록했어요 (" + OvertimeState.HourLabel(pending) + ")" : "초과근무 기록했어요") { Enabled = pending >= 0 };
+            var rec = new ToolStripMenuItem(pending >= 0 ? Loc.TF("초과근무 기록했어요 ({0})", OvertimeState.HourLabel(pending)) : Loc.T("초과근무 기록했어요")) { Enabled = pending >= 0 };
             rec.Click += delegate
             {
                 DateTime n = DateTime.Now; int h = Overtime.PendingHour(n); if (h < 0) return;
-                Overtime.MarkRecorded(h, true, n); Overtime.SaveIfDirty(); Announce(OvertimeState.HourLabel(h) + " 기록했구나, 고생했어!");
+                Overtime.MarkRecorded(h, true, n); Overtime.SaveIfDirty(); Announce(Loc.TF("{0} 기록했구나, 고생했어!", OvertimeState.HourLabel(h)));
             };
             root.DropDownItems.Add(rec);
-            root.DropDownItems.Add("초과근무 알림 설정…", null, delegate { OpenSettingsPage(2, 1); });
+            root.DropDownItems.Add(Loc.T("초과근무 알림 설정…"), null, delegate { OpenSettingsPage(2, 1); });
         }
 
         private string NextAlarmLabel(DateTime now)
@@ -551,7 +551,7 @@ namespace Bugi
             }
             if (best == null) return null;
             string text = best.Text; if (text.Length > 14) text = text.Substring(0, 14) + "…";
-            return "다음 알람: " + (bestAt.Date > now.Date ? "내일 " : "") + best.Time + "  " + text;
+            return Loc.TF("다음 알람: {0}{1}  {2}", bestAt.Date > now.Date ? Loc.T("내일 ") : "", best.Time, text);
         }
 
         internal void ShowAlarmComposer()
@@ -563,12 +563,12 @@ namespace Bugi
         /// <summary>메뉴·창에서 만든 알람을 목록에 더하고 바로 저장한다. 열려 있는 설정창에도 한 줄 더한다.</summary>
         internal bool RegisterAlarm(UserAlarm alarm)
         {
-            if (Settings.Alarms.Count >= Settings.MaxAlarms) { Announce("알람은 " + Settings.MaxAlarms + "개까지 만들 수 있어. 설정에서 지워 줘!"); return false; }
+            if (Settings.Alarms.Count >= Settings.MaxAlarms) { Announce(Loc.TF("알람은 {0}개까지 만들 수 있어. 설정에서 지워 줘!", Settings.MaxAlarms)); return false; }
             Settings.Alarms.Add(alarm);
             OnSettingsChanged();   // 이미 지난 시각은 오늘 울린 것으로 쳐서 내일부터 울리게
             Settings.Save();
             if (settingsForm != null && !settingsForm.IsDisposed) settingsForm.AddAlarmFromOutside(alarm);
-            Announce("알람을 맞췄어: " + alarm.Time + "  " + alarm.Text);
+            Announce(Loc.TF("알람을 맞췄어: {0}  {1}", alarm.Time, alarm.Text));
             return true;
         }
 
@@ -601,7 +601,7 @@ namespace Bugi
         /// <summary>메뉴에는 "새 메모" 한 줄만 둔다(깊이를 줄이려고). 라이브러리는 메모 위젯의 ⋯ 메뉴와 Ctrl+Shift+F 로 연다.</summary>
         private ToolStripMenuItem NewNoteItem()
         {
-            return new ToolStripMenuItem("새 메모", null, delegate { if (Notes != null) Notes.CreateNote(); }) { ShortcutKeyDisplayString = "Ctrl+Alt+N" };
+            return new ToolStripMenuItem(Loc.T("새 메모"), null, delegate { if (Notes != null) Notes.CreateNote(); }) { ShortcutKeyDisplayString = "Ctrl+Alt+N" };
         }
 
         internal void ResetAllSettings()
@@ -616,6 +616,19 @@ namespace Bugi
         }
 
         // ───────── 창 열기 ─────────
+        /// <summary>화면 언어를 바꾼 직후: 트레이 글, 열려 있는 창(일기장 · 메모), 진행 중인 대화를 새 언어로 맞춘다.
+        /// (우클릭·트레이 메뉴는 열 때마다 새로 만들어서 따로 할 일이 없다. 설정창은 호출한 쪽이 다시 연다.)</summary>
+        internal void OnLanguageChanged()
+        {
+            if (tray != null) tray.Text = Loc.T("부기");
+            if (diaryForm != null && !diaryForm.IsDisposed) diaryForm.Close();
+            // 대화는 한 언어로만 이어 가야 모델이 섞어 답하지 않는다: 하던 대화는 정리(기억 · 일기)하고 새로 시작한다.
+            if (Chat != null) { Chat.End(); Chat.ModeChanged(); }
+            // 메모 창들은 만들 때 글을 정해서, 닫았다가(열려 있던 것은 그대로 기억) 같은 자리에 다시 띄운다.
+            if (Notes != null) { Notes.Suspend(); Notes = new NoteManager(this); Notes.Start(); }
+            foreach (var w in windows) { w.Pet.Bubble = null; }
+        }
+
         internal void OpenSettings() { OpenSettingsPage(-1); }
         /// <param name="tab">알림 쪽 안의 탭(0 정각 · 점심 … / 1 초과근무 알림). -1 이면 건드리지 않는다.</param>
         internal void OpenSettingsPage(int page, int tab = -1)
@@ -688,7 +701,7 @@ namespace Bugi
         {
             if (hidden) ToggleHidden();
             if (windows.Count == 0) Spawn();
-            NoticeAll(string.IsNullOrWhiteSpace(msg) ? "알람 시간이야!" : msg);
+            NoticeAll(string.IsNullOrWhiteSpace(msg) ? Loc.T("알람 시간이야!") : msg);
         }
 
         public void PreviewLunch(string msg)
@@ -731,7 +744,7 @@ namespace Bugi
             if (Settings.LunchOn && lunchDone != date)
             {
                 TimeSpan? t = Settings.ParseTime(Settings.LunchTime);
-                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { lunchDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LunchMsg) ? "점심시간이야!" : Settings.LunchMsg); }
+                if (t.HasValue && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60)) { lunchDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LunchMsg) ? Loc.T("점심시간이야!") : Settings.LunchMsg); }
             }
             if (Settings.LeaveOn)
             {
@@ -742,7 +755,7 @@ namespace Bugi
                     if (leaveGatherDone != date && tod >= gather && tod < t.Value)
                     { leaveGatherDone = date; napping = false; StartGather(now + (t.Value - tod).TotalSeconds); }
                     if (leaveDone != date && tod >= t.Value && tod < t.Value + TimeSpan.FromSeconds(60))
-                    { leaveDone = date; leaveGatherDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LeaveMsg) ? "퇴근 시간이야!" : Settings.LeaveMsg); }
+                    { leaveDone = date; leaveGatherDone = date; napping = false; NoticeAll(string.IsNullOrWhiteSpace(Settings.LeaveMsg) ? Loc.T("퇴근 시간이야!") : Settings.LeaveMsg); }
                 }
             }
             foreach (var al in Settings.Alarms)   // 내 알람 (시각 + 내용, 매일)
@@ -793,7 +806,7 @@ namespace Bugi
         public static string HourlyText(DateTime now)
         {
             int h = now.Hour % 12; if (h == 0) h = 12;
-            return "지금은 " + (now.Hour >= 12 ? "오후 " : "오전 ") + h + "시야!";
+            return now.Hour >= 12 ? Loc.TF("지금은 오후 {0}시야!", h) : Loc.TF("지금은 오전 {0}시야!", h);
         }
 
         public static bool AlarmAtHour(DateTime now, bool enabled, string time)
@@ -1023,7 +1036,7 @@ namespace Bugi
             if (selected == null) selected = windows.Select(w => w.Pet).FirstOrDefault(p => !p.Hidden);
             if (selected == null) return;
             var dancers = windows.Select(w => w.Pet).Where(p => p.CanDance(Now) && p.Area == selected.Area && p.SupportWindow == selected.SupportWindow).ToList();
-            if (dancers.Count < 2) { selected.Bubble = "친구 둘이 바닥에 모이면 춤출 수 있어 ♪"; selected.BubbleUntil = Now + 4; return; }
+            if (dancers.Count < 2) { selected.Bubble = Loc.T("친구 둘이 바닥에 모이면 춤출 수 있어 ♪"); selected.BubbleUntil = Now + 4; return; }
             BeginSecretDance(dancers, Now);
         }
 

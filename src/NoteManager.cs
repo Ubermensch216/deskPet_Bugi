@@ -53,7 +53,7 @@ namespace Bugi
         internal void Start(bool restoreWindows = true)
         {
             store = new NoteStore(NoteStore.DefaultRoot); store.Load(); NoteStore.Current = store;
-            foreach (string problem in store.LoadProblems) FeatureLog.Write(new Exception("메모 파일을 읽지 못했어요: " + problem));
+            foreach (string problem in store.LoadProblems) FeatureLog.Write(new Exception(Loc.T("메모 파일을 읽지 못했어요: ") + problem));
             MigrateHelperData();
             tick.Tick += delegate { OnTick(); }; tick.Start();
             if (restoreWindows)
@@ -76,7 +76,7 @@ namespace Bugi
             var d = FriendData.Current; string notes = (d.Notes ?? "").Trim();
             if (notes.Length > 0 || d.Todos.Count > 0)
             {
-                var body = new System.Text.StringBuilder("# 도우미에서 가져온 메모\n\n");
+                var body = new System.Text.StringBuilder(Loc.T("# 도우미에서 가져온 메모\n\n"));
                 if (notes.Length > 0) body.Append(NoteContent.NormalizeLineEndings(notes)).Append("\n\n");
                 foreach (var t in d.Todos) body.Append(t.Done ? "- [x] " : "- [ ] ").Append((t.Text ?? "").Replace('\n', ' ')).Append('\n');
                 var size = NoteSizePreset.Large;
@@ -219,7 +219,7 @@ namespace Bugi
 
         internal void PickImage(NoteWindow w)
         {
-            using (var dlg = new OpenFileDialog { Title = "이미지 넣기", Filter = "이미지|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tif;*.tiff|모든 파일|*.*", Multiselect = true })
+            using (var dlg = new OpenFileDialog { Title = Loc.T("이미지 넣기"), Filter = Loc.T("이미지|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tif;*.tiff|모든 파일|*.*"), Multiselect = true })
                 if (dlg.ShowDialog(w) == DialogResult.OK) Attach(w, dlg.FileNames);
         }
 
@@ -231,13 +231,13 @@ namespace Bugi
         internal void AddReminder(Guid noteId, TimeSpan offset)
         {
             DateTime due = offset == TimeSpan.Zero ? DateTime.Now.Date.AddDays(1).AddHours(9) : DateTime.Now.Add(offset);
-            store.AddReminder(noteId, due); app.Announce("알림을 맞췄어: " + NoteWindow.ReminderLabel(due));
+            store.AddReminder(noteId, due); app.Announce(Loc.T("알림을 맞췄어: ") + NoteWindow.ReminderLabel(due));
         }
 
         /// <summary>이미 지난 시각도 버리거나 옮기지 않고 저장한다 — 바로 울리는 알림이 사용자의 날짜를 몰래 바꾸는 것보다 낫다.</summary>
         internal void AddReminderAt(Guid noteId, DateTime dueLocal, string rule)
         {
-            store.AddReminder(noteId, dueLocal, rule); app.Announce("알림을 맞췄어: " + NoteWindow.ReminderLabel(dueLocal));
+            store.AddReminder(noteId, dueLocal, rule); app.Announce(Loc.T("알림을 맞췄어: ") + NoteWindow.ReminderLabel(dueLocal));
         }
 
         internal void ShowReminderComposer(Guid noteId, Form near)
@@ -266,7 +266,7 @@ namespace Bugi
         /// <summary>알림이 울리면 화면 가운데의 알림 부기가 내용을 말하고, 그 메모를 바탕화면에 연다(deskNote 의 토스트를 눌러 메모를 여는 동작을 미리 해 준다).</summary>
         private void ShowReminder(Note note)
         {
-            string title = note.Title.Length > 0 ? note.Title : "메모 알림";
+            string title = note.Title.Length > 0 ? note.Title : Loc.T("메모 알림");
             string flat = note.Content.Replace('\n', ' ').Trim();
             int at = note.Title.Length > 0 ? flat.IndexOf(note.Title, StringComparison.Ordinal) : -1;
             if (at >= 0 && at <= 4) flat = flat.Substring(at + note.Title.Length).Trim();   // 첫 줄이 곧 제목이라 말풍선에 두 번 나오지 않게

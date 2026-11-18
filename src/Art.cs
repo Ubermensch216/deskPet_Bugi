@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -19,37 +19,38 @@ namespace Bugi
     /// </summary>
     internal sealed class CharacterArt
     {
-        internal static readonly CharInfo[] Infos =
-        {
+        private static CharInfo[] infos; private static string infosLang;
+        internal static CharInfo[] Infos { get { if (infos == null || infosLang != Loc.Code) { infosLang = Loc.Code; infos = BuildInfos(); } return infos; } }
+        private static CharInfo[] BuildInfos() { return new CharInfo[] {
             new CharInfo
             {
                 Key = "bugi",
-                Name = "부기",
-                Title = "부산 소통 캐릭터 · 부산갈매기",
+                Name = Loc.T("부기"),
+                Title = Loc.T("부산 소통 캐릭터 · 부산갈매기"),
                 Accent = Color.FromArgb(232, 60, 52),
                 Traits = new[]
                 {
-                    "부산 시조 갈매기를 모티프로 한 소통 캐릭터",
-                    "붉은 뿔테 안경과 통통한 날개",
-                    "가이드북 동작: 두두 등장 · Busan is good · 하트 안기",
-                    "옷차림: 하늘색 조끼 · 크로스백 · 바이저 · 선글라스"
+                    Loc.T("부산 시조 갈매기를 모티프로 한 소통 캐릭터"),
+                    Loc.T("붉은 뿔테 안경과 통통한 날개"),
+                    Loc.T("가이드북 동작: 두두 등장 · Busan is good · 하트 안기"),
+                    Loc.T("옷차림: 하늘색 조끼 · 크로스백 · 바이저 · 선글라스")
                 }
             },
             new CharInfo
             {
                 Key = "bukangyee",
-                Name = "부캉이",
-                Title = "부산 소통 캐릭터 · 부산 상어",
+                Name = Loc.T("부캉이"),
+                Title = Loc.T("부산 소통 캐릭터 · 부산 상어"),
                 Accent = Color.FromArgb(40, 132, 235),
                 Traits = new[]
                 {
-                    "부산 바다에서 온 통통하고 씩씩한 꼬마 상어",
-                    "까만 백팩 · 등지느러미 · 노란 테 선글라스",
-                    "시그니처 동작: 부산 최고! · 파도 깃발 · 액션캠 셀카",
-                    "홍보대사 어깨띠를 두르면 안내 · 배꼽인사 · 응원"
+                    Loc.T("부산 바다에서 온 통통하고 씩씩한 꼬마 상어"),
+                    Loc.T("까만 백팩 · 등지느러미 · 노란 테 선글라스"),
+                    Loc.T("시그니처 동작: 부산 최고! · 파도 깃발 · 액션캠 셀카"),
+                    Loc.T("홍보대사 어깨띠를 두르면 안내 · 배꼽인사 · 응원")
                 }
             },
-        };
+        }; }
         internal static int Count { get { return Infos.Length; } }
         internal static float Scale = 1f;
         /// <summary>화면 DPI 배율(설정의 캐릭터 크기를 곱하기 전). 알림 부기 · 트레이 아이콘 · 입력칸처럼 크기 설정과 상관없는 것에 쓴다.</summary>
@@ -77,7 +78,7 @@ namespace Bugi
         }
 
         public readonly int Id;
-        public readonly CharInfo Info;
+        public CharInfo Info { get { return Infos[Id]; } }
         public readonly float Zoom;       // 걷는 부기 대비 확대 배율
         public readonly float K;          // 기준 그림 1픽셀 = 화면 K 픽셀
         public readonly int W, H;         // 서 있는 모습의 상자(걷기 기준) — 이동·충돌 기준
@@ -87,7 +88,7 @@ namespace Bugi
 
         private CharacterArt(int id, float zoom = 1f)
         {
-            Id = id; Info = Infos[id]; Zoom = zoom;
+            Id = id; Zoom = zoom;
             H = (int)Math.Round(BaseHeight * Scale * zoom);
             K = H / Rig.RefH;
             W = (int)Math.Round((id == 1 ? 214 : 150) * K);
