@@ -764,6 +764,9 @@ namespace Bugi
             // PetFeatures.cs
             { "내려가면 간식 먹자!", "Let's have a snack once I'm down!" },
             { "배가 꽉 찼어! 조금 출출해지면 먹자", "I'm full! Let's eat when I'm a little hungry" },
+            { "배가 빵빵해서 새우깡 한 개도 안 들어가... 서양배 몸매 터지겠어!", "I'm so stuffed not even one shrimp cracker fits... my pear figure will pop!" },
+            { "이 이상 먹으면 날개로 못 날고 굴러다녀야 할지도 몰라! 조금 이따 먹자", "If I eat more I might have to roll instead of fly! Let's eat later" },
+            { "새우깡은 사랑이지만 지금은 배가 꽉 찼어... 위장 파업 선언!", "Shrimp crackers are love, but I'm full... stomach on strike!" },
             { "냠냠! 고마워", "Yum yum! Thanks" },
             { "창 크기를 줄여서 띄워줘!", "Shrink the window and put it up for me!" },
             { "찰칵! 셀카 찍자~", "Click! Let's take a selfie~" },

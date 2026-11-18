@@ -334,20 +334,22 @@ namespace Bugi
             float s = CharacterArt.Scale, d = CharacterArt.DpiScale;
             if (bubbleFont != null && aiBubbleFont != null && fontScale == s && fontDpiScale == d) return;
             fontScale = s; fontDpiScale = d;
-            try { bubbleFont = new Font("Malgun Gothic", 11f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
-            catch { bubbleFont = new Font(FontFamily.GenericSansSerif, 11f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
-            float aiPx = 14f * Math.Max(s, d);
+            float bubblePx = 13f * d;
+            try { bubbleFont = new Font("Malgun Gothic", bubblePx, FontStyle.Bold, GraphicsUnit.Pixel); }
+            catch { bubbleFont = new Font(FontFamily.GenericSansSerif, bubblePx, FontStyle.Bold, GraphicsUnit.Pixel); }
+            float aiPx = 16f * d;
             try { aiBubbleFont = new Font("Malgun Gothic", aiPx, FontStyle.Bold, GraphicsUnit.Pixel); }
             catch { aiBubbleFont = new Font(FontFamily.GenericSansSerif, aiPx, FontStyle.Bold, GraphicsUnit.Pixel); }
             try { affinityFont = new Font("Segoe UI", 10f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
             catch { affinityFont = new Font(FontFamily.GenericSansSerif, 10f * s, FontStyle.Bold, GraphicsUnit.Pixel); }
         }
         private static Font BubbleFontFor(Look L) { return L.BubbleFont ?? (L.Ai ? aiBubbleFont : bubbleFont); }
-        private static float BubbleScaleFor(Look L, float scale) { return L.Ai ? Math.Max(scale, CharacterArt.DpiScale) : scale; }
+        private static float BubbleScaleFor(Look L, float scale) { return L.BubbleFont != null ? scale : CharacterArt.DpiScale; }
         private static int BubbleWidthFor(Look L, float scale)
         {
             if (L.BubbleWidth > 0) return (int)L.BubbleWidth;
-            return (int)(L.Ai ? 220 * BubbleScaleFor(L, scale) : 170 * scale);
+            float bScale = BubbleScaleFor(L, scale);
+            return (int)((L.Ai ? 245 : 195) * bScale);
         }
         private static FontFamily zFamily;
         private static FontFamily ZFamily

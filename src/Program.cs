@@ -605,8 +605,9 @@ namespace Bugi
                 d.AdvanceLife(60);
                 check(d.Affinity == 1 && d.TogetherSeconds == 60, "함께한 1분 = 친밀도 +1");
                 check(Math.Abs(d.Satiety - (100 - 60 * 80.0 / 3600)) < 1e-6, "포만감 감소량");
-                d.Satiety = 90; check(d.TrySnack() && d.Satiety == 100 && d.Affinity == 6, "간식: 포만감 +25(최대 100), 친밀도 +5");
+                d.Satiety = 78; check(d.TrySnack() && d.Satiety == 100 && d.Affinity == 6, "간식: 포만감 +25(최대 100), 친밀도 +5");
                 check(!d.TrySnack(), "배가 꽉 차면 간식 거절");
+                d.Satiety = 80; check(!d.TrySnack(), "포만감 80 이상이면 간식 거절");
                 d.Affinity = 250; d.CelebratedHundreds = 1; check(d.TakeMilestone() && d.CelebratedHundreds == 2 && !d.TakeMilestone(), "100 단위 꽃다발 한 번씩");
                 d.Satiety = 10; check(d.Hungry, "포만감 20 이하 = 배고픔");
                 PlayOptions.Current.HungerMinutes = 0; d.Satiety = 100; check(d.Hungry, "0분 = 항상 우는 표정");

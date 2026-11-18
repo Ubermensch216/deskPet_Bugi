@@ -257,7 +257,8 @@ namespace Bugi
         internal string Notes = "";
         private DateTime lastSave = DateTime.MinValue;
 
-        internal bool CanSnack { get { return Satiety < 100; } }
+        internal const double SnackFullThreshold = 80;
+        internal bool CanSnack { get { return Satiety < SnackFullThreshold; } }
         internal bool Hungry { get { return PlayOptions.Current.HungerCry && (PlayOptions.Current.HungerMinutes == 0 || Satiety <= 20); } }
 
         internal static double Number(XmlNode node, string name, double fallback)
