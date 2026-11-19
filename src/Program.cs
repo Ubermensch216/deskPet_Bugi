@@ -672,6 +672,36 @@ namespace Bugi
                 check(seen2.Contains(PetState.Walk) && seen2.Contains(PetState.Pause) && seen2.Contains(PetState.Wall) && seen2.Contains(PetState.Ceiling) && seen2.Contains(PetState.Resting), "10분 시뮬레이션: 걷기·쉬기·벽·천장·앉기 모두 등장");
                 check(p2.X >= -50 && p2.X <= 1330 && p2.Y >= -50 && p2.Y <= 770, "화면 밖으로 나가지 않음");
 
+                // 벽 타기 ON · 천장 타기 OFF · 졸졸 ON: 벽 꼭대기에서 떨어진 뒤 가장자리에 갇히지 않고 화면 안쪽으로 걸어 나옴
+                PlayOptions.Current = new PlayOptions { Walls = true, Ceiling = false, Windows = true, Idle = true, Escape = false, Follow = true };
+                DesktopSurfaces.TestMouse = () => new Point(640, 360);
+                try
+                {
+                    foreach (int side in new[] { 1, -1 })
+                    {
+                        var wn = new FakeWorld { Rng = new Random(11 + side) };
+                        double startX = side > 0 ? wn.Areas[0].Right - 40 : wn.Areas[0].Left + 40;
+                        var pn = new Pet(wn, 0, startX, wn.Areas[0].Bottom) { Area = wn.Areas[0], Dir = side };
+                        pn.SetState(PetState.Walk, wn);
+                        bool climbed = false, fellInside = false, escapedEdge = false, allInsideX = true;
+                        for (double t = 0; t < 45; t += .03)
+                        {
+                            wn.Now += .03; pn.Update(wn, .03, null, 0);
+                            if (pn.State == PetState.Wall) climbed = true;
+                            if (climbed && pn.State == PetState.Falling)
+                            {
+                                bool insideX = pn.X >= wn.Areas[0].Left + pn.SideReach - .5 && pn.X <= wn.Areas[0].Right - pn.SideReach + .5;
+                                allInsideX &= insideX;
+                                if (insideX && pn.Dir == -side) fellInside = true;
+                            }
+                            if (fellInside && pn.State == PetState.Walk && (side > 0 ? pn.X < wn.Areas[0].Right - 150 : pn.X > wn.Areas[0].Left + 150))
+                                escapedEdge = true;
+                        }
+                        check(climbed && fellInside && allInsideX && escapedEdge, "벽 타기 ON + 천장 타기 OFF: 꼭대기 낙하 후 가장자리에 갇히지 않고 안쪽으로 이동(" + side + ")");
+                    }
+                }
+                finally { DesktopSurfaces.TestMouse = null; }
+
                 // 포만감 매우 낮음(10 이하 / 5 이하): 속도 감소 · 벽타기 금지 · 제자리 정지 · 힘없는 액션
                 PlayOptions.Current = new PlayOptions { Walls = true, Ceiling = true, Windows = true, Escape = true, Idle = true };
                 var wl = new FakeWorld { Rng = new Random(7) };

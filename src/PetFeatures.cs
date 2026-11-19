@@ -95,6 +95,20 @@ namespace Bugi
             else SetState(PetState.Falling, w);
         }
 
+        /// <summary>벽·천장·창에서 떨어져 날개 퍼덕 낙하로 전환한다. 화면 가장자리에 잘리거나 다시 끼지 않게 안쪽으로 보정한다.</summary>
+        private void DetachToFall(IWorld w, double drift = 0)
+        {
+            if (State == PetState.Wall) Dir = -wallSide;
+            ClearAttachments();
+            double half = SideReach;
+            if (Area.Width > half * 2) X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
+            else X = (Area.Left + Area.Right) * .5;
+            double top = Area.Top + TopReach + 1;
+            Y = top < Area.Bottom - 1 ? Math.Max(top, Math.Min(Area.Bottom - 1, Y)) : Area.Bottom - 1;
+            Vy = 0; flutterDrift = drift;
+            SetState(PetState.Falling, w);
+        }
+
         private void AdvanceThrow(IWorld w, double dt)
         {
             double oldY = Y;
@@ -130,8 +144,12 @@ namespace Bugi
             mouseGrace = w.Now + .7; hoverSince = -1;
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb || State == PetState.Climb)
             {
+                int push = State == PetState.Wall ? -wallSide : 0;
+                if (push != 0) Dir = push;
                 ReleaseFeatures(w); ResetSecretThrows(); queuedAfterLand = null; Vy = 0;
-                StartFlutter(w); DelayIdle(w); FriendData.Current.Like(1); return;
+                StartFlutter(w);
+                if (push != 0) flutterDrift = push * 120 * S;
+                DelayIdle(w); FriendData.Current.Like(1); return;
             }
             if (State == PetState.Sleep) { SetState(PetState.Waking, w); return; }
             if (State == PetState.Gather || State == PetState.WaitHome || State == PetState.Cheer) return;
@@ -161,7 +179,7 @@ namespace Bugi
             if (State == PetState.Drag || State == PetState.Falling || State == PetState.Thrown || State == PetState.PilotRise)
             { Bubble = Loc.T("내려가면 간식 먹자!"); BubbleUntil = w.Now + 3; return; }
             if (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb)
-            { ClearAttachments(); SetState(PetState.Falling, w); return; }
+            { DetachToFall(w, State == PetState.Wall ? -wallSide * 120 * S : 0); return; }
             if (!FriendData.Current.TrySnack())
             {
                 string[] refusals =
@@ -263,23 +281,23 @@ namespace Bugi
             if (AdvanceSecrets(w, dt)) return true;
             bool focus = PlayOptions.IsFocus(DateTime.Now);
             if (focus && !focusWasOn && (SupportWindow != IntPtr.Zero || State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb))
-            { ClearAttachments(); SetState(PetState.Falling, w); }
+                DetachToFall(w, State == PetState.Wall ? -wallSide * 120 * S : 0);
             focusWasOn = focus;
             if ((State == PetState.Wall && !opts.Walls) || (State == PetState.Ceiling && !opts.Ceiling) || (State == PetState.WindowClimb && !opts.Windows)
                 || (IsWeakHungry && (State == PetState.Wall || State == PetState.Ceiling || State == PetState.WindowClimb || State == PetState.Climb)))
-            { ClearAttachments(); SetState(PetState.Falling, w); }
+                DetachToFall(w, State == PetState.Wall ? -wallSide * 120 * S : 0);
             if (IsWeakHungry) approachWindow = IntPtr.Zero;
             if (SupportWindow != IntPtr.Zero && State != PetState.Falling && State != PetState.Drag)
             {
                 Rectangle r;
-                if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) { ClearAttachments(); SetState(PetState.Falling, w); }
+                if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) DetachToFall(w);
                 else
                 {
                     X += r.Left - SupportBounds.Left;
                     if (State != PetState.WindowClimb) Y = r.Top;
                     SupportBounds = r;
                     if (State != PetState.WindowClimb && (X < r.Left + 5 || X > r.Right - 5 || !DesktopSurfaces.TopVisible(SupportWindow, X, r.Top)))
-                    { ClearAttachments(); Y += 3; SetState(PetState.Falling, w); }
+                    { Y += 3; DetachToFall(w); }
                 }
             }
             if (State == PetState.Falling) return false;
@@ -322,11 +340,12 @@ namespace Bugi
                 if (approachWindow != IntPtr.Zero && State == PetState.Walk)
                 {
                     Rectangle r;
-                    if (!DesktopSurfaces.TryBounds(approachWindow, out r)) approachWindow = IntPtr.Zero;
+                    if (!DesktopSurfaces.TryBounds(approachWindow, out r) || r.Top < Area.Top + 70 * S || r.Top >= Area.Bottom - 70 * S) approachWindow = IntPtr.Zero;
                     else
                     {
                         double target = approachSide < 0 ? r.Left - Art.W / 2.0 : r.Right + Art.W / 2.0;
-                        if (Math.Abs(target - X) <= WalkSpeed * opts.Speed * dt + 2)
+                        if (target < Area.Left + HalfW || target > Area.Right - HalfW) approachWindow = IntPtr.Zero;
+                        else if (Math.Abs(target - X) <= WalkSpeed * opts.Speed * dt + 2)
                         { X = target; SupportWindow = approachWindow; SupportBounds = r; approachWindow = IntPtr.Zero; SetState(PetState.WindowClimb, w); }
                         else Dir = target < X ? -1 : 1;
                     }
@@ -364,7 +383,7 @@ namespace Bugi
                             X = Math.Max(Area.Left + half, Math.Min(Area.Right - half, X));
                             Y = Area.Top + Art.H; Dir = -wallSide; SetState(PetState.Ceiling, w);
                         }
-                        else { ClearAttachments(); SetState(PetState.Falling, w); }
+                        else DetachToFall(w, -wallSide * 140 * S);
                     }
                     else if (wallDescending && Y + BottomExt(true) >= Area.Bottom)
                     {
@@ -376,10 +395,10 @@ namespace Bugi
                 case PetState.Ceiling:
                     Y = Area.Top + Art.H;
                     X += Dir * 36 * S * opts.Speed * dt;
-                    if (StateT > 14 && w.Rng.NextDouble() < dt * .08) { ClearAttachments(); SetState(PetState.Falling, w); }
+                    if (StateT > 14 && w.Rng.NextDouble() < dt * .08) DetachToFall(w);
                     else if ((Dir < 0 && X <= Area.Left + Art.W / 2.0) || (Dir > 0 && X >= Area.Right - Art.W / 2.0))
                     {
-                        if (!opts.Walls) { ClearAttachments(); SetState(PetState.Falling, w); }
+                        if (!opts.Walls) { Dir = -Dir; DetachToFall(w, Dir * 120 * S); }
                         else
                         {
                             wallSide = Dir; wallDescending = true;
@@ -390,7 +409,7 @@ namespace Bugi
                     break;
                 case PetState.WindowClimb:
                     Rectangle rect;
-                    if (SupportWindow == IntPtr.Zero || !DesktopSurfaces.TryBounds(SupportWindow, out rect)) { ClearAttachments(); SetState(PetState.Falling, w); break; }
+                    if (SupportWindow == IntPtr.Zero || !DesktopSurfaces.TryBounds(SupportWindow, out rect)) { DetachToFall(w); break; }
                     X = approachSide < 0 ? WallX(rect.Left, rect.Left, 1, false) : WallX(rect.Right, rect.Right, -1, false);
                     Y -= 46 * S * opts.Speed * dt;
                     if (Y <= rect.Top + TopExt(false) * .75)
@@ -414,7 +433,7 @@ namespace Bugi
         {
             if (SupportWindow == IntPtr.Zero) return false;
             Rectangle r;
-            if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) { ClearAttachments(); SetState(PetState.Falling, w); return true; }
+            if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) { DetachToFall(w); return true; }
             double nx = X + Dir * speed * dt;
             if (nx <= r.Left + HalfW || nx >= r.Right - HalfW)
             {
@@ -430,7 +449,7 @@ namespace Bugi
         {
             if (SupportWindow == IntPtr.Zero) return false;
             Rectangle r;
-            if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) { ClearAttachments(); SetState(PetState.Falling, w); return true; }
+            if (!DesktopSurfaces.TryBounds(SupportWindow, out r)) { DetachToFall(w); return true; }
             Y = r.Top; return true;
         }
 
@@ -467,6 +486,7 @@ namespace Bugi
             else if (Y >= Area.Bottom)
             {
                 Y = Area.Bottom; Vy = 0; flutterDrift = 0; ClearAttachments();
+                if (Area.Width > HalfW * 2) X = Math.Max(Area.Left + HalfW, Math.Min(Area.Right - HalfW, X));
                 StartSquish(w, .3, .15, queuedAfterLand ?? PetState.Walk, false); queuedAfterLand = null; DelayIdle(w); mouseGrace = w.Now + .8;
             }
         }
