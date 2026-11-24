@@ -692,6 +692,11 @@ namespace Bugi
             { "모델을 저장하는 중...", "Saving the model..." },
             { "모델 받기가 중간에 끝났어요. 다시 누르면 이어서 받아요.", "The model download ended midway. Press again to resume." },
             { "모델을 받는 중에 연결이 끊겼어요. 다시 누르면 이어서 받아요.\n(", "The connection dropped while downloading the model. Press again to resume.\n(" },
+            { "Ollama 가 오래돼서 AI 모델 '{0}' 을 받지 못했어요. ollama.com 에서 새 버전을 설치한 뒤 다시 눌러 주세요.", "Ollama is too old to download the AI model '{0}'. Install the latest version from ollama.com and press again." },
+            { "이 PC 의 Ollama 가 오래돼서 AI 모델 '{0}' 을 받을 수 없어요.\n\nOllama 를 새 버전으로 바꿀까요?\n공식 설치 파일(약 2 GB)을 내려받아 덮어 설치해요. 받아 둔 모델과 설정은 그대로이고, 설치하는 동안 Ollama 가 잠깐 꺼져요.", "The Ollama on this PC is too old to download the AI model '{0}'.\n\nUpdate Ollama to the latest version?\nI'll download the official installer (about 2 GB) and install it over the old one. Your models and settings stay as they are; Ollama closes briefly during the update." },
+            { "켜져 있는 Ollama 를 잠깐 끄는 중...", "Closing the running Ollama for a moment..." },
+            { "{0} 드라이브의 여유 공간이 모자라요. (남은 공간 {1} · 필요한 공간 약 {2})\n공간을 비운 뒤 다시 눌러 주세요.", "Not enough free space on drive {0}. ({1} free · about {2} needed)\nFree up some space and press again." },
+            { "설치 파일에 서명한 곳이 Ollama 가 아니어서 설치하지 않았어요. ({0})", "Not installed because the installer wasn't signed by Ollama. ({0})" },
             // Options.cs
             { "하늘색 조끼 · 명찰", "Sky-blue vest · name tag" },
             { "제복 (파란 셔츠 · 남색 바지)", "Uniform (blue shirt · navy trousers)" },

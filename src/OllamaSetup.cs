@@ -20,6 +20,17 @@ namespace Bugi
     {
         internal const string InstallerUrl = "https://ollama.com/download/OllamaSetup.exe";
         internal const string Cancelled = "cancelled";
+        /// <summary>Pull 이 돌려주는 내부 신호: 이 PC 의 Ollama 가 오래돼서 이 모델을 받을 수 없다(서버 오류 412).</summary>
+        private const string NeedsUpdate = "needs-update";
+
+        // 여유 공간 기준(2026-11 실측: 설치 파일 1.73 GB, 설치된 Ollama 3.1 GB, gemma4:e2b 4.6 GB). 다른 모델은 크기를 미리 알 수 없어서 기본 모델 기준으로 본다.
+        private const long InstallerBytes = 2L << 30, InstalledBytes = 7L << 29, ModelBytes = 5L << 30;   // 2 GB · 3.5 GB · 5 GB
+
+        /// <summary>모델 받기 오류가 "Ollama 가 오래됐다"는 뜻인지. 예: "pull model manifest: 412: … requires a newer version of Ollama …"</summary>
+        internal static bool IsTooOldError(string err)
+        {
+            return err != null && (err.IndexOf("newer version", StringComparison.OrdinalIgnoreCase) >= 0 || err.Contains(": 412"));
+        }
 
         /// <summary>자동 설치는 이 PC 의 서버(localhost)에만 쓴다. 다른 PC 의 서버에는 설치할 수 없다.</summary>
         internal static bool IsLocalEndpoint(string endpoint)
@@ -52,33 +63,22 @@ namespace Bugi
             report(Loc.T("지금 상태를 확인하는 중..."), -1, true);
             ProbeResult r = OllamaClient.Probe(o);
             if (r == ProbeResult.Ok) return null;
-            bool agreed = false;
+            bool agreed = false, installedNow = false;
 
             if (r == ProbeResult.Offline)
             {
                 string exe = FindExe();
                 if (exe == null)
                 {
+                    string space = CheckSpace(true, true);
+                    if (space != null) return space;
                     long free = FreeBytes(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
                     if (!confirm(Loc.T("이 PC 에는 Ollama 가 없어요.\n\n")
                         + Loc.TF("① Ollama 설치 파일(공식 ollama.com)을 내려받아 설치하고\n② AI 모델 '{0}' 을 받아요.\n\n", o.Model)
                         + Loc.TF("용량이 커서(합쳐서 수 GB 일 수 있어요) 시간이 걸려요. 인터넷 연결이 필요하고, 사용자 폴더의 여유 공간은 약 {0} 이에요.\n계속할까요?", FmtBytes(free)))) return Cancelled;
-                    agreed = true;
-                    string dir = Path.Combine(Path.GetTempPath(), "BugiOllamaSetup_" + Guid.NewGuid().ToString("N"));
-                    try
-                    {
-                        Directory.CreateDirectory(dir);
-                        string setup = Path.Combine(dir, "OllamaSetup.exe");
-                        string err = Download(h, InstallerUrl, setup, report);
-                        if (err != null) return err;
-                        if (h.Cancelled) return Cancelled;
-                        report(Loc.T("설치 파일의 서명을 확인하는 중..."), -1, true);
-                        err = VerifySignature(setup);
-                        if (err != null) return err;
-                        err = Install(setup, report);
-                        if (err != null) return err;
-                    }
-                    finally { try { Directory.Delete(dir, true); } catch { } }
+                    agreed = true; installedNow = true;
+                    string err = DownloadAndInstall(h, report, false);
+                    if (err != null) return err;
                     exe = FindExe();
                     if (exe == null) return Loc.T("설치는 끝났는데 Ollama 를 찾지 못했어요. 컴퓨터를 다시 켠 뒤 다시 눌러 주세요.");
                 }
@@ -90,13 +90,102 @@ namespace Bugi
 
             if (r == ProbeResult.ModelMissing)
             {
-                if (!agreed && !confirm(Loc.TF("AI 모델 '{0}' 을 내려받아요.\n\n용량이 커서(수 GB 일 수 있어요) 시간이 걸려요. 인터넷 연결이 필요해요.\n계속할까요?", o.Model))) return Cancelled;
+                if (!agreed)
+                {
+                    string space = CheckSpace(false, true);
+                    if (space != null) return space;
+                    if (!confirm(Loc.TF("AI 모델 '{0}' 을 내려받아요.\n\n용량이 커서(수 GB 일 수 있어요) 시간이 걸려요. 인터넷 연결이 필요해요.\n계속할까요?", o.Model))) return Cancelled;
+                }
                 string perr = Pull(o, h, report);
+                if (perr == NeedsUpdate)
+                {
+                    // 이미 깔려 있던 Ollama 가 오래된 경우: 같은 공식 설치 파일로 덮어 설치(업데이트)한 뒤 한 번 더 받는다.
+                    string tooOld = Loc.TF("Ollama 가 오래돼서 AI 모델 '{0}' 을 받지 못했어요. ollama.com 에서 새 버전을 설치한 뒤 다시 눌러 주세요.", o.Model);
+                    if (installedNow) return tooOld;   // 방금 최신으로 깔았는데도 안 되면 되풀이하지 않는다
+                    string space = CheckSpace(true, false);
+                    if (space != null) return space;
+                    if (!confirm(Loc.TF("이 PC 의 Ollama 가 오래돼서 AI 모델 '{0}' 을 받을 수 없어요.\n\nOllama 를 새 버전으로 바꿀까요?\n공식 설치 파일(약 2 GB)을 내려받아 덮어 설치해요. 받아 둔 모델과 설정은 그대로이고, 설치하는 동안 Ollama 가 잠깐 꺼져요.", o.Model))) return tooOld;
+                    string err = DownloadAndInstall(h, report, true);
+                    if (err != null) return err;
+                    string exe = FindExe();
+                    if (exe == null) return Loc.T("설치는 끝났는데 Ollama 를 찾지 못했어요. 컴퓨터를 다시 켠 뒤 다시 눌러 주세요.");
+                    string serr = WaitServer(o, exe, h, report);
+                    if (serr != null) return serr;
+                    perr = Pull(o, h, report);
+                    if (perr == NeedsUpdate) return tooOld;
+                }
                 if (perr != null) return perr;
             }
 
             report(Loc.T("마무리 확인 중..."), -1, false);
             return OllamaClient.Probe(o) == ProbeResult.Ok ? null : Loc.T("설치는 했는데 아직 연결이 안 돼요. 잠시 뒤 '연결 확인'을 눌러 보세요.");
+        }
+
+        // ───────── 설치 파일 받기 → 서명 확인 → 설치 ─────────
+        /// <summary>새로 설치할 때와 오래된 Ollama 를 덮어 설치할 때(upgrade) 함께 쓴다. 괜찮으면 null.</summary>
+        private static string DownloadAndInstall(ChatRequest h, Action<string, int, bool> report, bool upgrade)
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "BugiOllamaSetup_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(dir);
+                string setup = Path.Combine(dir, "OllamaSetup.exe");
+                string err = Download(h, InstallerUrl, setup, report);
+                if (err != null) return err;
+                if (h.Cancelled) return Cancelled;
+                report(Loc.T("설치 파일의 서명을 확인하는 중..."), -1, true);
+                err = VerifySignature(setup);
+                if (err != null) return err;
+                if (upgrade) StopOllama(report);   // 켜져 있는 Ollama 가 파일을 붙잡고 있으면 덮어 쓰지 못한다
+                return Install(setup, report);
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        }
+
+        /// <summary>덮어 설치하기 전에 켜져 있는 Ollama(트레이 앱 · 서버 · 모델 실행기)를 끈다. 끄지 못한 것은 설치 프로그램에 맡긴다.</summary>
+        private static void StopOllama(Action<string, int, bool> report)
+        {
+            report(Loc.T("켜져 있는 Ollama 를 잠깐 끄는 중..."), -1, false);
+            foreach (string name in new[] { "ollama app", "ollama" })   // 트레이 앱을 먼저 꺼야 서버를 다시 켜지 않는다
+                foreach (Process p in Process.GetProcessesByName(name))
+                    using (p) { try { p.Kill(); p.WaitForExit(5000); } catch { } }
+        }
+
+        // ───────── 여유 공간 ─────────
+        /// <summary>Ollama 가 모델을 두는 폴더(OLLAMA_MODELS 가 있으면 그곳).</summary>
+        private static string ModelsDir()
+        {
+            string env = Environment.GetEnvironmentVariable("OLLAMA_MODELS");
+            if (string.IsNullOrEmpty(env)) env = Environment.GetEnvironmentVariable("OLLAMA_MODELS", EnvironmentVariableTarget.User);
+            return !string.IsNullOrEmpty(env) ? env : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ollama", "models");
+        }
+
+        /// <summary>
+        /// 설치(install) · 모델 받기(model)에 필요한 공간이 드라이브마다 있는지 본다. 모자라면 안내글, 넉넉하거나 알 수 없으면 null.
+        /// 설치 파일(임시 폴더)과 설치된 Ollama(%LocalAppData%)는 설치하는 동안 함께 있으므로 더해서 본다.
+        /// </summary>
+        private static string CheckSpace(bool install, bool model)
+        {
+            var need = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            Action<string, long> add = (path, bytes) =>
+            {
+                string root; try { root = Path.GetPathRoot(Path.GetFullPath(path)); } catch { return; }
+                if (string.IsNullOrEmpty(root)) return;
+                long v; need.TryGetValue(root, out v); need[root] = v + bytes;
+            };
+            if (install)
+            {
+                add(Path.GetTempPath(), InstallerBytes);
+                add(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), InstalledBytes);
+            }
+            if (model) add(ModelsDir(), ModelBytes);
+            foreach (var kv in need)
+            {
+                long free = FreeBytes(kv.Key);
+                if (free > 0 && free < kv.Value)
+                    return Loc.TF("{0} 드라이브의 여유 공간이 모자라요. (남은 공간 {1} · 필요한 공간 약 {2})\n공간을 비운 뒤 다시 눌러 주세요.", kv.Key.TrimEnd('\\'), FmtBytes(free), FmtBytes(kv.Value));
+            }
+            return null;
         }
 
         // ───────── 내려받기 ─────────
@@ -159,7 +248,13 @@ namespace Bugi
                 var data = new WinTrustData { cbStruct = Marshal.SizeOf(typeof(WinTrustData)), dwUIChoice = 2 /*UI 없음*/, fdwRevocationChecks = 0, dwUnionChoice = 1 /*파일*/, pFile = pf, dwStateAction = 0 };
                 pd = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WinTrustData))); Marshal.StructureToPtr(data, pd, false);
                 int rc = WinVerifyTrust(new IntPtr(-1), new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE"), pd);
-                return rc == 0 ? null : Loc.T("내려받은 설치 파일의 디지털 서명이 올바르지 않아서 설치하지 않았어요. (코드 0x") + rc.ToString("X8") + ")";
+                if (rc != 0) return Loc.T("내려받은 설치 파일의 디지털 서명이 올바르지 않아서 설치하지 않았어요. (코드 0x") + rc.ToString("X8") + ")";
+                // 서명이 올바르기만 하면 누구 서명이든 통과하므로, 서명한 곳이 Ollama 인지도 본다(2026-11 확인: "CN=Ollama Inc., O=Ollama Inc., …").
+                string subject = null;
+                try { subject = X509Certificate.CreateFromSignedFile(path).Subject; } catch { }
+                if (subject == null || subject.IndexOf("Ollama", StringComparison.OrdinalIgnoreCase) < 0)
+                    return Loc.TF("설치 파일에 서명한 곳이 Ollama 가 아니어서 설치하지 않았어요. ({0})", subject ?? "?");
+                return null;
             }
             catch (Exception e) { return Loc.T("설치 파일의 서명을 확인하지 못해서 설치하지 않았어요. (") + e.Message + ")"; }
             finally { if (pd != IntPtr.Zero) Marshal.FreeHGlobal(pd); if (pf != IntPtr.Zero) Marshal.FreeHGlobal(pf); }
@@ -174,7 +269,8 @@ namespace Bugi
                 using (Process p = Process.Start(new ProcessStartInfo(setup, "/SILENT /SUPPRESSMSGBOXES /NORESTART") { UseShellExecute = true }))
                 {
                     if (p == null) return Loc.T("설치 프로그램을 실행하지 못했어요.");
-                    if (!p.WaitForExit(15 * 60 * 1000)) return Loc.T("설치가 너무 오래 걸려서 멈췄어요.");
+                    // 오래 걸려도 Ollama 가 이미 깔렸으면 계속 간다(safeDoc setup.ps1 과 같게). 남은 설치 프로그램은 그대로 둔다.
+                    if (!p.WaitForExit(15 * 60 * 1000)) return FindExe() != null ? null : Loc.T("설치가 너무 오래 걸려서 멈췄어요.");
                     if (p.ExitCode != 0) return Loc.T("설치 프로그램이 오류로 끝났어요. (코드 ") + p.ExitCode + ")";
                 }
                 return null;
@@ -232,7 +328,7 @@ namespace Bugi
                         if (h.Cancelled) return Cancelled;
                         if (line.Length == 0) continue;
                         object j = Json.Parse(line);
-                        string err = Json.Str(j, "error"); if (err != null) return Loc.T("모델을 받지 못했어요. (") + err + ")";
+                        string err = Json.Str(j, "error"); if (err != null) return IsTooOldError(err) ? NeedsUpdate : Loc.T("모델을 받지 못했어요. (") + err + ")";
                         string status = Json.Str(j, "status") ?? "", digest = Json.Str(j, "digest");
                         if (status == "success") { success = true; continue; }
                         if (digest != null && Json.Get(j, "total") is double)
@@ -251,7 +347,12 @@ namespace Bugi
                 }
                 return success ? null : Loc.T("모델 받기가 중간에 끝났어요. 다시 누르면 이어서 받아요.");
             }
-            catch (Exception e) { return h.Cancelled ? Cancelled : Loc.T("모델을 받는 중에 연결이 끊겼어요. 다시 누르면 이어서 받아요.\n(") + e.Message + ")"; }
+            catch (Exception e)
+            {
+                var we = e as WebException; var wr = we != null ? we.Response as HttpWebResponse : null;
+                if (wr != null && (int)wr.StatusCode == 412) return NeedsUpdate;   // 오래된 Ollama(서버가 오류를 상태 코드로 줄 때)
+                return h.Cancelled ? Cancelled : Loc.T("모델을 받는 중에 연결이 끊겼어요. 다시 누르면 이어서 받아요.\n(") + e.Message + ")";
+            }
         }
 
         // ───────── 도우미 ─────────

@@ -600,6 +600,8 @@ namespace Bugi
                 check(!quiet.HourAllowed(new DateTime(2026, 10, 21, 10, 0, 0)) && quiet.HourAllowed(new DateTime(2026, 10, 24, 10, 0, 0)) && quiet.HourAllowed(new DateTime(2026, 10, 21, 20, 0, 0)), "평일 제외 시간대");
                 check(App.HourlyMessage(new DateTime(2026, 10, 21, 12, 0, 0), true, "12:00", "점심!", true, "18:00", "퇴근!") == "지금은 오후 12시야!\n점심!", "정각 문구+점심 병합");
                 check(App.HourlyText(new DateTime(2026, 10, 21, 0, 0, 0)) == "지금은 오전 12시야!", "정각 문구 0시");
+                check(OllamaSetup.IsTooOldError("pull model manifest: 412: \n\nThe model you are attempting to pull requires a newer version of Ollama.")
+                      && !OllamaSetup.IsTooOldError("pull model manifest: file does not exist") && !OllamaSetup.IsTooOldError(null), "AI 설치: 오래된 Ollama 오류 알아보기");
 
                 var o = new PlayOptions { Walls = false, Speed = 1.5, ClickMode = ClickReaction.Cry, HungerMinutes = 30, PetOpacityPercent = 70, PetSizePercent = 150, FixedX = 123.5, FixedY = 456.25, PetPower = false };
                 PlayOptions.Current = o; check(o.Save(), "움직임 설정 저장");
