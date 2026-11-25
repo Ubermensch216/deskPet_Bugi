@@ -583,6 +583,71 @@ namespace Bugi
                 g.DrawLines(pen, new[] { Pt(r, .62f, .12f), Pt(r, .88f, .12f), Pt(r, .88f, .38f) });
             }
         }
+
+        // ───────── 메모 라이브러리 도구 막대 ─────────
+        /// <summary>더하기(+): 새 노트북</summary>
+        internal static void Plus(Graphics g, RectangleF r, Color ink)
+        {
+            using (var pen = Line(r, FriendUI.Blue, .13f))
+            {
+                g.DrawLine(pen, Pt(r, .50f, .18f), Pt(r, .50f, .82f));
+                g.DrawLine(pen, Pt(r, .18f, .50f), Pt(r, .82f, .50f));
+            }
+        }
+
+        /// <summary>연필: 이름 변경</summary>
+        internal static void Pencil(Graphics g, RectangleF r, Color ink)
+        {
+            using (var p = new GraphicsPath())
+            {
+                p.AddPolygon(new[] { Pt(r, .14f, .86f), Pt(r, .20f, .60f), Pt(r, .66f, .14f), Pt(r, .86f, .34f), Pt(r, .40f, .80f) });
+                using (var br = new SolidBrush(Soft)) g.FillPath(br, p);
+                using (var pen = Line(r, ink, .09f)) g.DrawPath(pen, p);
+            }
+            using (var pen = Line(r, FriendUI.Blue, .09f)) g.DrawLine(pen, Pt(r, .55f, .25f), Pt(r, .75f, .45f));
+            using (var br = new SolidBrush(FriendUI.Blue)) g.FillPolygon(br, new[] { Pt(r, .14f, .86f), Pt(r, .20f, .66f), Pt(r, .34f, .80f) });
+        }
+
+        /// <summary>시계 방향 원형 화살표: 새로고침</summary>
+        internal static void Refresh(Graphics g, RectangleF r, Color ink)
+        {
+            using (var pen = Line(r, ink, .11f))
+            {
+                g.DrawArc(pen, Box(r, .16f, .16f, .84f, .84f), 45, 275);
+                g.DrawLines(pen, new[] { Pt(r, .78f, .10f), Pt(r, .76f, .30f), Pt(r, .56f, .30f) });
+            }
+        }
+
+        /// <summary>체크된 칸 두 줄: 모두 선택</summary>
+        internal static void SelectAll(Graphics g, RectangleF r, Color ink)
+        {
+            foreach (float y in new[] { .28f, .72f })
+            {
+                CheckBox(g, r, Box(r, .06f, y - .17f, .40f, y + .17f), true, ink);
+                using (var pen = Line(r, ink, .10f)) g.DrawLine(pen, Pt(r, .52f, y), Pt(r, .94f, y));
+            }
+        }
+
+        /// <summary>빈 칸 두 줄: 선택 해제</summary>
+        internal static void DeselectAll(Graphics g, RectangleF r, Color ink)
+        {
+            foreach (float y in new[] { .28f, .72f })
+            {
+                CheckBox(g, r, Box(r, .06f, y - .17f, .40f, y + .17f), false, ink);
+                using (var pen = Line(r, Color.FromArgb(145, ink), .10f)) g.DrawLine(pen, Pt(r, .52f, y), Pt(r, .94f, y));
+            }
+        }
+
+        /// <summary>폴더 + 화살표: 노트북으로 이동</summary>
+        internal static void MoveFolder(Graphics g, RectangleF r, Color ink)
+        {
+            Folder(g, Box(r, .02f, .06f, .90f, .88f), ink);
+            using (var pen = Line(r, FriendUI.BlueDark, .11f))
+            {
+                g.DrawLine(pen, Pt(r, .36f, .62f), Pt(r, .88f, .62f));
+                g.DrawLines(pen, new[] { Pt(r, .70f, .44f), Pt(r, .88f, .62f), Pt(r, .70f, .80f) });
+            }
+        }
     }
 
     /// <summary>그림만 있는 납작한 단추. 이름은 말풍선과 접근성 이름으로만 쓴다.</summary>
@@ -610,9 +675,9 @@ namespace Bugi
                 Color bg = on ? (down ? FriendUI.BlueDark : hot ? Color.FromArgb(46, 128, 224) : FriendUI.Blue) : down ? Color.FromArgb(214, 228, 250) : hot ? Color.FromArgb(232, 240, 255) : Color.White;
                 using (var fill = new SolidBrush(bg)) g.FillPath(fill, path);
                 using (var pen = new Pen(hot || Focused || on ? FriendUI.Blue : Color.FromArgb(200, 212, 235), 1f)) g.DrawPath(pen, path);
-                float d = 18 * s;
+                float d = Math.Min(18 * s, Math.Min(Width, Height) - 8 * s);
                 paint(g, new RectangleF((Width - d) / 2f, (Height - d) / 2f, d, d), on ? Color.White : toggle ? Color.FromArgb(123, 135, 152) : FriendUI.BlueDark);
-                if (!Enabled) using (var veil = new SolidBrush(Color.FromArgb(165, 248, 250, 255))) g.FillPath(veil, path);
+                if (!Enabled) using (var veil = new SolidBrush(Color.FromArgb(165, BackColor))) g.FillPath(veil, path);
             }
         }
 

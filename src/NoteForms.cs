@@ -102,11 +102,12 @@ namespace Bugi
         private readonly ListBox notebookList, tagList;
         private readonly TextBox search;
         private readonly NoteListBox results;
-        private readonly Label selectionText, status, searchHint;
-        private readonly Button newNb, renameNb, deleteNb, refresh, selectAll, clearAll, move, delete;
+        private readonly Label status, searchHint;
+        private readonly FlatButton newNb, renameNb, deleteNb, refresh, selectAll, clearAll, move, delete;
+        private readonly ToolTip tips = new ToolTip { AutoPopDelay = 12000 };
         private readonly System.Windows.Forms.Timer searchTimer = new System.Windows.Forms.Timer { Interval = 150 }, refreshTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         private readonly Action storeChanged;
-        private Guid? notebookFilter; private string tagFilter; private bool suppress; private bool unsubscribed;
+        private Guid? notebookFilter; private string tagFilter; private string countSummary = ""; private bool suppress; private bool unsubscribed;
 
         private bool HasStore { get { return mgr != null && mgr.Store != null; } }
         private IWin32Window OwnerWindow { get { return FindForm() ?? (IWin32Window)this; } }
@@ -116,48 +117,47 @@ namespace Bugi
             this.mgr = mgr;
             BackColor = compact ? FriendUI.Sheet : FriendUI.Paper; ForeColor = FriendUI.Ink;
 
-            var left = new Panel { Dock = DockStyle.Left, Width = compact ? 216 : 256, Padding = compact ? new Padding(16, 8, 6, 8) : new Padding(12, 14, 6, 10) };
-            var nbLabel = new Label { Text = Loc.T("노트북"), Dock = DockStyle.Top, Height = compact ? 20 : 24, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
-            var nbHead = compact
-                ? new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(0, 2, 0, 4), Margin = Padding.Empty }
-                : new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, WrapContents = false };
-            newNb = Small(Loc.T("＋ 새로"), compact); renameNb = Small(Loc.T("이름"), compact); deleteNb = Small(Loc.T("삭제"), compact); nbHead.Controls.AddRange(new Control[] { newNb, renameNb, deleteNb });
-            notebookList = new ListBox { Dock = DockStyle.Top, Height = compact ? 165 : 220, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
-            var tagHead = new Label { Text = Loc.T("태그"), Dock = DockStyle.Top, Height = compact ? 24 : 26, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
-            tagList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
-            left.Controls.Add(tagList); left.Controls.Add(tagHead); left.Controls.Add(notebookList); left.Controls.Add(nbHead); left.Controls.Add(nbLabel);
-            if (compact)
-                left.SizeChanged += delegate
-                {
-                    int avail = left.ClientSize.Height - left.Padding.Vertical - nbLabel.Height - nbHead.Height - tagHead.Height;
-                    if (avail > 160) notebookList.Height = Math.Max(80, avail / 2);
-                };
+            var left = new Panel { Dock = DockStyle.Left, Width = compact ? 196 : 244, Padding = compact ? new Padding(16, 10, 6, 10) : new Padding(12, 12, 6, 10) };
+            var nbRow = new Panel { Dock = DockStyle.Top, Height = 28, Padding = new Padding(0, 0, 0, 4) };
+            var nbLabel = new Label { Text = Loc.T("노트북"), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Malgun Gothic", 9f, FontStyle.Bold), ForeColor = FriendUI.BlueDark };
+            var nbBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, Padding = Padding.Empty, Margin = Padding.Empty };
+            newNb = IconBtn(FlatIcon.Plus, Loc.T("새 노트북"), 26, 24);
+            renameNb = IconBtn(FlatIcon.Pencil, Loc.T("노트북 이름 변경"), 26, 24);
+            deleteNb = IconBtn(FlatIcon.Trash, Loc.T("노트북 삭제"), 26, 24, last: true);
+            nbBtns.Controls.AddRange(new Control[] { newNb, renameNb, deleteNb });
+            nbRow.Controls.Add(nbLabel); nbRow.Controls.Add(nbBtns);
 
-            var right = new Panel { Dock = DockStyle.Fill, Padding = compact ? new Padding(6, 10, 16, 8) : new Padding(8, 14, 14, 10) };
-            var top = new Panel { Dock = DockStyle.Top, Height = compact ? 26 : 34 };
-            search = new TextBox { Dock = DockStyle.Fill }; refresh = new Button { Text = "⟳", Dock = DockStyle.Right, Width = compact ? 30 : 36 };
-            searchHint = new Label { Text = Loc.T("메모 검색"), AutoSize = true, ForeColor = Color.Gray, BackColor = Color.White, Left = 6, Top = compact ? 3 : 4, Cursor = Cursors.IBeam }; searchHint.Click += delegate { search.Focus(); };
-            top.Controls.Add(search); top.Controls.Add(refresh); search.Controls.Add(searchHint);
-            selectAll = Small(Loc.T("모두 선택"), compact); clearAll = Small(Loc.T("선택 해제"), compact); move = Small(Loc.T("노트북으로 이동 ▾"), compact); delete = Small(Loc.T("선택 삭제"), compact);
-            status = new Label { Dock = DockStyle.Bottom, Height = compact ? 22 : 24, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
+            notebookList = new ListBox { Dock = DockStyle.Top, Height = compact ? 180 : 230, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
+            var tagHead = new Label { Text = Loc.T("태그"), Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.BottomLeft, Padding = new Padding(0, 0, 0, 2), Font = new Font("Malgun Gothic", 9f, FontStyle.Bold), ForeColor = FriendUI.BlueDark };
+            tagList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
+            left.Controls.Add(tagList); left.Controls.Add(tagHead); left.Controls.Add(notebookList); left.Controls.Add(nbRow);
+            left.SizeChanged += delegate
+            {
+                int avail = left.ClientSize.Height - left.Padding.Vertical - nbRow.Height - tagHead.Height;
+                if (avail > 160) notebookList.Height = Math.Max(80, avail / 2);
+            };
+
+            var right = new Panel { Dock = DockStyle.Fill, Padding = compact ? new Padding(6, 10, 16, 10) : new Padding(8, 12, 14, 10) };
+            var top = new Panel { Dock = DockStyle.Top, Height = 24 };
+            var searchWrap = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 4, 0) };
+            search = new TextBox { Dock = DockStyle.Fill };
+            searchWrap.Controls.Add(search);
+            refresh = IconBtn(FlatIcon.Refresh, Loc.T("새로고침"), 28, 24, last: true); refresh.Dock = DockStyle.Right;
+            searchHint = new Label { Text = Loc.T("메모 검색"), AutoSize = true, ForeColor = Color.Gray, BackColor = Color.White, Left = 6, Top = 3, Cursor = Cursors.IBeam }; searchHint.Click += delegate { search.Focus(); };
+            top.Controls.Add(searchWrap); top.Controls.Add(refresh); search.Controls.Add(searchHint);
+
+            var tools = new Panel { Dock = DockStyle.Top, Height = 32, Padding = new Padding(0, 4, 0, 4) };
+            status = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true, ForeColor = Color.DimGray, Padding = new Padding(2, 0, 6, 0) };
+            var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, Padding = Padding.Empty, Margin = Padding.Empty };
+            selectAll = IconBtn(FlatIcon.SelectAll, Loc.T("모두 선택"), 26, 24);
+            clearAll = IconBtn(FlatIcon.DeselectAll, Loc.T("선택 해제"), 26, 24);
+            move = IconBtn(FlatIcon.MoveFolder, Loc.T("노트북으로 이동"), 26, 24);
+            delete = IconBtn(FlatIcon.Trash, Loc.T("선택 삭제"), 26, 24, last: true);
+            toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
+            tools.Controls.Add(status); tools.Controls.Add(toolButtons);
+
             results = new NoteListBox { Dock = DockStyle.Fill };
-            if (compact)
-            {
-                selectionText = new Label { Dock = DockStyle.Top, Height = 20, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
-                var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 2, 0, 4), Margin = Padding.Empty };
-                foreach (var b in new[] { selectAll, clearAll, move, delete }) b.Margin = new Padding(0, 0, 4, 2);
-                toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
-                right.Controls.Add(results); right.Controls.Add(status); right.Controls.Add(toolButtons); right.Controls.Add(selectionText); right.Controls.Add(top);
-            }
-            else
-            {
-                var tools = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(0, 4, 0, 4) };
-                selectionText = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
-                var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight };
-                toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
-                tools.Controls.Add(selectionText); tools.Controls.Add(toolButtons);
-                right.Controls.Add(results); right.Controls.Add(status); right.Controls.Add(tools); right.Controls.Add(top);
-            }
+            right.Controls.Add(results); right.Controls.Add(tools); right.Controls.Add(top);
             Controls.Add(right); Controls.Add(left); right.BringToFront();
 
             search.TextChanged += delegate { searchHint.Visible = search.TextLength == 0; searchTimer.Stop(); searchTimer.Start(); };
@@ -185,6 +185,13 @@ namespace Bugi
             RefreshAll();
         }
 
+        private FlatButton IconBtn(FlatIcon.Painter paint, string tip, int w, int h, bool last = false)
+        {
+            var b = new FlatButton(paint, tip, w, h) { Margin = last ? Padding.Empty : new Padding(0, 0, 3, 0) };
+            tips.SetToolTip(b, tip);
+            return b;
+        }
+
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == Keys.Enter && search.Focused)
@@ -203,14 +210,9 @@ namespace Bugi
                 if (HasStore) mgr.Store.Changed -= storeChanged;
                 searchTimer.Stop(); searchTimer.Dispose();
                 refreshTimer.Stop(); refreshTimer.Dispose();
+                tips.Dispose();
             }
             base.Dispose(disposing);
-        }
-
-        private static Button Small(string text, bool compact)
-        {
-            if (compact) return new Button { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Height = 24, Margin = new Padding(0, 0, 3, 2), Padding = new Padding(2, 0, 2, 0) };
-            return new Button { Text = text, AutoSize = true, Height = 26, Margin = new Padding(3, 0, 3, 0), Padding = new Padding(4, 0, 4, 0) };
         }
 
         internal void RefreshAll() { RefreshFilters(); RefreshResults(); }
@@ -234,14 +236,20 @@ namespace Bugi
             var rows = HasStore ? mgr.Store.Query(search.Text, notebookFilter, tagFilter) : new List<Note>();
             results.BeginUpdate(); results.Items.Clear(); foreach (var n in rows) results.Items.Add(n); results.EndUpdate();
             results.Checked.IntersectWith(rows.Select(n => n.Id));
-            status.Text = rows.Count > 0 ? Loc.TF("{0}개", rows.Count) : string.IsNullOrWhiteSpace(search.Text) ? Loc.T("메모가 없어요") : Loc.TF("‘{0}’ 에 해당하는 메모가 없어요", search.Text.Trim());
+            countSummary = rows.Count > 0 ? Loc.TF("{0}개", rows.Count) : string.IsNullOrWhiteSpace(search.Text) ? Loc.T("메모가 없어요") : Loc.TF("‘{0}’ 에 해당하는 메모가 없어요", search.Text.Trim());
             UpdateSelection();
+        }
+
+        private void SetStatus(string text)
+        {
+            status.Text = text;
+            tips.SetToolTip(status, text);
         }
 
         private void UpdateSelection()
         {
             int c = results.Checked.Count;
-            selectionText.Text = c == 0 ? Loc.T("메모를 고르세요") : Loc.TF("{0}개 선택됨", c);
+            SetStatus(c == 0 ? countSummary : countSummary + "  ·  " + Loc.TF("{0}개 선택됨", c));
             selectAll.Enabled = HasStore && results.Items.Count > 0 && c < results.Items.Count; clearAll.Enabled = c > 0; move.Enabled = HasStore && c > 0; delete.Enabled = HasStore && c > 0;
         }
 
@@ -270,7 +278,7 @@ namespace Bugi
         private void ShowMoveMenu()
         {
             if (!HasStore) return;
-            if (results.Checked.Count == 0) { status.Text = Loc.T("옮길 메모를 고르세요"); return; }
+            if (results.Checked.Count == 0) { SetStatus(Loc.T("옮길 메모를 고르세요")); return; }
             var menu = new ContextMenuStrip(); menu.Items.Add(Loc.T("노트북 없음"), null, delegate { MoveChecked(null); });
             var nbs = mgr.Store.Notebooks; if (nbs.Count > 0) menu.Items.Add(new ToolStripSeparator());
             foreach (var nb in nbs) { Guid id = nb.Id; menu.Items.Add(nb.Name, null, delegate { MoveChecked(id); }); }
@@ -281,16 +289,16 @@ namespace Bugi
         {
             if (!HasStore) return;
             int count = results.Checked.Count; foreach (var id in results.Checked.ToList()) mgr.Store.SetNotebook(id, notebook);
-            results.Checked.Clear(); RefreshAll(); status.Text = Loc.TF("메모 {0}개를 옮겼어요", count);
+            results.Checked.Clear(); RefreshAll(); SetStatus(Loc.TF("메모 {0}개를 옮겼어요", count));
         }
 
         /// <summary>삭제는 되돌릴 수 없다(휴지통 없음) — 기록과 첨부까지 그 자리에서 사라지므로 한 번 더 묻는다.</summary>
         private void DeleteChecked()
         {
             if (!HasStore) return;
-            int count = results.Checked.Count; if (count == 0) { status.Text = Loc.T("삭제할 메모를 고르세요"); return; }
+            int count = results.Checked.Count; if (count == 0) { SetStatus(Loc.T("삭제할 메모를 고르세요")); return; }
             if (MessageBox.Show(OwnerWindow, Loc.TF("선택한 메모 {0}개를 완전히 삭제할까요?\n기록과 첨부도 함께 사라지고 되돌릴 수 없어요.", count), Loc.T("메모 삭제"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-            mgr.DeleteNotes(results.Checked.ToList()); results.Checked.Clear(); RefreshAll(); status.Text = Loc.TF("메모 {0}개를 삭제했어요", count);
+            mgr.DeleteNotes(results.Checked.ToList()); results.Checked.Clear(); RefreshAll(); SetStatus(Loc.TF("메모 {0}개를 삭제했어요", count));
         }
     }
 
