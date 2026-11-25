@@ -221,8 +221,8 @@ namespace Bugi
     {
         // 움직임 · 반응 · 생활은 "행동" 한 쪽으로 합쳤다.
         internal static string[] PageNames { get { return new[] { Loc.T("캐릭터"), Loc.T("행동"), Loc.T("알림"), Loc.T("화면 · 시스템"), Loc.T("메모"), Loc.T("AI 대화") }; } }
-        internal static string[] PageHints { get { return new[] { Loc.T("친구 · 도감 · ★ 기술"), Loc.T("이동 · 반응 · 생활"), Loc.T("정각 · 점심 · 퇴근 · 초과근무"), Loc.T("크기 · 투명도 · 자동 시작"), Loc.T("새 메모 기본값 · 단축키"), Loc.T("Ollama · EXAONE · 기억") }; } }
-        private const int AlarmPage = 2, DisplayPage = 3;
+        internal static string[] PageHints { get { return new[] { Loc.T("친구 · 도감 · ★ 기술"), Loc.T("이동 · 반응 · 생활"), Loc.T("정각 · 점심 · 퇴근 · 초과근무"), Loc.T("크기 · 투명도 · 자동 시작"), Loc.T("라이브러리 · 기본값 · 단축키"), Loc.T("Ollama · EXAONE · 기억") }; } }
+        private const int AlarmPage = 2, DisplayPage = 3, MemoPage = 4;
         private static int lastPage;
 
         private readonly App app;
@@ -259,7 +259,8 @@ namespace Bugi
         private SubTabs alarmTabs; private FlowLayoutPanel alarmFlow; private OvertimePanel overtimePanel;
         // 화면·시스템
         private NumericUpDown nOpacity, nPetSize; private CheckBox cStartup; private ComboBox cLang; private bool languageChanged;
-        // 메모
+        // 메모 (위쪽 탭: 메모 라이브러리 / 메모 설정)
+        private SubTabs memoTabs; private FlowLayoutPanel memoFlow; private NoteLibraryView memoLibrary;
         private ChoiceStrip noteColor, noteSize; private Label noteInfo;
         // AI 대화
         private ChoiceStrip cMode; private HotkeyBox hkBox; private CheckBox cChat, cChatKey, cChatSound, cChatProactive, cChatMemory, cChatChips, cChatDiary; private TextBox tChatModel, tChatUrl, tExaKey; private ComboBox cProvider, cExaEffort; private FlowLayoutPanel rowExa; private Label noteExa; private string[] chatStash = new string[4]; private int providerShown; private NumericUpDown nProactive; private Label chatProbe;
@@ -308,6 +309,7 @@ namespace Bugi
 
         internal void SelectPage(int i) { if (i >= 0 && i < pages.Length) nav.SelectedIndex = i; }
         internal void SelectAlarmTab(int i) { if (alarmTabs != null) alarmTabs.SelectedIndex = i; }
+        internal void SelectMemoTab(int i) { if (memoTabs != null) memoTabs.SelectedIndex = i; }
 
         // ───────── 분류 목록 그리기 ─────────
         private void DrawNav(object sender, DrawItemEventArgs e)
@@ -967,10 +969,11 @@ namespace Bugi
         }
 
         // ───────── 7. 메모 ─────────
+        // 위쪽 탭: ① 메모 라이브러리 ② 메모 설정(새 메모 기본값 · 단축키 · 저장 위치).
         // 글 대신 그림으로: 색 · 크기는 그림 카드로 고르고, 단축키는 아이콘 + 키캡 카드로 보여 준다. 자세한 설명은 마우스를 올리면 말풍선으로.
         private Panel BuildMemoPage()
         {
-            FlowLayoutPanel f; var page = NewPage(Loc.T("메모"), Loc.T("바탕화면 메모의 기본 모습 · 단축키 · 저장 위치"), out f);
+            FlowLayoutPanel f; var page = NewPage(Loc.T("메모"), Loc.T("메모 라이브러리 · 기본 모습 · 단축키 · 저장 위치"), out f);
             var mgr = app.Notes;
 
             var g1 = Group(f, Loc.T("새 메모의 기본값"), 520); var a = In(g1);
@@ -1028,6 +1031,20 @@ namespace Bugi
             var rt = Row(d);
             IconText(rt, FlatIcon.Copy, Loc.T("폴더째 복사 = 백업"), Loc.T("백업은 부기를 끈 뒤 이 폴더를 통째로 복사하면 돼요."), Color.DimGray);
             IconText(rt, FlatIcon.Trash, Loc.T("삭제는 되돌릴 수 없어요"), Loc.T("휴지통이 없어서, 지운 메모는 돌아오지 않아요."), Color.FromArgb(180, 60, 60));
+
+            // 위쪽 탭: 첫 번째는 메모 라이브러리, 두 번째는 메모 설정(현재 화면).
+            memoFlow = f; memoFlow.Visible = false;
+            memoLibrary = new NoteLibraryView(mgr, compact: true) { Dock = DockStyle.Fill, Visible = true };
+            memoTabs = new SubTabs(new[] { Loc.T("메모 라이브러리"), Loc.T("메모 설정") }) { Dock = DockStyle.Top };
+            memoTabs.SelectedIndexChanged += delegate
+            {
+                bool opts = memoTabs.SelectedIndex == 1;
+                memoLibrary.Visible = !opts; memoFlow.Visible = opts;
+                if (opts && app.Notes != null && app.Notes.Store != null && noteInfo != null)
+                    noteInfo.Text = Loc.TF("{0}개", app.Notes.Store.Count.ToString("N0"));
+            };
+            page.Controls.Add(memoTabs); page.Controls.Add(memoLibrary);
+            memoTabs.BringToFront(); memoFlow.BringToFront(); memoLibrary.BringToFront();
             return page;
         }
 

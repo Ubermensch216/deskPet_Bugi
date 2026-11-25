@@ -637,12 +637,13 @@ namespace Bugi
         }
 
         internal void OpenSettings() { OpenSettingsPage(-1); }
-        /// <param name="tab">알림 쪽 안의 탭(0 정각 · 점심 … / 1 초과근무 알림). -1 이면 건드리지 않는다.</param>
+        /// <param name="tab">쪽 안의 탭(알림: 0 정각·점심… / 1 초과근무 알림, 메모: 0 메모 라이브러리 / 1 메모 설정). -1 이면 건드리지 않는다.</param>
         internal void OpenSettingsPage(int page, int tab = -1)
         {
-            if (settingsForm != null && !settingsForm.IsDisposed) { if (page >= 0) settingsForm.SelectPage(page); if (tab >= 0) settingsForm.SelectAlarmTab(tab); settingsForm.Activate(); return; }
+            Action<SettingsForm> pickTab = f => { if (tab >= 0) { if (page == 4) f.SelectMemoTab(tab); else f.SelectAlarmTab(tab); } };
+            if (settingsForm != null && !settingsForm.IsDisposed) { if (page >= 0) settingsForm.SelectPage(page); pickTab(settingsForm); settingsForm.Activate(); return; }
             settingsForm = new SettingsForm(this, page); settingsForm.FormClosed += delegate { settingsForm = null; };
-            if (tab >= 0) settingsForm.SelectAlarmTab(tab);
+            pickTab(settingsForm);
             settingsForm.Show(); settingsForm.Activate();
         }
         internal void CloseFeatureWindows()

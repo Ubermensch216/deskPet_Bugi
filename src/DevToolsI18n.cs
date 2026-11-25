@@ -109,6 +109,10 @@ namespace Bugi
                 var now = DateTime.Now; app.Overtime.SetWatch(true, now); app.Overtime.SetBasic("09:00", "18:00"); app.Overtime.EnsureToday(now); app.Overtime.SetRange(10, 23);
                 var f = new SettingsForm(app, 2); f.SelectAlarmTab(1); shotForm(f, "settings_overtime"); f.Close();
             });
+            step("설정창 메모 설정 탭", () =>
+            {
+                var f = new SettingsForm(app, 4); f.SelectMemoTab(1); shotForm(f, "settings_memo_opts"); f.Close();
+            });
             step("알람 만들기 창", () => { var f = new AlarmComposer(app.TrayIconImage, a => true); shotForm(f, "alarm_composer"); f.Close(); });
             step("일기장", () => { var f = new ChatDiaryForm(app.TrayIconImage); shotForm(f, "diary"); f.Close(); });
             step("기억 창", () => { var f = new ChatMemoryForm(app.TrayIconImage); shotForm(f, "memory"); f.Close(); });

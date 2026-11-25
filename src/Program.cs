@@ -456,6 +456,7 @@ namespace Bugi
                 int p = page;
                 step("통합 설정창: " + SettingsForm.PageNames[p], () => { var f = new SettingsForm(app, p); shot(f, "ui_settings_" + p); f.Close(); });
             }
+            step("통합 설정창: 메모 · 메모 설정 탭", () => { var f = new SettingsForm(app, 4); f.SelectMemoTab(1); shot(f, "ui_settings_memo_opts"); f.Close(); });
             step("통합 설정창: 알림 · 초과근무 알림 탭", () =>
             {
                 var now = DateTime.Now; app.Overtime.SetWatch(true, now); app.Overtime.SetBasic("09:00", "18:00"); app.Overtime.EnsureToday(now); app.Overtime.SetRange(10, 23);

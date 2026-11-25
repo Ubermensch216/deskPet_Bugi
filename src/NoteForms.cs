@@ -90,10 +90,11 @@ namespace Bugi
     }
 
     /// <summary>
-    /// 메모 라이브러리(deskNote 의 Notes Explorer). 노트북과 태그로 좁혀 보고, 검색하고, 메모를 골라 옮기거나 지운다.
+    /// 메모 라이브러리 화면(독립 창 NoteLibraryForm 과 설정 → 메모 첫 번째 탭에서 공용).
+    /// 노트북과 태그로 좁혀 보고, 검색하고, 메모를 골라 옮기거나 지운다.
     /// 행을 누르면 그 메모가 바탕화면에 뜬다. 다른 창에서 메모를 고치면 목록이 따라온다(체크해 둔 동안에는 멈춘다).
     /// </summary>
-    internal sealed class NoteLibraryForm : Form
+    internal sealed class NoteLibraryView : Panel
     {
         private sealed class Choice { internal Guid? Id; internal string Key, Label; public override string ToString() { return Label; } }
 
@@ -102,37 +103,61 @@ namespace Bugi
         private readonly TextBox search;
         private readonly NoteListBox results;
         private readonly Label selectionText, status, searchHint;
-        private readonly Button selectAll, clearAll, move, delete, renameNb, deleteNb;
+        private readonly Button newNb, renameNb, deleteNb, refresh, selectAll, clearAll, move, delete;
         private readonly System.Windows.Forms.Timer searchTimer = new System.Windows.Forms.Timer { Interval = 150 }, refreshTimer = new System.Windows.Forms.Timer { Interval = 1000 };
-        private Guid? notebookFilter; private string tagFilter; private bool suppress;
+        private readonly Action storeChanged;
+        private Guid? notebookFilter; private string tagFilter; private bool suppress; private bool unsubscribed;
 
-        internal NoteLibraryForm(NoteManager mgr)
+        private bool HasStore { get { return mgr != null && mgr.Store != null; } }
+        private IWin32Window OwnerWindow { get { return FindForm() ?? (IWin32Window)this; } }
+
+        internal NoteLibraryView(NoteManager mgr, bool compact = false)
         {
-            this.mgr = mgr; FriendUI.Setup(this, mgr.AppIcon); Text = Loc.T("부기 · 메모 라이브러리"); ClientSize = new Size(920, 620); MinimumSize = new Size(700, 440);
-            FormBorderStyle = FormBorderStyle.Sizable; MaximizeBox = true; ShowInTaskbar = true; StartPosition = FormStartPosition.CenterScreen;
+            this.mgr = mgr;
+            BackColor = compact ? FriendUI.Sheet : FriendUI.Paper; ForeColor = FriendUI.Ink;
 
-            var left = new Panel { Dock = DockStyle.Left, Width = 256, Padding = new Padding(12, 14, 6, 10) };
-            var nbLabel = new Label { Text = Loc.T("노트북"), Dock = DockStyle.Top, Height = 24, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
-            var nbHead = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, WrapContents = false };
-            var newNb = Small(Loc.T("＋ 새로")); renameNb = Small(Loc.T("이름")); deleteNb = Small(Loc.T("삭제")); nbHead.Controls.AddRange(new Control[] { newNb, renameNb, deleteNb });
-            notebookList = new ListBox { Dock = DockStyle.Top, Height = 220, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
-            var tagHead = new Label { Text = Loc.T("태그"), Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
+            var left = new Panel { Dock = DockStyle.Left, Width = compact ? 216 : 256, Padding = compact ? new Padding(16, 8, 6, 8) : new Padding(12, 14, 6, 10) };
+            var nbLabel = new Label { Text = Loc.T("노트북"), Dock = DockStyle.Top, Height = compact ? 20 : 24, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
+            var nbHead = compact
+                ? new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new Padding(0, 2, 0, 4), Margin = Padding.Empty }
+                : new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, WrapContents = false };
+            newNb = Small(Loc.T("＋ 새로"), compact); renameNb = Small(Loc.T("이름"), compact); deleteNb = Small(Loc.T("삭제"), compact); nbHead.Controls.AddRange(new Control[] { newNb, renameNb, deleteNb });
+            notebookList = new ListBox { Dock = DockStyle.Top, Height = compact ? 165 : 220, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
+            var tagHead = new Label { Text = Loc.T("태그"), Dock = DockStyle.Top, Height = compact ? 24 : 26, TextAlign = ContentAlignment.BottomLeft, ForeColor = FriendUI.Ink };
             tagList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle };
             left.Controls.Add(tagList); left.Controls.Add(tagHead); left.Controls.Add(notebookList); left.Controls.Add(nbHead); left.Controls.Add(nbLabel);
+            if (compact)
+                left.SizeChanged += delegate
+                {
+                    int avail = left.ClientSize.Height - left.Padding.Vertical - nbLabel.Height - nbHead.Height - tagHead.Height;
+                    if (avail > 160) notebookList.Height = Math.Max(80, avail / 2);
+                };
 
-            var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 14, 14, 10) };
-            var top = new Panel { Dock = DockStyle.Top, Height = 34 };
-            search = new TextBox { Dock = DockStyle.Fill }; var refresh = new Button { Text = "⟳", Dock = DockStyle.Right, Width = 36 };
-            searchHint = new Label { Text = Loc.T("메모 검색"), AutoSize = true, ForeColor = Color.Gray, BackColor = Color.White, Left = 6, Top = 4, Cursor = Cursors.IBeam }; searchHint.Click += delegate { search.Focus(); };
+            var right = new Panel { Dock = DockStyle.Fill, Padding = compact ? new Padding(6, 10, 16, 8) : new Padding(8, 14, 14, 10) };
+            var top = new Panel { Dock = DockStyle.Top, Height = compact ? 26 : 34 };
+            search = new TextBox { Dock = DockStyle.Fill }; refresh = new Button { Text = "⟳", Dock = DockStyle.Right, Width = compact ? 30 : 36 };
+            searchHint = new Label { Text = Loc.T("메모 검색"), AutoSize = true, ForeColor = Color.Gray, BackColor = Color.White, Left = 6, Top = compact ? 3 : 4, Cursor = Cursors.IBeam }; searchHint.Click += delegate { search.Focus(); };
             top.Controls.Add(search); top.Controls.Add(refresh); search.Controls.Add(searchHint);
-            var tools = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(0, 4, 0, 4) };
-            selectionText = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
-            var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight };
-            selectAll = Small(Loc.T("모두 선택")); clearAll = Small(Loc.T("선택 해제")); move = Small(Loc.T("노트북으로 이동 ▾")); delete = Small(Loc.T("선택 삭제")); toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
-            tools.Controls.Add(selectionText); tools.Controls.Add(toolButtons);
-            status = new Label { Dock = DockStyle.Bottom, Height = 24, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
+            selectAll = Small(Loc.T("모두 선택"), compact); clearAll = Small(Loc.T("선택 해제"), compact); move = Small(Loc.T("노트북으로 이동 ▾"), compact); delete = Small(Loc.T("선택 삭제"), compact);
+            status = new Label { Dock = DockStyle.Bottom, Height = compact ? 22 : 24, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
             results = new NoteListBox { Dock = DockStyle.Fill };
-            right.Controls.Add(results); right.Controls.Add(status); right.Controls.Add(tools); right.Controls.Add(top);
+            if (compact)
+            {
+                selectionText = new Label { Dock = DockStyle.Top, Height = 20, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
+                var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 2, 0, 4), Margin = Padding.Empty };
+                foreach (var b in new[] { selectAll, clearAll, move, delete }) b.Margin = new Padding(0, 0, 4, 2);
+                toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
+                right.Controls.Add(results); right.Controls.Add(status); right.Controls.Add(toolButtons); right.Controls.Add(selectionText); right.Controls.Add(top);
+            }
+            else
+            {
+                var tools = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(0, 4, 0, 4) };
+                selectionText = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DimGray };
+                var toolButtons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight };
+                toolButtons.Controls.AddRange(new Control[] { selectAll, clearAll, move, delete });
+                tools.Controls.Add(selectionText); tools.Controls.Add(toolButtons);
+                right.Controls.Add(results); right.Controls.Add(status); right.Controls.Add(tools); right.Controls.Add(top);
+            }
             Controls.Add(right); Controls.Add(left); right.BringToFront();
 
             search.TextChanged += delegate { searchHint.Visible = search.TextLength == 0; searchTimer.Stop(); searchTimer.Start(); };
@@ -141,31 +166,64 @@ namespace Bugi
             refresh.Click += delegate { RefreshAll(); };
             notebookList.SelectedIndexChanged += delegate { if (suppress) return; var c = notebookList.SelectedItem as Choice; notebookFilter = c == null ? null : c.Id; UpdateNotebookButtons(); RefreshResults(); };
             tagList.SelectedIndexChanged += delegate { if (suppress) return; var c = tagList.SelectedItem as Choice; tagFilter = c == null ? null : c.Key; RefreshResults(); };
-            results.NoteClicked += n => mgr.Focus(n.Id);
+            results.NoteClicked += n => { if (HasStore) mgr.Focus(n.Id); };
             results.CheckedChanged += UpdateSelection;
             selectAll.Click += delegate { foreach (var n in results.Items.OfType<Note>()) results.Checked.Add(n.Id); results.Invalidate(); UpdateSelection(); };
             clearAll.Click += delegate { results.Checked.Clear(); results.Invalidate(); UpdateSelection(); };
             delete.Click += delegate { DeleteChecked(); };
             move.Click += delegate { ShowMoveMenu(); };
             newNb.Click += delegate { NewNotebook(); }; renameNb.Click += delegate { RenameNotebook(); }; deleteNb.Click += delegate { DeleteNotebook(); };
-            Action changed = () => { if (!IsDisposed && results.Checked.Count == 0) { refreshTimer.Stop(); refreshTimer.Start(); } };
-            mgr.Store.Changed += changed;
-            FormClosed += delegate { mgr.Store.Changed -= changed; searchTimer.Dispose(); refreshTimer.Dispose(); };
-            ApplyHelperStyle(); RefreshAll();
+
+            storeChanged = () =>
+            {
+                if (IsDisposed) return;
+                Action kick = () => { if (!IsDisposed && results.Checked.Count == 0) { refreshTimer.Stop(); refreshTimer.Start(); } };
+                if (IsHandleCreated && InvokeRequired) { try { BeginInvoke(kick); } catch { } }
+                else kick();
+            };
+            if (HasStore) mgr.Store.Changed += storeChanged;
+            RefreshAll();
         }
 
-        private static Button Small(string text) { return new Button { Text = text, AutoSize = true, Height = 26, Margin = new Padding(3, 0, 3, 0), Padding = new Padding(4, 0, 4, 0) }; }
-        private void ApplyHelperStyle() { BackColor = FriendUI.Paper; ForeColor = FriendUI.Ink; }
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Enter && search.Focused)
+            {
+                searchTimer.Stop(); RefreshResults();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && !unsubscribed)
+            {
+                unsubscribed = true;
+                if (HasStore) mgr.Store.Changed -= storeChanged;
+                searchTimer.Stop(); searchTimer.Dispose();
+                refreshTimer.Stop(); refreshTimer.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        private static Button Small(string text, bool compact)
+        {
+            if (compact) return new Button { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Height = 24, Margin = new Padding(0, 0, 3, 2), Padding = new Padding(2, 0, 2, 0) };
+            return new Button { Text = text, AutoSize = true, Height = 26, Margin = new Padding(3, 0, 3, 0), Padding = new Padding(4, 0, 4, 0) };
+        }
 
         internal void RefreshAll() { RefreshFilters(); RefreshResults(); }
 
         private void RefreshFilters()
         {
             suppress = true;
-            var nbs = new List<Choice> { new Choice { Label = Loc.T("전체") } }; nbs.AddRange(mgr.Store.Notebooks.Select(n => new Choice { Id = n.Id, Label = n.Name }));
+            var nbs = new List<Choice> { new Choice { Label = Loc.T("전체") } };
+            if (HasStore) nbs.AddRange(mgr.Store.Notebooks.Select(n => new Choice { Id = n.Id, Label = n.Name }));
             notebookList.DataSource = null; notebookList.Items.Clear(); foreach (var c in nbs) notebookList.Items.Add(c);
             int ni = nbs.FindIndex(c => c.Id == notebookFilter); if (ni < 0) { notebookFilter = null; ni = 0; } notebookList.SelectedIndex = ni;
-            var tags = new List<Choice> { new Choice { Label = Loc.T("전체") } }; tags.AddRange(mgr.Store.TagUsage().Select(t => new Choice { Key = TagParser.Normalize(t.Key), Label = "#" + t.Key + "  (" + t.Value + ")" }));
+            var tags = new List<Choice> { new Choice { Label = Loc.T("전체") } };
+            if (HasStore) tags.AddRange(mgr.Store.TagUsage().Select(t => new Choice { Key = TagParser.Normalize(t.Key), Label = "#" + t.Key + "  (" + t.Value + ")" }));
             tagList.Items.Clear(); foreach (var c in tags) tagList.Items.Add(c);
             int ti = tags.FindIndex(c => c.Key == tagFilter); if (ti < 0) { tagFilter = null; ti = 0; } tagList.SelectedIndex = ti;
             suppress = false; UpdateNotebookButtons();
@@ -173,7 +231,7 @@ namespace Bugi
 
         private void RefreshResults()
         {
-            var rows = mgr.Store.Query(search.Text, notebookFilter, tagFilter);
+            var rows = HasStore ? mgr.Store.Query(search.Text, notebookFilter, tagFilter) : new List<Note>();
             results.BeginUpdate(); results.Items.Clear(); foreach (var n in rows) results.Items.Add(n); results.EndUpdate();
             results.Checked.IntersectWith(rows.Select(n => n.Id));
             status.Text = rows.Count > 0 ? Loc.TF("{0}개", rows.Count) : string.IsNullOrWhiteSpace(search.Text) ? Loc.T("메모가 없어요") : Loc.TF("‘{0}’ 에 해당하는 메모가 없어요", search.Text.Trim());
@@ -184,32 +242,34 @@ namespace Bugi
         {
             int c = results.Checked.Count;
             selectionText.Text = c == 0 ? Loc.T("메모를 고르세요") : Loc.TF("{0}개 선택됨", c);
-            selectAll.Enabled = results.Items.Count > 0 && c < results.Items.Count; clearAll.Enabled = c > 0; move.Enabled = c > 0; delete.Enabled = c > 0;
+            selectAll.Enabled = HasStore && results.Items.Count > 0 && c < results.Items.Count; clearAll.Enabled = c > 0; move.Enabled = HasStore && c > 0; delete.Enabled = HasStore && c > 0;
         }
 
-        private void UpdateNotebookButtons() { bool sel = notebookFilter.HasValue; renameNb.Enabled = sel; deleteNb.Enabled = sel; }
+        private void UpdateNotebookButtons() { bool ok = HasStore; newNb.Enabled = ok; refresh.Enabled = ok; bool sel = ok && notebookFilter.HasValue; renameNb.Enabled = sel; deleteNb.Enabled = sel; }
 
         private void NewNotebook()
         {
-            using (var dlg = new PromptForm(Loc.T("새 노트북"), Loc.T("노트북 이름"), "")) if (dlg.ShowDialog(this) == DialogResult.OK && dlg.Value.Length > 0) { var nb = mgr.Store.CreateNotebook(dlg.Value); notebookFilter = nb.Id; RefreshAll(); }
+            if (!HasStore) return;
+            using (var dlg = new PromptForm(Loc.T("새 노트북"), Loc.T("노트북 이름"), "")) if (dlg.ShowDialog(OwnerWindow) == DialogResult.OK && dlg.Value.Length > 0) { var nb = mgr.Store.CreateNotebook(dlg.Value); notebookFilter = nb.Id; RefreshAll(); }
         }
 
         private void RenameNotebook()
         {
-            if (!notebookFilter.HasValue) return; var c = notebookList.SelectedItem as Choice; if (c == null) return;
-            using (var dlg = new PromptForm(Loc.T("노트북 이름 변경"), Loc.T("노트북 이름"), c.Label)) if (dlg.ShowDialog(this) == DialogResult.OK && dlg.Value.Length > 0) { mgr.Store.RenameNotebook(notebookFilter.Value, dlg.Value); RefreshAll(); }
+            if (!HasStore || !notebookFilter.HasValue) return; var c = notebookList.SelectedItem as Choice; if (c == null) return;
+            using (var dlg = new PromptForm(Loc.T("노트북 이름 변경"), Loc.T("노트북 이름"), c.Label)) if (dlg.ShowDialog(OwnerWindow) == DialogResult.OK && dlg.Value.Length > 0) { mgr.Store.RenameNotebook(notebookFilter.Value, dlg.Value); RefreshAll(); }
         }
 
         /// <summary>노트북을 지워도 안의 메모는 남는다(노트북에서만 빠진다).</summary>
         private void DeleteNotebook()
         {
-            if (!notebookFilter.HasValue) return; var c = notebookList.SelectedItem as Choice; if (c == null) return;
-            if (MessageBox.Show(this, Loc.TF("노트북 ‘{0}’ 을(를) 삭제할까요?\n안에 있는 메모는 지워지지 않고 노트북에서만 빠져요.", c.Label), Loc.T("노트북 삭제"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (!HasStore || !notebookFilter.HasValue) return; var c = notebookList.SelectedItem as Choice; if (c == null) return;
+            if (MessageBox.Show(OwnerWindow, Loc.TF("노트북 ‘{0}’ 을(를) 삭제할까요?\n안에 있는 메모는 지워지지 않고 노트북에서만 빠져요.", c.Label), Loc.T("노트북 삭제"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             mgr.Store.DeleteNotebook(notebookFilter.Value); notebookFilter = null; RefreshAll();
         }
 
         private void ShowMoveMenu()
         {
+            if (!HasStore) return;
             if (results.Checked.Count == 0) { status.Text = Loc.T("옮길 메모를 고르세요"); return; }
             var menu = new ContextMenuStrip(); menu.Items.Add(Loc.T("노트북 없음"), null, delegate { MoveChecked(null); });
             var nbs = mgr.Store.Notebooks; if (nbs.Count > 0) menu.Items.Add(new ToolStripSeparator());
@@ -219,6 +279,7 @@ namespace Bugi
 
         private void MoveChecked(Guid? notebook)
         {
+            if (!HasStore) return;
             int count = results.Checked.Count; foreach (var id in results.Checked.ToList()) mgr.Store.SetNotebook(id, notebook);
             results.Checked.Clear(); RefreshAll(); status.Text = Loc.TF("메모 {0}개를 옮겼어요", count);
         }
@@ -226,10 +287,30 @@ namespace Bugi
         /// <summary>삭제는 되돌릴 수 없다(휴지통 없음) — 기록과 첨부까지 그 자리에서 사라지므로 한 번 더 묻는다.</summary>
         private void DeleteChecked()
         {
+            if (!HasStore) return;
             int count = results.Checked.Count; if (count == 0) { status.Text = Loc.T("삭제할 메모를 고르세요"); return; }
-            if (MessageBox.Show(this, Loc.TF("선택한 메모 {0}개를 완전히 삭제할까요?\n기록과 첨부도 함께 사라지고 되돌릴 수 없어요.", count), Loc.T("메모 삭제"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+            if (MessageBox.Show(OwnerWindow, Loc.TF("선택한 메모 {0}개를 완전히 삭제할까요?\n기록과 첨부도 함께 사라지고 되돌릴 수 없어요.", count), Loc.T("메모 삭제"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             mgr.DeleteNotes(results.Checked.ToList()); results.Checked.Clear(); RefreshAll(); status.Text = Loc.TF("메모 {0}개를 삭제했어요", count);
         }
+    }
+
+    /// <summary>
+    /// 메모 라이브러리(deskNote 의 Notes Explorer) 독립 창. 단축키 Ctrl+Shift+F 나 메모 위젯 ⋯ 메뉴로 연다.
+    /// </summary>
+    internal sealed class NoteLibraryForm : Form
+    {
+        private readonly NoteLibraryView view;
+
+        internal NoteLibraryForm(NoteManager mgr)
+        {
+            FriendUI.Setup(this, mgr.AppIcon); Text = Loc.T("부기 · 메모 라이브러리"); ClientSize = new Size(920, 620); MinimumSize = new Size(700, 440);
+            FormBorderStyle = FormBorderStyle.Sizable; MaximizeBox = true; ShowInTaskbar = true; StartPosition = FormStartPosition.CenterScreen;
+            BackColor = FriendUI.Paper; ForeColor = FriendUI.Ink;
+            view = new NoteLibraryView(mgr, compact: false) { Dock = DockStyle.Fill };
+            Controls.Add(view);
+        }
+
+        internal void RefreshAll() { view.RefreshAll(); }
     }
 
     /// <summary>

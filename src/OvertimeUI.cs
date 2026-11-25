@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace Bugi
 {
-    /// <summary>설정 → 알림 쪽의 위쪽 탭 줄(정각 · 점심 … / 초과근무 알림).</summary>
+    /// <summary>설정 쪽 안의 위쪽 탭 줄(알림 · 메모 등).</summary>
     internal sealed class SubTabs : Control
     {
         private readonly string[] labels; private int selected, hot = -1;
