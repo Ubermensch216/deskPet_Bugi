@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -161,7 +161,67 @@ namespace Bugi
         }
 
         /// <summary>창을 띄우고 그 창만 PNG 로 저장한다(바탕화면은 찍히지 않음). 메모 창은 투명 영역 때문에 PrintWindow 로 찍는다.</summary>
-        /// <summary>설정 → 알림 → 초과근무 알림 탭(README 용).</summary>
+        /// <summary>설정창의 쪽마다 한 장씩(README 용). 초과근무 알림 탭은 README 에 싣지 않는다.</summary>
+        private static void ShotSettingsPages(App app, string dir)
+        {
+            using (var f = new SettingsForm(app, 0)) CaptureForm(f, Path.Combine(dir, "settings_character.png"));
+            using (var f = new SettingsForm(app, 2)) { f.SelectAlarmTab(0); CaptureForm(f, Path.Combine(dir, "settings_alarm.png")); }
+            using (var f = new SettingsForm(app, 3)) CaptureForm(f, Path.Combine(dir, "settings_display.png"));
+            using (var f = new SettingsForm(app, 4)) { f.SelectMemoTab(0); CaptureForm(f, Path.Combine(dir, "settings_memo.png")); }
+            using (var f = new SettingsForm(app, 5)) CaptureForm(f, Path.Combine(dir, "settings_ai.png"));
+        }
+
+        /// <summary>정각 알림창(README 용). 시계와 문구의 시각이 맞도록 현재 시각을 쓴다.</summary>
+        private static void ShotNotice(App app, string path)
+        {
+            var n = new HourlyNotice(app.TrayIconImage);
+            n.SetMessage(App.HourlyText(DateTime.Now) + "\n잠깐 기지개 켜고 물 한 잔 마실까?");
+            n.Show(); Pump(1.2);
+            using (var b = new Bitmap(n.Width, n.Height)) { n.DrawToBitmap(b, new Rectangle(0, 0, n.Width, n.Height)); b.Save(path, ImageFormat.Png); }
+            n.Close(); Pump(.3);
+        }
+
+        /// <summary>AI 대화 모습(말풍선 AI 표시 · 알약 입력칸 · 답장 추천 칩)을 깔끔한 바탕 위에 합성한다.</summary>
+        private static void ShotChat(string path)
+        {
+            var w = new FakeWorld();
+            var pet = new Pet(w, CharacterArt.Get(0), 220, 260);
+            pet.SetState(PetState.Pause, w);
+            ChatDemo(pet, w, ChatPhase.Talking, ChatMood.Joy, "안녕! 기다리고 있었어~", 45, 0);
+            PointF origin;
+            using (Bitmap petBmp = Pet.Render(pet.GetLook(w.Now), out origin))
+            using (var input = new ChatInput())
+            {
+                input.ShowChips(new[] { "오늘 뭐 했어?", "점심 추천해 줘", "응원해 줘" });
+                Thread.Sleep(550);   // 칩 떠오름 애니메이션 끝까지
+                MethodInfo render = typeof(ChatInput).GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance);
+                using (Bitmap pillBmp = (Bitmap)render.Invoke(input, new object[] { 0f }))
+                {
+                    int pad = 20;
+                    int width = Math.Max(petBmp.Width, pillBmp.Width) + pad * 2;
+                    int pillY = pad + petBmp.Height - 40;
+                    int height = pillY + pillBmp.Height + pad - 6;
+                    using (var canvas = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+                    using (var g = Graphics.FromImage(canvas))
+                    {
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                        using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(new Rectangle(0, 0, width, height), Color.FromArgb(236, 244, 255), Color.FromArgb(248, 244, 255), 90f))
+                            g.FillRectangle(bg, 0, 0, width, height);
+                        g.DrawImage(petBmp, (width - petBmp.Width) / 2, pad);
+                        int px = (width - pillBmp.Width) / 2;
+                        g.DrawImage(pillBmp, px, pillY);
+                        float s = CharacterArt.DpiScale;
+                        using (var f = new Font("Malgun Gothic", 13.5f * s, FontStyle.Regular, GraphicsUnit.Pixel))
+                        using (var br = new SolidBrush(Color.FromArgb(148, 154, 170)))
+                            g.DrawString("부기에게 말 걸어 봐...", f, br, px + (int)(44 * s), pillY + pillBmp.Height - (int)(38 * s));
+                        canvas.Save(path, ImageFormat.Png);
+                    }
+                }
+            }
+        }
+
+        /// <summary>설정 → 알림 → 초과근무 알림 탭(점검용. README 에는 싣지 않음).</summary>
         private static void ShotOvertime(App app, string path)
         {
             DateTime now = DateTime.Now; var st = app.Overtime;
@@ -293,16 +353,20 @@ namespace Bugi
         {
             Directory.CreateDirectory(dir);
             Paths.StorageOverride = Path.Combine(dir, "data");
+            Directory.CreateDirectory(Paths.StorageOverride);
+            new Settings { Roster = "0,1" }.Save();
             PlayOptions.Load(); FriendData.Load(); CharacterArt.Reset(Native.SystemDpiScale());
             FriendData.Current.Affinity = 128; FriendData.Current.TogetherSeconds = 5 * 3600 + 20 * 60; FriendData.Current.Satiety = 72;
 
             DesktopSurfaces.TestProvider = () => new System.Collections.Generic.List<SurfaceWindow>();
 
-            var app = new App(true); app.Spawn(0); Pump(1);
+            var app = new App(true); Pump(1);
             ShotAlert(app, Path.Combine(dir, "alert.png"));
             ShotNotes(app, dir);
             using (var f = new SettingsForm(app, 1)) CaptureForm(f, Path.Combine(dir, "settings.png"));
-            ShotOvertime(app, Path.Combine(dir, "overtime.png"));
+            ShotSettingsPages(app, dir);
+            ShotNotice(app, Path.Combine(dir, "notice.png"));
+            ShotChat(Path.Combine(dir, "chat.png"));
             ShotMenu(app, Path.Combine(dir, "menu.png"));
             app.Quit();
             return 0;
